@@ -1,0 +1,11 @@
+### Env ###
+.env
+infra/.env
+
+### IDE ###
+.idea/
+*.iml
+
+### OS ###
+.DS_Store
+Thumbs.db
