@@ -40,3 +40,12 @@ infra/.env
 ### OS ###
 .DS_Store
 Thumbs.db
+
+### Rodrigo skills ###
+.agents
+.claude
+skills-lock.json
+opencode.json
+
+### Personal roadmap (Rodrigo) ###
+/BACKEND_DEVELOPMENT_ROADMAP.md
