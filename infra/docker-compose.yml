@@ -1,0 +1,37 @@
+# ============================================================================
+#  BallaStasera — Database Postgres + PostGIS in Docker
+#  Avvio:  docker compose up -d
+#  Lo schema in ./ballastasera_schema.sql viene caricato AUTOMATICAMENTE
+#  al PRIMO avvio (quando il volume dati è vuoto).
+# ============================================================================
+
+name: ballastasera
+
+services:
+  postgres:
+    image: postgis/postgis:18-3.6 # Postgres 18 con PostGIS gia' incluso
+    container_name: postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ballastasera}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-ballastasera}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432" # host:container — connettiti a localhost:5432
+    volumes:
+      - postgresql_data:/var/lib/postgresql # dati persistenti (Postgres 18+: mount senza /data)
+      # Script eseguiti in ordine alfabetico SOLO al primo avvio (volume vuoto):
+      # - ./ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      # - ./02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-ballastasera} -d ${POSTGRES_DB:-ballastasera}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgresql_data:

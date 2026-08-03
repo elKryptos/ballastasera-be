@@ -1,0 +1,490 @@
+# BallaStasera — Documentazione del database
+
+> Documento di riferimento dello schema PostgreSQL della piattaforma di eventi
+> di ballo latino/social (salsa, bachata, kizomba, ...).
+> Serve a ricordare cosa fa ogni tabella, come sono collegate e perché.
+
+**Target:** PostgreSQL 14+
+**Idea di prodotto:** utenti con login Google (OAuth), consultazione pubblica
+senza login, ogni evento geolocalizzato per la mappa (Leaflet). Si parte da
+Milano ma il modello è già multi-città / multi-Italia.
+
+---
+
+## Indice
+
+1. [Concetti e convenzioni generali](#1-concetti-e-convenzioni-generali)
+2. [Estensioni e funzioni di supporto](#2-estensioni-e-funzioni-di-supporto)
+3. [Tipi enumerati (ENUM)](#3-tipi-enumerati-enum)
+4. [Le tabelle in dettaglio](#4-le-tabelle-in-dettaglio)
+5. [Mappa delle relazioni](#5-mappa-delle-relazioni)
+6. [Comportamento alla cancellazione (ON DELETE)](#6-comportamento-alla-cancellazione-on-delete)
+7. [Indici e perché esistono](#7-indici-e-perché-esistono)
+8. [La vista upcoming_events](#8-la-vista-upcoming_events)
+9. [Dati iniziali (seed)](#9-dati-iniziali-seed)
+10. [Sezione GEO opzionale (PostGIS)](#10-sezione-geo-opzionale-postgis)
+11. [Glossario veloce](#11-glossario-veloce)
+
+---
+
+## 1. Concetti e convenzioni generali
+
+Alcune scelte ricorrono in tutto lo schema; capirle una volta vale per tutte le tabelle.
+
+**Chiavi primarie: UUID vs BIGINT.**
+Le entità "di dominio" scritte dagli utenti (`users`, `organizers`, `venues`,
+`events`, `event_series`) usano `UUID` come chiave primaria, generato con
+`gen_random_uuid()`. Un UUID è un identificatore casuale: non rivela quanti
+record esistono e non è indovinabile in una URL. Le tabelle di puro catalogo
+(`cities`, `dance_styles`) usano invece `BIGINT GENERATED ALWAYS AS IDENTITY`
+(numeri progressivi 1, 2, 3...), perché sono poche righe controllate e non c'è
+motivo di nasconderne il conteggio.
+
+**Timestamp.**
+Ovunque si usa `TIMESTAMPTZ` (timestamp *with time zone*), non il timestamp
+semplice. Così un orario è sempre univoco a livello mondiale ed è già pronto per
+il multi-città. `created_at` è impostato una volta con `DEFAULT now()`;
+`updated_at` viene aggiornato automaticamente da un trigger (vedi sezione 2).
+
+**Slug.**
+Molte tabelle hanno una colonna `slug`: è la versione "pulita" del nome usata
+nelle URL (es. `Tropical Milano` → `tropical-milano` → `/organizzatore/tropical-milano`).
+Gli slug sono `UNIQUE` per evitare due URL identiche.
+
+**Denormalizzazione volutamente delle coordinate.**
+Le coordinate (`latitude`/`longitude`) sono presenti sia sul `venue` sia
+sull'`event`. È una ripetizione voluta: quando c'è un venue l'app copia le
+coordinate sull'evento, così la query della mappa legge una sola tabella
+indicizzata ed è veloce. Non è un errore di progettazione.
+
+**Un utente non è un organizzatore.**
+`users` è solo l'account che fa il login. Il profilo pubblico che pubblica
+eventi è `organizers`. Un utente può non avere alcun organizer (solo consulta)
+oppure gestirne più di uno (es. due locali).
+
+---
+
+## 2. Estensioni e funzioni di supporto
+
+**Estensione `pgcrypto`**
+```sql
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+```
+Fornisce `gen_random_uuid()`, usata come default delle chiavi primarie UUID.
+
+**Funzione + trigger `set_updated_at`**
+```sql
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+Un *trigger* è codice che si esegue da solo quando succede qualcosa. Questa
+funzione viene agganciata a ogni tabella che ha `updated_at`, con un trigger
+`BEFORE UPDATE`: a ogni modifica di una riga, `updated_at` viene messo a `now()`
+in automatico. Così l'applicazione non deve ricordarsi di farlo.
+
+Tabelle con questo trigger: `users`, `organizers`, `venues`, `event_series`, `events`.
+
+---
+
+## 3. Tipi enumerati (ENUM)
+
+Un ENUM è una lista chiusa di valori ammessi: se provi a inserire qualcos'altro,
+PostgreSQL rifiuta. È la prima difesa contro i dati sporchi.
+
+| Tipo | Valori | Usato in | Significato |
+|------|--------|----------|-------------|
+| `user_role` | `user`, `organizer`, `admin` | `users.role` | Ruolo dell'account. `user` = consulta; `organizer` = pubblica; `admin` = gestione/moderazione. |
+| `organizer_type` | `person`, `venue`, `club`, `school`, `association` | `organizers.type` | Che cosa è chi pubblica: persona, locale, discoteca, scuola, associazione. |
+| `event_status` | `draft`, `pending`, `published`, `cancelled` | `events.status` | Stato dell'evento nel flusso di moderazione (bozza → in attesa → pubblicato / annullato). |
+| `attendance_status` | `interested`, `going` | `event_attendance.status` | "Mi interessa" oppure "ci vado". |
+
+---
+
+## 4. Le tabelle in dettaglio
+
+Per ogni tabella: a cosa serve, le colonne principali, e i collegamenti.
+
+### 4.1 `cities` — città / aree
+
+Catalogo delle città in cui la piattaforma è attiva. Oggi solo Milano, domani il
+resto d'Italia. Serve a centrare la mappa su ogni città e a costruire le URL.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | BIGINT PK | progressivo |
+| `name` | TEXT, NOT NULL | es. `Milano` |
+| `province` | TEXT | sigla, es. `MI` |
+| `region` | TEXT | es. `Lombardia` |
+| `country` | CHAR(2), default `IT` | codice paese |
+| `latitude`, `longitude` | DOUBLE | centro città (per la mappa) |
+| `slug` | TEXT, UNIQUE | es. `milano` → URL `/milano` |
+| `is_active` | BOOL, default TRUE | città già "aperta" sulla piattaforma |
+| `created_at` | TIMESTAMPTZ | |
+
+Vincoli: `UNIQUE (slug)`, `UNIQUE (name, province)`.
+**Relazioni:** una città → molti `venues`; una città → molti `events`.
+
+---
+
+### 4.2 `users` — account (identità + login Google)
+
+L'account che fa login. La consultazione del sito è pubblica, quindi molti
+visitatori non avranno mai una riga qui: `users` serve per chi salva preferiti,
+segna la partecipazione o pubblica eventi.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `google_id` | TEXT, UNIQUE | il `sub` restituito da Google OAuth |
+| `email` | TEXT, NOT NULL, UNIQUE | |
+| `display_name` | TEXT, NOT NULL | |
+| `avatar_url` | TEXT | |
+| `role` | `user_role`, default `user` | |
+| `is_active` | BOOL, default TRUE | |
+| `created_at`, `updated_at` | TIMESTAMPTZ | `updated_at` via trigger |
+
+**Relazioni:** un utente → molti `organizers`, molti `favorites`, molti
+`event_attendance`; è inoltre il `created_by` (opzionale) di molti `venues`.
+
+---
+
+### 4.3 `organizers` — profilo pubblico di chi pubblica
+
+Il profilo visibile di chi organizza: una persona, un locale, una discoteca, una
+scuola o un'associazione (campo `type`). Contiene nome pubblico, logo, contatti,
+social e il badge `is_verified` gestito dagli admin.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | UUID PK | |
+| `user_id` | UUID, NOT NULL, FK → `users` | proprietario dell'account |
+| `name` | TEXT, NOT NULL | nome pubblico |
+| `slug` | TEXT, NOT NULL, UNIQUE | per la URL |
+| `type` | `organizer_type`, default `person` | |
+| `description`, `logo_url`, `website`, `phone`, `contact_email`, `instagram`, `facebook` | TEXT | campi di profilo |
+| `is_verified` | BOOL, default FALSE | badge "verificato" |
+| `created_at`, `updated_at` | TIMESTAMPTZ | trigger su `updated_at` |
+
+**Relazioni:** molti organizers → un `user` (molti-a-uno). Verso il basso:
+un organizer → molti `events`, molti `venues`, molte `event_series`.
+
+---
+
+### 4.4 `venues` — luoghi fisici riutilizzabili
+
+I posti concreti (locale, discoteca, sala). Sono separati dagli eventi apposta:
+lo stesso posto può ospitare molte serate diverse, anche di organizzatori diversi.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | UUID PK | |
+| `name` | TEXT, NOT NULL | |
+| `organizer_id` | UUID, FK → `organizers`, NULL ammesso | se il locale ha un profilo proprio |
+| `city_id` | BIGINT, NOT NULL, FK → `cities` | |
+| `address` | TEXT, NOT NULL | via e civico |
+| `postal_code` | TEXT | |
+| `latitude`, `longitude` | DOUBLE, NOT NULL | posizione sulla mappa |
+| `description` | TEXT | |
+| `created_by` | UUID, FK → `users`, NULL ammesso | chi l'ha inserito |
+| `created_at`, `updated_at` | TIMESTAMPTZ | trigger su `updated_at` |
+
+**Relazioni:** molti venues → una `city` (obbligatoria); molti venues → un
+`organizer` (opzionale). Un venue → molti `events`.
+
+---
+
+### 4.5 `dance_styles` — tipi di ballo (lookup)
+
+Catalogo dei balli (Salsa, Bachata, Kizomba, ...). Sta in una tabella a parte
+invece che come testo libero sull'evento, così si può filtrare in modo affidabile
+e senza errori di battitura.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | BIGINT PK | |
+| `name` | TEXT, NOT NULL, UNIQUE | es. `Bachata` |
+| `slug` | TEXT, NOT NULL, UNIQUE | es. `bachata` |
+
+**Relazioni:** collegato a `events` in molti-a-molti tramite `event_dance_styles`.
+
+---
+
+### 4.6 `event_series` — serie di eventi ricorrenti (opzionale)
+
+Raggruppa gli eventi che si ripetono ("ogni giovedì salsa al locale X"). Il campo
+`rrule` contiene la regola di ricorrenza in formato iCalendar (es.
+`FREQ=WEEKLY;BYDAY=TH`). La serie **non** è l'evento: l'app genera le singole
+occorrenze nella tabella `events` a partire dalla regola.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | UUID PK | |
+| `organizer_id` | UUID, NOT NULL, FK → `organizers` | |
+| `title` | TEXT, NOT NULL | |
+| `rrule` | TEXT | regola ricorrenza iCalendar |
+| `created_at`, `updated_at` | TIMESTAMPTZ | trigger su `updated_at` |
+
+**Relazioni:** molte serie → un `organizer`. Una serie → molti `events`.
+
+---
+
+### 4.7 `events` — la tabella centrale
+
+Il cuore del sistema: **una riga = una serata concreta** (data + ora). Qui
+convergono quasi tutte le chiavi esterne.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `id` | UUID PK | |
+| `organizer_id` | UUID, NOT NULL, FK → `organizers` | chi pubblica |
+| `venue_id` | UUID, FK → `venues`, NULL ammesso | luogo (opzionale) |
+| `series_id` | UUID, FK → `event_series`, NULL ammesso | se nasce da una serie |
+| `city_id` | BIGINT, NOT NULL, FK → `cities` | |
+| `title` | TEXT, NOT NULL | |
+| `slug` | TEXT, NOT NULL, UNIQUE | |
+| `description` | TEXT | |
+| `flyer_url` | TEXT | immagine/volantino (upload gestito dal backend) |
+| `start_at` | TIMESTAMPTZ, NOT NULL | inizio |
+| `end_at` | TIMESTAMPTZ | fine (opzionale) |
+| `is_free` | BOOL, default TRUE | |
+| `price` | NUMERIC(8,2) | NULL se gratis |
+| `currency` | CHAR(3), default `EUR` | |
+| `address` | TEXT, NOT NULL | posizione (obbligatoria) |
+| `latitude`, `longitude` | DOUBLE, NOT NULL | denormalizzate dal venue o inserite a mano |
+| `status` | `event_status`, default `pending` | moderazione |
+| `created_at`, `updated_at` | TIMESTAMPTZ | trigger su `updated_at` |
+
+Vincoli di controllo:
+- `chk_event_time`: `end_at IS NULL OR end_at > start_at` — la fine deve venire dopo l'inizio.
+- `chk_event_price`: `is_free OR price IS NOT NULL` — se non è gratis, il prezzo è obbligatorio.
+
+**Relazioni (tutte molti-a-uno da events):** → `organizers`, → `cities`
+(obbligatorie); → `venues`, → `event_series` (opzionali). Verso il basso:
+un evento → molti `event_dance_styles`, molti `favorites`, molti `event_attendance`.
+
+---
+
+### 4.8 `event_dance_styles` — evento ↔ stili (molti-a-molti)
+
+Tabella ponte. Un evento può avere più stili ("salsa + bachata") e uno stile
+compare in tanti eventi: è un molti-a-molti, che si modella così.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `event_id` | UUID, FK → `events` | parte della PK |
+| `dance_style_id` | BIGINT, FK → `dance_styles` | parte della PK |
+
+Chiave primaria: `(event_id, dance_style_id)` — impedisce di collegare due volte
+lo stesso stile allo stesso evento.
+
+---
+
+### 4.9 `favorites` — preferiti dell'utente (molti-a-molti)
+
+Un utente loggato salva un evento tra i preferiti. Molti-a-molti tra `users` e
+`events`.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `user_id` | UUID, FK → `users` | parte della PK |
+| `event_id` | UUID, FK → `events` | parte della PK |
+| `created_at` | TIMESTAMPTZ | |
+
+Chiave primaria: `(user_id, event_id)` — niente doppioni.
+
+---
+
+### 4.10 `event_attendance` — "mi interessa" / "ci vado" (molti-a-molti)
+
+Come i preferiti, ma con un `status` in più. Utile per i contatori sociali.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `user_id` | UUID, FK → `users` | parte della PK |
+| `event_id` | UUID, FK → `events` | parte della PK |
+| `status` | `attendance_status`, default `interested` | |
+| `created_at` | TIMESTAMPTZ | |
+
+Chiave primaria: `(user_id, event_id)`.
+
+---
+
+## 5. Mappa delle relazioni
+
+Notazione: `A ─< B` significa "un A ha molti B" (cioè molti B → un A).
+
+```
+users ─< organizers ─< event_series ─< events
+  │           │                          │
+  │           ├─< venues ────────────────┤   (venue opzionale sull'evento)
+  │           └─< events                 │
+  │                                      │
+  ├─< venues (created_by, opzionale)     │
+  ├─< favorites >───────────────────────┤   (molti-a-molti users ↔ events)
+  └─< event_attendance >─────────────────┤   (molti-a-molti users ↔ events)
+                                         │
+cities ─< venues                         │
+cities ─< events ────────────────────────┘
+                                         
+events >─< dance_styles                      (molti-a-molti via event_dance_styles)
+```
+
+**Tutte le molti-a-uno (lato "molti" → lato "uno"):**
+
+| Dal lato "molti" | verso "uno" | obbligatoria? |
+|------------------|-------------|---------------|
+| `organizers.user_id` | `users` | sì |
+| `venues.city_id` | `cities` | sì |
+| `venues.organizer_id` | `organizers` | no (NULL ammesso) |
+| `venues.created_by` | `users` | no |
+| `event_series.organizer_id` | `organizers` | sì |
+| `events.organizer_id` | `organizers` | sì |
+| `events.city_id` | `cities` | sì |
+| `events.venue_id` | `venues` | no |
+| `events.series_id` | `event_series` | no |
+
+**Le tre molti-a-molti (via tabelle ponte):**
+
+| Relazione | Tabella ponte | Chiave primaria |
+|-----------|---------------|-----------------|
+| `events` ↔ `dance_styles` | `event_dance_styles` | (event_id, dance_style_id) |
+| `users` ↔ `events` (preferiti) | `favorites` | (user_id, event_id) |
+| `users` ↔ `events` (partecipazione) | `event_attendance` | (user_id, event_id) |
+
+---
+
+## 6. Comportamento alla cancellazione (ON DELETE)
+
+Cosa succede ai figli quando si cancella un genitore. Due comportamenti in uso:
+
+- **`CASCADE`** — cancella anche i figli.
+- **`SET NULL`** — mantiene il figlio ma azzera il riferimento.
+
+| Relazione | Regola | Effetto pratico |
+|-----------|--------|-----------------|
+| `organizers.user_id` → users | CASCADE | cancelli l'utente → spariscono i suoi organizer |
+| `venues.organizer_id` → organizers | SET NULL | il locale resta, perde solo il collegamento all'organizer |
+| `venues.created_by` → users | SET NULL | il locale resta, si perde chi l'ha creato |
+| `event_series.organizer_id` → organizers | CASCADE | cancelli l'organizer → spariscono le sue serie |
+| `events.organizer_id` → organizers | CASCADE | cancelli l'organizer → spariscono i suoi eventi |
+| `events.venue_id` → venues | SET NULL | l'evento sopravvive (ha già le coordinate proprie) |
+| `events.series_id` → event_series | SET NULL | l'evento resta come occorrenza singola |
+| `event_dance_styles.*` | CASCADE | cancelli evento o stile → spariscono i collegamenti |
+| `favorites.*` | CASCADE | cancelli utente o evento → spariscono i preferiti |
+| `event_attendance.*` | CASCADE | cancelli utente o evento → spariscono le partecipazioni |
+
+> Nota: `events.city_id` → cities **non** ha una regola ON DELETE, quindi usa il
+> default `NO ACTION`: PostgreSQL impedisce di cancellare una città se ha ancora
+> eventi collegati. Stesso discorso per `venues.city_id`.
+
+---
+
+## 7. Indici e perché esistono
+
+Gli indici non cambiano i risultati, solo la velocità delle ricerche.
+
+| Indice | Tabella | A cosa serve |
+|--------|---------|--------------|
+| `idx_organizers_user` | organizers | trovare i profili di un utente |
+| `idx_organizers_type` | organizers | filtrare per tipo (locale, scuola...) |
+| `idx_venues_city` | venues | i locali di una città |
+| `idx_venues_coords` | venues | ricerche per coordinate |
+| `idx_events_start` | events | ordinare/filtrare per data |
+| `idx_events_city` | events | eventi di una città |
+| `idx_events_status` | events | filtrare per stato (published...) |
+| `idx_events_organizer` | events | eventi di un organizer |
+| `idx_events_venue` | events | eventi in un locale |
+| `idx_events_coords` | events | ricerche per coordinate (mappa) |
+| `idx_events_city_time` | events | **indice parziale**: solo `WHERE status='published'`, ottimizza "prossimi eventi pubblicati di una città" |
+| `idx_eds_style` | event_dance_styles | tutti gli eventi di uno stile |
+| `idx_favorites_event` | favorites | chi ha messo tra i preferiti un evento |
+| `idx_attendance_event` | event_attendance | chi partecipa a un evento |
+
+L'indice più interessante è `idx_events_city_time`: è **parziale** (copre solo le
+righe pubblicate), quindi è più piccolo e veloce, perfetto per la home di ogni
+città.
+
+---
+
+## 8. La vista `upcoming_events`
+
+Non è una tabella ma una query salvata con un nome. Ogni volta che la interroghi,
+esegue il `SELECT` sottostante: unisce `events` + `organizers` + `cities`, tiene
+solo gli eventi `published` non ancora passati (`start_at >= now()`) e li ordina
+per data.
+
+Serve al frontend per non riscrivere ogni volta lo stesso join. Campi esposti:
+id, title, slug, start_at, end_at, coordinate, address, flyer_url, is_free, price,
+currency, `organizer_name`, `city_name`, `city_slug`.
+
+```sql
+SELECT ...
+FROM events e
+JOIN organizers o ON o.id = e.organizer_id
+JOIN cities     c ON c.id = e.city_id
+WHERE e.status = 'published'
+  AND e.start_at >= now()
+ORDER BY e.start_at;
+```
+
+---
+
+## 9. Dati iniziali (seed)
+
+Lo script inserisce i dati minimi per partire:
+
+- **Città:** Milano (MI, Lombardia, IT, coordinate 45.4642 / 9.1900, slug `milano`).
+- **Stili di ballo:** Salsa, Salsa Cubana, Salsa Portoricana, Bachata, Bachata
+  Sensual, Kizomba, Merengue, Cha Cha Cha, Rueda de Casino, Zouk, Forró.
+
+---
+
+## 10. Sezione GEO opzionale (PostGIS)
+
+Per le query "eventi vicino a me" davvero efficienti, si può attivare PostGIS e
+aggiungere una colonna geografica calcolata più un indice GiST, al posto del solo
+lat/lng:
+
+```sql
+ALTER TABLE events
+    ADD COLUMN geom geography(Point, 4326)
+    GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography) STORED;
+
+CREATE INDEX idx_events_geom ON events USING GIST (geom);
+
+-- Esempio: eventi entro 5 km da un punto, ordinati per distanza
+SELECT * FROM events
+ WHERE ST_DWithin(geom, ST_MakePoint(9.19, 45.46)::geography, 5000)
+ ORDER BY geom <-> ST_MakePoint(9.19, 45.46)::geography;
+```
+
+Finché usi solo la mappa di Milano con pochi eventi, l'indice su `(latitude,
+longitude)` basta. PostGIS conviene quando i volumi crescono o servono ricerche
+per raggio precise.
+
+---
+
+## 11. Glossario veloce
+
+- **PK (Primary Key):** identificatore univoco di una riga.
+- **FK (Foreign Key):** colonna che punta alla PK di un'altra tabella; garantisce
+  che non si punti a righe inesistenti.
+- **UUID:** identificatore casuale (es. `a3f1...`); non rivela il conteggio.
+- **ENUM:** lista chiusa di valori ammessi.
+- **Trigger:** codice che si esegue automaticamente su un evento della tabella.
+- **Vista (VIEW):** query salvata con nome; non memorizza dati propri.
+- **Denormalizzazione:** duplicare un dato di proposito per velocizzare le letture.
+- **Molti-a-uno:** tanti figli puntano a un genitore (es. molti eventi → un organizer).
+- **Molti-a-molti:** relazione modellata con una tabella ponte (es. eventi ↔ stili).
+- **ON DELETE CASCADE / SET NULL:** cosa fare ai figli quando si cancella il genitore.
+- **Indice parziale:** indice che copre solo le righe che soddisfano una condizione.
+- **rrule:** regola di ricorrenza in formato iCalendar (es. `FREQ=WEEKLY;BYDAY=TH`).
+
+---
+
+*Fine documento — schema BallaStasera.*

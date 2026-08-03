@@ -1,0 +1,13 @@
+${AnsiColor.BRIGHT_RED}  ██ ▄█▀ ██▀███ ▓██   ██▓ ██▓███  ▄▄▄█████▓ ▒█████    ██████▓██   ██▓  ██████ ▄▄▄█████▓▓█████  ███▄ ▄███▓  ██████
+${AnsiColor.BRIGHT_MAGENTA}  ██▄█▒ ▓██ ▒ ██▒▒██  ██▒▓██░  ██▒▓  ██▒ ▓▒▒██▒  ██▒▒██    ▒ ▒██  ██▒▒██    ▒ ▓  ██▒ ▓▒▓█   ▀ ▓██▒▀█▀ ██▒▒██    ▒
+${AnsiColor.MAGENTA} ▓███▄░ ▓██ ░▄█ ▒ ▒██ ██░▓██░ ██▓▒▒ ▓██░ ▒░▒██░  ██▒░ ▓██▄    ▒██ ██░░ ▓██▄   ▒ ▓██░ ▒░▒███   ▓██    ▓██░░ ▓██▄
+${AnsiColor.BRIGHT_BLUE} ▓██ █▄ ▒██▀▀█▄   ░ ▐██▓░▒██▄█▓▒ ▒░ ▓██▓ ░ ▒██   ██░  ▒   ██▒ ░ ▐██▓░  ▒   ██▒░ ▓██▓ ░ ▒▓█  ▄ ▒██    ▒██   ▒   ██▒
+${AnsiColor.BRIGHT_CYAN} ▒██▒ █▄░██▓ ▒██▒ ░ ██▒▓░▒██▒ ░  ░  ▒██▒ ░ ░ ████▓▒░▒██████▒▒ ░ ██▒▓░▒██████▒▒  ▒██▒ ░ ░▒████▒▒██▒   ░██▒▒██████▒▒
+${AnsiColor.CYAN} ▒ ▒▒ ▓▒░ ▒▓ ░▒▓░  ██▒▒▒ ▒▓▒░ ░  ░  ▒ ░░   ░ ▒░▒░▒░ ▒ ▒▓▒ ▒ ░  ██▒▒▒ ▒ ▒▓▒ ▒ ░  ▒ ░░   ░░ ▒░ ░░ ▒░   ░  ░▒ ▒▓▒ ▒ ░
+${AnsiColor.BRIGHT_GREEN} ░ ░▒ ▒░  ░▒ ░ ▒░▓██ ░▒░ ░▒ ░         ░      ░ ▒ ▒░ ░ ░▒  ░ ░▓██ ░▒░ ░ ░▒  ░ ░    ░     ░ ░  ░░  ░      ░░ ░▒  ░ ░
+${AnsiColor.GREEN} ░ ░░ ░   ░░   ░ ▒ ▒ ░░  ░░         ░      ░ ░ ░ ▒  ░  ░  ░  ▒ ▒ ░░  ░  ░  ░    ░         ░   ░      ░   ░  ░  ░
+${AnsiColor.BRIGHT_BLACK} ░  ░      ░     ░ ░                           ░ ░        ░  ░ ░           ░              ░  ░       ░         ░
+${AnsiColor.BRIGHT_BLACK} ----------------------------------------------------------------------------------------------------------------------
+${AnsiColor.BRIGHT_CYAN} [ SYSTEM ] ${AnsiColor.DEFAULT} KRYPTOSYSTEMS ${AnsiColor.BRIGHT_MAGENTA}->>${AnsiColor.DEFAULT} Build the core
+${AnsiColor.BRIGHT_CYAN} [ STATUS ] ${AnsiColor.DEFAULT} CORE VERSION: ${AnsiColor.BRIGHT_YELLOW}${application.version}${AnsiColor.DEFAULT} | SPRING: ${AnsiColor.BRIGHT_GREEN}${spring-boot.version}${AnsiColor.DEFAULT} | JAVA: ${AnsiColor.BRIGHT_YELLOW}${java.version}
+${AnsiColor.BRIGHT_BLACK} ----------------------------------------------------------------------------------------------------------------------${AnsiColor.DEFAULT}
