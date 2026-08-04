@@ -8,6 +8,10 @@
 --     discoteca, una scuola o un'associazione.
 --   * Ogni evento è geolocalizzato (lat/lng) per la mappa Leaflet.
 --   * Progettato partendo da Milano ma già multi-città / multi-Italia.
+--
+--  NOTA: la gestione di created_at / updated_at è delegata al codice
+--  applicativo (Hibernate: @CreationTimestamp / @UpdateTimestamp).
+--  I DEFAULT now() restano solo come rete di sicurezza sull'INSERT.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -20,22 +24,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- ----------------------------------------------------------------------------
 -- Tipi enumerati
 -- ----------------------------------------------------------------------------
-CREATE TYPE user_role        AS ENUM ('user', 'organizer', 'admin');
-CREATE TYPE organizer_type   AS ENUM ('person', 'venue', 'club', 'school', 'association');
-CREATE TYPE event_status     AS ENUM ('draft', 'pending', 'published', 'cancelled');
-CREATE TYPE attendance_status AS ENUM ('interested', 'going');
-
-
--- ----------------------------------------------------------------------------
--- Funzione trigger: mantiene updated_at aggiornato
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
+CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
+CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
+CREATE TYPE attendance_status AS ENUM ('INTERESTED', 'GOING');
 
 
 -- ============================================================================
@@ -66,14 +58,11 @@ CREATE TABLE users (
     email        TEXT        NOT NULL UNIQUE,
     display_name TEXT        NOT NULL,
     avatar_url   TEXT,
-    role         user_role   NOT NULL DEFAULT 'user',
+    role         user_role   NOT NULL DEFAULT 'USER',
     is_active    BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TRIGGER trg_users_updated
-    BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ============================================================================
@@ -86,7 +75,7 @@ CREATE TABLE organizers (
     user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name          TEXT NOT NULL,                  -- nome pubblico (es. 'Tropical Milano')
     slug          TEXT NOT NULL UNIQUE,           -- per URL /organizzatore/tropical-milano
-    type          organizer_type NOT NULL DEFAULT 'person',
+    type          organizer_type NOT NULL DEFAULT 'PERSON',
     description   TEXT,
     logo_url      TEXT,
     website       TEXT,
@@ -100,9 +89,6 @@ CREATE TABLE organizers (
 );
 CREATE INDEX idx_organizers_user ON organizers(user_id);
 CREATE INDEX idx_organizers_type ON organizers(type);
-CREATE TRIGGER trg_organizers_updated
-    BEFORE UPDATE ON organizers
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ============================================================================
@@ -126,9 +112,6 @@ CREATE TABLE venues (
 );
 CREATE INDEX idx_venues_city   ON venues(city_id);
 CREATE INDEX idx_venues_coords ON venues(latitude, longitude);
-CREATE TRIGGER trg_venues_updated
-    BEFORE UPDATE ON venues
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ============================================================================
@@ -154,9 +137,6 @@ CREATE TABLE event_series (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TRIGGER trg_event_series_updated
-    BEFORE UPDATE ON event_series
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ============================================================================
@@ -190,7 +170,7 @@ CREATE TABLE events (
     latitude     DOUBLE PRECISION NOT NULL,
     longitude    DOUBLE PRECISION NOT NULL,
 
-    status       event_status NOT NULL DEFAULT 'pending', -- moderazione: pending -> published
+    status       event_status NOT NULL DEFAULT 'PENDING', -- moderazione: pending -> published
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -204,10 +184,7 @@ CREATE INDEX idx_events_organizer ON events(organizer_id);
 CREATE INDEX idx_events_venue     ON events(venue_id);
 CREATE INDEX idx_events_coords    ON events(latitude, longitude);
 -- indice utile per la vista "prossimi eventi pubblicati di una città"
-CREATE INDEX idx_events_city_time ON events(city_id, start_at) WHERE status = 'published';
-CREATE TRIGGER trg_events_updated
-    BEFORE UPDATE ON events
-    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_events_city_time ON events(city_id, start_at) WHERE status = 'PUBLISHED';
 
 
 -- ============================================================================
@@ -239,7 +216,7 @@ CREATE INDEX idx_favorites_event ON favorites(event_id);
 CREATE TABLE event_attendance (
     user_id    UUID NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    status     attendance_status NOT NULL DEFAULT 'interested',
+    status     attendance_status NOT NULL DEFAULT 'INTERESTED',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, event_id)
 );
@@ -260,7 +237,7 @@ SELECT
 FROM events e
 JOIN organizers o ON o.id = e.organizer_id
 JOIN cities     c ON c.id = e.city_id
-WHERE e.status = 'published'
+WHERE e.status = 'PUBLISHED'
   AND e.start_at >= now()
 ORDER BY e.start_at;
 
