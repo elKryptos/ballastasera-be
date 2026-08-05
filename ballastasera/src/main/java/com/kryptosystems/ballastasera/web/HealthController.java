@@ -8,11 +8,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HealthController {
 
-    /*@GetMapping("/api/health")
+    @GetMapping("/api/health")
     public Map<String, Object> health() {
         return Map.of(
                 "status", "UP",
                 "service", "ballastasera",
                 "time", OffsetDateTime.now().toString());
-    }*/
+    }
 }
