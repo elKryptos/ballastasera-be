@@ -15,4 +15,7 @@ public interface UsersService {
 
     /** Actualiza el perfil social (Instagram + visibilidad publica) del usuario. */
     Users updateSocialProfile(UUID userId, String instagram, boolean showProfilePublic);
+
+    /** Sube el rol a ORGANIZER si el usuario todavia es USER (no baja a un ADMIN). */
+    Users promoteToOrganizer(UUID userId);
 }

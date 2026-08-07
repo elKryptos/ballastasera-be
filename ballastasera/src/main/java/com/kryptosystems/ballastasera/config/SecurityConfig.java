@@ -35,6 +35,7 @@ public class SecurityConfig {
                                 "/api/organizers/**",
                                 "/api/dance-styles/**"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
