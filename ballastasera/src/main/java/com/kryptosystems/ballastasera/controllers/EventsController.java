@@ -38,19 +38,19 @@ public class EventsController {
      * dentro del bounding box visible. Nunca devuelve eventos pasados.
      */
     @GetMapping
-    public List<EventCardDto> getMapEvents(
+    public ResponseEntity<List<EventCardDto>> getMapEvents(
             @RequestParam double minLat,
             @RequestParam double maxLat,
             @RequestParam double minLng,
             @RequestParam double maxLng,
             @RequestParam(required = false) Long cityId
     ) {
-        return eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId);
+        return ResponseEntity.ok(eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId));
     }
 
     @GetMapping("/{id}")
-    public EventDetailDto getEventDetail(@PathVariable UUID id) {
-        return eventsService.getEventDetail(id);
+    public ResponseEntity<EventDetailDto> getEventDetail(@PathVariable UUID id) {
+        return ResponseEntity.ok(eventsService.getEventDetail(id));
     }
 
     /**
@@ -59,12 +59,12 @@ public class EventsController {
      * de esta lista y siempre incluye a todos, con o sin opt-in.
      */
     @GetMapping("/{id}/attendees")
-    public Page<AttendeeDto> getAttendees(
+    public ResponseEntity<Page<AttendeeDto>> getAttendees(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return eventAttendanceService.findPublicGoingAttendees(id, PageRequest.of(page, size));
+        return ResponseEntity.ok(eventAttendanceService.findPublicGoingAttendees(id, PageRequest.of(page, size)));
     }
 
     /** Marca "GOING" o "INTERESTED". Idempotente: repetir con otro status lo actualiza. */

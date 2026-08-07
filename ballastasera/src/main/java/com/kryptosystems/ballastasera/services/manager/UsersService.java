@@ -12,4 +12,7 @@ public interface UsersService {
     Users findByGoogleId(String googleId);
     Users save(Users user);
     void deleteById(UUID id);
+
+    /** Actualiza el perfil social (Instagram + visibilidad publica) del usuario. */
+    Users updateSocialProfile(UUID userId, String instagram, boolean showProfilePublic);
 }

@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -47,5 +48,13 @@ public class UsersServiceImpl implements UsersService {
     @Override
     public void deleteById(UUID id) {
         usersRepository.deleteById(id);
+    }
+
+    @Override
+    public Users updateSocialProfile(UUID userId, String instagram, boolean showProfilePublic) {
+        Users user = findById(userId);
+        user.setInstagram(InstagramUtils.normalizeHandle(instagram));
+        user.setShowProfilePublic(showProfilePublic);
+        return usersRepository.save(user);
     }
 }
