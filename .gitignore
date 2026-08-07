@@ -40,6 +40,3 @@ infra/.env
 ### OS ###
 .DS_Store
 Thumbs.db
-
-### Secrets ###
-documentation/client_secret_*.json
