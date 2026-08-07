@@ -1,5 +1,7 @@
 package com.kryptosystems.ballastasera.services.manager;
 
+import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 
 import java.util.List;
@@ -15,4 +17,9 @@ public interface EventsService {
     List<Events> findUpcomingPublishedByCity(Long cityId);
     Events save(Events event);
     void deleteById(UUID id);
+
+    /** Eventos en vivo o por empezar dentro del bounding box del mapa. */
+    List<EventCardDto> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId);
+
+    EventDetailDto getEventDetail(UUID id);
 }
