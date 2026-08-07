@@ -51,6 +51,12 @@ public class Events {
     @Column(name = "flyer_url")
     private String flyerUrl;
 
+    @Column(name = "instagram_url")
+    private String instagramUrl;
+
+    @Column(name = "whatsapp_url")
+    private String whatsappUrl;
+
     @Column(name = "start_at", nullable = false)
     private OffsetDateTime startAt;
 
