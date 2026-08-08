@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 
 public final class SlugUtils {
 
-    private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^a-zA-Z0-9]+");
+    private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^a-zA-Z0-9]+"); //puede que cause problemas el regex, controllar
     private static final Pattern EDGE_DASHES = Pattern.compile("^-+|-+$");
 
     private SlugUtils() {
