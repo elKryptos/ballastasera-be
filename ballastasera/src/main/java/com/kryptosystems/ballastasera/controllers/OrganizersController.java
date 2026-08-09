@@ -1,13 +1,17 @@
 package com.kryptosystems.ballastasera.controllers;
 
-import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerSummaryDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
+import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
+import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
+import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
+import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
+import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,7 +31,13 @@ import java.util.UUID;
 public class OrganizersController {
 
     private final OrganizersService organizersService;
+    private final OrganizerMapper organizerMapper;
+    private final EventsService eventService;
     private final EventsMapper eventsMapper;
+    private final VenuesService venueService;
+    private final VenuesMapper venuesMapper;
+    private final EventSeriesService eventSeriesService;
+    private final EventSeriesMapper eventSeriesMapper;
 
     /** Requiere estar autenticado. Crea el perfil de organizador. Queda pendiente (isVerified=false) hasta
      * que un admin lo apruebe; solo entonces se pueden publicar eventos. */
@@ -35,7 +46,7 @@ public class OrganizersController {
                                                      @Valid @RequestBody OrganizerCreateDto body
     ) {
         var organizer = organizersService.createForUser(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventsMapper.toOrganizerDetail(organizer));
+        return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetail(organizer));
     }
 
     /** Público, nadie necesita loguearse. Sirve para la página de perfil del organizador
@@ -43,7 +54,7 @@ public class OrganizersController {
     @GetMapping("/{slug}")
     public ResponseEntity<OrganizerDetailDto> getBySlug(@PathVariable String slug) {
         var organizer = organizersService.findBySlug(slug);
-        return ResponseEntity.ok(eventsMapper.toOrganizerDetail(organizer));
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizer));
     }
 
     /** Requiere estar autenticado. El mismo usuario. Para que el dueño vea su(s) propio(s)
@@ -51,7 +62,7 @@ public class OrganizersController {
     @GetMapping("/me")
     public ResponseEntity<List<OrganizerDetailDto>> getMyOrganizers(@AuthenticationPrincipal UserPrincipal principal) {
         var organizers = organizersService.findByUserId(principal.getId());
-        return ResponseEntity.ok(organizers.stream().map(eventsMapper::toOrganizerDetail).toList());
+        return ResponseEntity.ok(organizers.stream().map(organizerMapper::toOrganizerDetail).toList());
     }
 
     /** Requiere estar autenticado. Editar el propio perfil de organizador. No estoy actulizando
@@ -62,7 +73,7 @@ public class OrganizersController {
                                                      @PathVariable UUID id,
                                                      @Valid @RequestBody OrganizerUpdateDto body) {
         var organizer = organizersService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(eventsMapper.toOrganizerDetail(organizer));
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizer));
     }
 
     /** Público, directorio general (como listar eventos), solo muestra los ya verificados
@@ -71,8 +82,34 @@ public class OrganizersController {
     public ResponseEntity<Page<OrganizerSummaryDto>> getOrganizersList(@RequestParam(defaultValue = "0") int page,
                                                                        @RequestParam(defaultValue = "20") int size) {
         var organizers = organizersService.findVerified(PageRequest.of(page, size))
-                .map(eventsMapper::toOrganizerSummary);
+                .map(organizerMapper::toOrganizerSummary);
         return ResponseEntity.ok(organizers);
     }
 
+    /** Público. Lista los eventos publicados por un organizador, para su página de perfil. */
+    @GetMapping("/{id}/events")
+    public ResponseEntity<List<EventCardDto>> getOrganizerEvents(@PathVariable UUID id) {
+        var events = eventService.findByOrganizerId(id).stream()
+                .map(eventsMapper::toCardDto)
+                .toList();
+        return ResponseEntity.ok(events);
+    }
+
+    /** Público. Lista los venues publicados por un organizador. */
+    @GetMapping("/{id}/venues")
+    public ResponseEntity<List<VenuesSummaryDto>> getOrganizerVenues(@PathVariable UUID id) {
+        var venues = venueService.findByOrganizerId(id).stream()
+                .map(venuesMapper::toVenueSummary)
+                .toList();
+        return ResponseEntity.ok(venues);
+    }
+
+    /** Público. Lista los event-series publicados por un organizador. */
+    @GetMapping("/{id}/event-series")
+    public ResponseEntity<List<EventSeriesSummaryDto>> getOrganizerEventSeries(@PathVariable UUID id) {
+        var series = eventSeriesService.findByOrganizerId(id).stream()
+                .map(eventSeriesMapper::toEventSeriesSummaryDto)
+                .toList();
+        return ResponseEntity.ok(series);
+    }
 }
