@@ -167,6 +167,81 @@ Quita al usuario logueado de la lista de asistentes del evento (deja de ir / ya 
 
 ---
 
+### `POST /api/organizers` — requiere login
+
+El propio usuario se postula como organizador. Queda `isVerified=false` hasta que un admin lo
+apruebe; solo entonces puede publicar eventos.
+
+**Body** — `OrganizerCreateDto`: `name`, `type`, `description`, `logoUrl`, `website`, `phone`,
+`contactEmail`, `instagram`, `facebook`.
+
+`201 Created` con `OrganizerDetailDto`.
+
+---
+
+### `GET /api/organizers` — público
+
+Directorio de organizadores. Solo devuelve los **ya verificados** (`isVerified=true`) — los
+pendientes de aprobación no se exponen públicamente.
+
+**Query params**: `page` (default `0`), `size` (default `20`).
+
+**Respuesta** — `Page<OrganizerSummaryDto>`.
+
+---
+
+### `GET /api/organizers/{slug}` — público
+
+Perfil público de un organizador (la página que ve cualquier visitante, no requiere login).
+
+**Respuesta** — `OrganizerDetailDto`. `404` si no existe.
+
+---
+
+### `GET /api/organizers/me` — requiere login
+
+Devuelve el/los perfil(es) de organizador del usuario logueado (un usuario puede tener más de uno).
+Pensado para el panel/dashboard del propio organizador, no para consulta pública.
+
+**Respuesta** — `List<OrganizerDetailDto>`.
+
+---
+
+### `PATCH /api/organizers/{id}` — requiere login (solo el dueño)
+
+El organizador edita su propio perfil (nombre, descripción, logo, contacto, redes). El `slug` no
+cambia aunque cambie el `name`, para no romper links ya compartidos.
+
+**Autorización**: se valida que `organizer.user.id == principal.id`; si no coincide, `403`. No es un
+endpoint de admin — el admin usa `/api/admin/organizers/**` para verificar, no para editar el
+contenido del perfil.
+
+**Body** — `OrganizerUpdateDto` (igual a `OrganizerCreateDto` sin `type`).
+
+**Respuesta** — `OrganizerDetailDto`.
+
+---
+
+### `GET /api/admin/organizers/pending` — admin
+
+Lista paginada de organizadores con `isVerified=false`, para que un admin los revise.
+
+> Pendiente: este controller no tiene todavía `@PreAuthorize`/chequeo de rol — cualquier usuario
+> autenticado puede llamarlo hoy. Falta restringirlo a `ROLE_ADMIN`.
+
+**Respuesta** — `Page<OrganizerDetailDto>`.
+
+---
+
+### `PATCH /api/admin/organizers/{id}/verify` — admin
+
+Aprueba al organizador: `isVerified=true`, sube el rol del usuario dueño, y le manda el email de
+notificación de aprobación.
+
+**Respuesta** — `OrganizerDetailDto`.
+
+---
+
 ### `GET /auth/me` — requiere login
 
 Ya existía. Devuelve `userId`, `email`, `displayName`, `role`, `avatarUrl`, y ahora también
@@ -212,10 +287,12 @@ Devuelve el mismo shape que `GET /auth/me` con los valores actualizados.
 
 ## 6. Pendiente (no implementado todavía)
 
-- `POST /api/events` (crear evento) y `PATCH`/`DELETE` — requiere que el usuario tenga un `Organizer`;
-  falta `POST /api/organizers` ("convertirme en organizador") antes de esto.
+- `POST /api/events` (crear evento) y `PATCH`/`DELETE` — requiere que el usuario tenga un `Organizer`
+  verificado; ya existe `POST /api/organizers` para postularse.
 - `POST/DELETE /api/events/{id}/favorite` (seguir/guardar evento, distinto de "voy").
 - `GET /api/cities`, `GET /api/dance-styles` (catálogos simples, ya permitidos en `SecurityConfig` pero
   sin controller todavía).
+- Restringir `/api/admin/organizers/**` a `ROLE_ADMIN` (hoy cualquier usuario autenticado puede
+  llamarlo).
 - Migraciones versionadas (Flyway/Liquibase) — hoy el schema se aplica a mano contra la BD real, sin
   registro de qué `ALTER TABLE` ya corrió en cada entorno.
