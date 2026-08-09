@@ -1,7 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.OrganizerDetailDto;
-import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,7 +17,7 @@ import java.util.UUID;
 public class AdminOrganizersController {
 
     private final OrganizersService organizersService;
-    private final EventsMapper eventsMapper;
+    private final OrganizerMapper organizerMapper;
 
     /** Lista de organizadores pendientes de verificacion por un admin. */
     @GetMapping("/pending")
@@ -25,13 +25,13 @@ public class AdminOrganizersController {
                                                                @RequestParam(defaultValue = "20") int size) {
         Page<OrganizerDetailDto> result = organizersService
                 .findPendingVerification(PageRequest.of(page, size))
-                .map(eventsMapper::toOrganizerDetail);
+                .map(organizerMapper::toOrganizerDetail);
         return ResponseEntity.ok(result);
     }
 
     /** Aprueba: isVerified=true, sube el rol del usuario y envia el email de notificacion. */
     @PatchMapping("/{id}/verify")
     public ResponseEntity<OrganizerDetailDto> verify(@PathVariable UUID id) {
-        return ResponseEntity.ok(eventsMapper.toOrganizerDetail(organizersService.verify(id)));
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizersService.verify(id)));
     }
 }
