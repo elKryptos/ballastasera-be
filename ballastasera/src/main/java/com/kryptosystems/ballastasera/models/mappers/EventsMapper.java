@@ -1,9 +1,6 @@
 package com.kryptosystems.ballastasera.models.mappers;
 
-import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
-import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerSummaryDto;
+import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Organizers;

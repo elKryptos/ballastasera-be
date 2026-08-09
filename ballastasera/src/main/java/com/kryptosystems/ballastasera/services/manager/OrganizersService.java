@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.manager;
 
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,4 +24,10 @@ public interface OrganizersService {
 
     /** Aprueba: isVerified=true, sube el rol del dueno y le manda el email de notificacion. */
     Organizers verify(UUID id);
+
+    /** Actualiza datos del organizador que posee un usuario. */
+    Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto);
+
+    /** Regresa los organizadores que ya han sido verificados. */
+    Page<Organizers> findVerified(Pageable pageable);
 }

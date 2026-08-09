@@ -13,4 +13,5 @@ public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
     Optional<Organizers> findBySlug(String slug);
     List<Organizers> findByUserId(UUID userId);
     Page<Organizers> findByIsVerifiedFalse(Pageable pageable);
+    Page<Organizers> findByIsVerifiedTrue(Pageable pageable);
 }

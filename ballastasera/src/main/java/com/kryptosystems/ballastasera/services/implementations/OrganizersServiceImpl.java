@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
@@ -12,6 +13,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -77,6 +79,16 @@ public class OrganizersServiceImpl implements OrganizersService {
         return organizersRepository.save(organizer);
     }
 
+    private String uniqueSlug(String name) {
+        String base = SlugUtils.slugify(name);
+        String slug = base;
+        int attempt = 1;
+        while (organizersRepository.findBySlug(slug).isPresent()) {
+            slug = base + "-" + attempt++;
+        }
+        return slug;
+    }
+
     @Override
     public Page<Organizers> findPendingVerification(Pageable pageable){
         return organizersRepository.findByIsVerifiedFalse(pageable);
@@ -92,13 +104,25 @@ public class OrganizersServiceImpl implements OrganizersService {
         return saved;
     }
 
-    private String uniqueSlug(String name) {
-        String base = SlugUtils.slugify(name);
-        String slug = base;
-        int attempt = 1;
-        while (organizersRepository.findBySlug(slug).isPresent()) {
-            slug = base + "-" + attempt++;
+    @Override
+    public Page<Organizers> findVerified(Pageable pageable) {
+        return organizersRepository.findByIsVerifiedTrue(pageable);
+    }
+
+    @Override
+    public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
+        Organizers organizer = findById(id);
+        if (!organizer.getUser().getId().equals(requesterId)) {
+            throw new AccessDeniedException("Not the owner of this organizer");
         }
-        return slug;
+        organizer.setName(dto.getName());
+        organizer.setDescription(dto.getDescription());
+        organizer.setLogoUrl(dto.getLogoUrl());
+        organizer.setWebsite(dto.getWebsite());
+        organizer.setPhone(dto.getPhone());
+        organizer.setContactEmail(dto.getContactEmail());
+        organizer.setInstagram(dto.getInstagram());
+        organizer.setFacebook(dto.getFacebook());
+        return organizersRepository.save(organizer);
     }
 }
