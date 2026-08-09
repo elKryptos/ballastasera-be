@@ -33,10 +33,8 @@ public class EventsController {
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
 
-    /**
-     * Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
-     * dentro del bounding box visible. Nunca devuelve eventos pasados.
-     */
+    /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
+     * dentro del bounding box visible. Nunca devuelve eventos pasados. */
     @GetMapping
     public ResponseEntity<List<EventCardDto>> getMapEvents(
             @RequestParam double minLat,
@@ -53,11 +51,9 @@ public class EventsController {
         return ResponseEntity.ok(eventsService.getEventDetail(id));
     }
 
-    /**
-     * Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
+    /** Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
-     * de esta lista y siempre incluye a todos, con o sin opt-in.
-     */
+     * de esta lista y siempre incluye a todos, con o sin opt-in. */
     @GetMapping("/{id}/attendees")
     public ResponseEntity<Page<AttendeeDto>> getAttendees(
             @PathVariable UUID id,

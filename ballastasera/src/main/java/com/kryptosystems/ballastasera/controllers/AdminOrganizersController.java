@@ -19,7 +19,7 @@ public class AdminOrganizersController {
     private final OrganizersService organizersService;
     private final EventsMapper eventsMapper;
 
-    /** Cola de organizadores pendientes de verificacion. */
+    /** Lista de organizadores pendientes de verificacion por un admin. */
     @GetMapping("/pending")
     public ResponseEntity<Page<OrganizerDetailDto>> getPending(@RequestParam(defaultValue = "0") int page,
                                                                @RequestParam(defaultValue = "20") int size) {
