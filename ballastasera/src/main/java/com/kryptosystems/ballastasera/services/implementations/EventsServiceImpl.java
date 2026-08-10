@@ -9,6 +9,7 @@ import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
+import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -96,7 +97,7 @@ public class EventsServiceImpl implements EventsService {
                 .filter(Objects::nonNull)
                 .map(event -> {
                     EventCardDto dto = eventsMapper.toCardDto(event);
-                    dto.setLiveNow(isLiveNow(event, now));
+                    dto.setLiveNow(EventTimingUtils.isLiveNow(event, now));
                     dto.setGoingCount(goingCounts.getOrDefault(event.getId(), 0L));
                     return dto;
                 })
@@ -109,7 +110,7 @@ public class EventsServiceImpl implements EventsService {
                 .orElseThrow(() -> new EntityNotFoundException("Event not found with id " + id));
 
         EventDetailDto dto = eventsMapper.toDetailDto(event);
-        dto.setLiveNow(isLiveNow(event, OffsetDateTime.now()));
+        dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
         dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(id, AttendanceStatus.GOING));
         dto.setInterestedCount(eventAttendanceRepository.countByEventIdAndStatus(id, AttendanceStatus.INTERESTED));
         dto.setInstagramUrl(event.getInstagramUrl() != null
@@ -118,10 +119,5 @@ public class EventsServiceImpl implements EventsService {
         return dto;
     }
 
-    private boolean isLiveNow(Events event, OffsetDateTime now) {
-        OffsetDateTime effectiveEnd = event.getEndAt() != null
-                ? event.getEndAt()
-                : event.getStartAt().plusHours(4);
-        return !now.isBefore(event.getStartAt()) && now.isBefore(effectiveEnd);
-    }
+
 }
