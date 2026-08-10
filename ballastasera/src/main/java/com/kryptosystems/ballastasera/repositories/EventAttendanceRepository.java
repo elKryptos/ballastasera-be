@@ -45,4 +45,17 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             """)
     Page<EventAttendance> findByEventIdAndStatusAndUserShowProfilePublicTrue(
             @Param("eventId") UUID eventId, @Param("status") AttendanceStatus status, Pageable pageable);
+
+    /** Trae el attendance del usuario con el evento (y organizer/venue/danceStyles)
+     * ya cargados, para evitar N+1 al armar las cards en /me/attendance. */
+    @Query("""                                                                                                                                                                                                      
+          SELECT DISTINCT a FROM EventAttendance a
+          JOIN FETCH a.event e
+          JOIN FETCH e.organizer o
+          LEFT JOIN FETCH e.venue v
+          LEFT JOIN FETCH e.danceStyles ds
+          WHERE a.user.id = :userId
+          ORDER BY a.createdAt DESC
+          """)
+    List<EventAttendance> findByUserIdWithEventDetails(@Param("userId") UUID userId);
 }
