@@ -12,6 +12,7 @@ name: ballastasera
 services:
   postgres:
     image: postgis/postgis:18-3.6 # PostgreSQL 18 con PostGIS incluso
+    container_name: postgresql
     restart: unless-stopped
     # Le variabili DB_* sono condivise con Spring Boot tramite ballastasera/.env.
     # Il fallback changeme è accettabile solo per lo sviluppo locale.
@@ -24,8 +25,8 @@ services:
     volumes:
       - postgresql_data:/var/lib/postgresql # dati persistenti (mount PostgreSQL 18+)
       # Percorsi reali dei file SQL nella cartella docs/.
-      - ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
+      #- ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      #- ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
 
     healthcheck:
       test:
