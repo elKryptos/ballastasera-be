@@ -1,33 +1,38 @@
 # ============================================================================
-#  BallaStasera — Database Postgres + PostGIS in Docker
-#  Avvio:  docker compose up -d
-#  Lo schema in ./ballastasera_schema.sql viene caricato AUTOMATICAMENTE
-#  al PRIMO avvio (quando il volume dati è vuoto).
+#  BallaStasera - PostgreSQL + PostGIS database in Docker
+#  Avvia dalla radice del repository:
+#  docker compose --env-file ballastasera/.env -f infra/docker-compose.yml up -d
+#
+#  I file SQL vengono caricati automaticamente solo al primo avvio,
+#  quando il volume dati è vuoto.
 # ============================================================================
 
 name: ballastasera
 
 services:
   postgres:
-    image: postgis/postgis:18-3.6 # Postgres 18 con PostGIS gia' incluso
+    image: postgis/postgis:18-3.6 # PostgreSQL 18 con PostGIS incluso
     container_name: postgresql
     restart: unless-stopped
+    # Le variabili DB_* sono condivise con Spring Boot tramite ballastasera/.env.
+    # Il fallback changeme è accettabile solo per lo sviluppo locale.
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-ballastasera}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-ballastasera}
+      POSTGRES_USER: ${DB_USERNAME:-ballastasera}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-ballastasera}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432" # host:container — connettiti a localhost:5432
+      - "${DB_PORT:-5432}:5432" # host:container - connettiti a localhost:5432
     volumes:
-      - postgresql_data:/var/lib/postgresql # dati persistenti (Postgres 18+: mount senza /data)
-      # Script eseguiti in ordine alfabetico SOLO al primo avvio (volume vuoto):
-      # - ./ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      # - ./02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
+      - postgresql_data:/var/lib/postgresql # dati persistenti (mount PostgreSQL 18+)
+      # Percorsi reali dei file SQL nella cartella docs/.
+      #- ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      #- ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
+
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-ballastasera} -d ${POSTGRES_DB:-ballastasera}",
+          "pg_isready -U ${DB_USERNAME:-ballastasera} -d ${DB_NAME:-ballastasera}",
         ]
       interval: 5s
       timeout: 5s
