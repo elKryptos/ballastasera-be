@@ -136,3 +136,87 @@ Content-Type: application/json
 
 **Esperado**: `401/403` — confirma que `SecurityConfig` sigue protegiendo lo que debe, aunque el
 `GET` del mismo recurso sea público.
+
+---
+
+## 4. CRUD de eventos (dueño autenticado)
+
+El organizer `11111111-1111-1111-1111-111111111111` del seed pertenece al usuario ficticio
+`22222222-...`, que nunca inicia sesión. Para probar `create`/`update`/`delete` necesitás un
+organizer que pertenezca a **tu** usuario real (el que logueaste por Google en la sección 3):
+
+```sql
+-- si ya tenés un organizer propio, solo asegurate que esté verificado:
+UPDATE organizers SET is_verified = true WHERE id = '<tu_organizer_id>';
+
+-- si no tenés ninguno, creá uno apuntando a tu user_id real:
+INSERT INTO organizers (id, user_id, name, slug, type, is_verified)
+VALUES (gen_random_uuid(), '<tu_user_id>', 'Mi Organizer de Prueba', 'mi-organizer-de-prueba', 'PERSON', true)
+RETURNING id;
+```
+
+`Authorization: Bearer <tu token>` en las cuatro requests siguientes.
+
+### `POST /api/events`
+
+```
+POST http://localhost:8080/api/events
+Content-Type: application/json
+
+{
+  "organizerId": "<tu_organizer_id>",
+  "cityId": 1,
+  "title": "Noche de Salsa",
+  "description": "Fiesta social con clase previa",
+  "startAt": "2026-09-01T22:00:00+02:00",
+  "isFree": false,
+  "price": 10.00,
+  "currency": "EUR",
+  "address": "Carrer de Balmes 100, Barcelona",
+  "latitude": 41.3921,
+  "longitude": 2.1595,
+  "danceStyleIds": [1, 2]
+}
+```
+
+**Esperado**: `201` + `EventDetailDto` con `status: "PENDING"`. Guardate el `id` devuelto para los
+siguientes pasos. Si `organizerId` no te pertenece o no está `is_verified`, debe dar `403`.
+
+### `PATCH /api/events/{id}`
+
+```
+PATCH http://localhost:8080/api/events/<id_del_evento_creado>
+Content-Type: application/json
+
+{
+  "cityId": 1,
+  "title": "Noche de Salsa (actualizado)",
+  "address": "Carrer de Balmes 100, Barcelona",
+  "startAt": "2026-09-01T23:00:00+02:00"
+}
+```
+
+**Esperado**: `200` con el título y horario actualizados. `EventUpdateDto` tiene `@NotBlank`
+en `title`/`address` y `@NotNull` en `cityId`/`startAt` — mandalos siempre en el body aunque no
+cambien, o falla la validación (`400`). Los campos que no mandes quedan sin tocar gracias al
+`nullValuePropertyMappingStrategy = IGNORE` del mapper.
+
+### `PATCH /api/events/{id}/status`
+
+```
+PATCH http://localhost:8080/api/events/<id_del_evento_creado>/status
+Content-Type: application/json
+
+{ "status": "PUBLISHED" }
+```
+
+**Esperado**: `200`, `status: "PUBLISHED"`. Valores válidos: `DRAFT`, `PENDING`, `PUBLISHED`,
+`CANCELLED`. Con otro usuario (no dueño) debe dar `403`.
+
+### `DELETE /api/events/{id}`
+
+```
+DELETE http://localhost:8080/api/events/<id_del_evento_creado>
+```
+
+**Esperado**: `204 No Content`. Un `GET` posterior al mismo `id` debe dar `404`.
