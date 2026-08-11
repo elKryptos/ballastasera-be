@@ -1,35 +1,35 @@
 # BallaStasera - Database (Postgres + PostGIS)
 
-Database local de BallaStasera. Solo necesitas Docker Desktop instalado y
-ejecutandose.
+Local BallaStasera database. You only need Docker Desktop installed and
+running.
 
-## Archivos
+## Files
 
-- `infra/docker-compose.yml`: define PostgreSQL con PostGIS.
-- `docs/ballastasera_schema.sql`: tablas, relaciones y datos iniciales.
-- `docs/02_postgis.sql`: activa PostGIS y crea el indice geografico.
-- `ballastasera/.env.example`: variables de ejemplo para Spring Boot y Docker.
+- `infra/docker-compose.yml`: defines PostgreSQL with PostGIS.
+- `docs/ballastasera_schema.sql`: tables, relationships and seed data.
+- `docs/02_postgis.sql`: enables PostGIS and creates the geographic index.
+- `ballastasera/.env.example`: example variables for Spring Boot and Docker.
 
-## Configuracion inicial
+## Initial setup
 
 ```powershell
 Copy-Item ballastasera/.env.example ballastasera/.env
 ```
 
-Edita `ballastasera/.env` y cambia `DB_PASSWORD` si lo necesitas. El archivo
-`.env` esta ignorado por Git.
+Edit `ballastasera/.env` and change `DB_PASSWORD` if needed. The `.env` file
+is ignored by Git.
 
-## Arranque
+## Startup
 
-Desde la raiz del repositorio:
+Run this command from the repository root:
 
 ```powershell
 docker compose --env-file ballastasera/.env -p ballastasera -f infra/docker-compose.yml up -d --wait
 ```
 
-Los scripts SQL se ejecutan automaticamente solo cuando el volumen esta vacio.
+The SQL scripts run automatically only when the volume is empty.
 
-## Verificacion
+## Verification
 
 ```powershell
 docker compose --env-file ballastasera/.env -p ballastasera -f infra/docker-compose.yml ps
@@ -37,7 +37,7 @@ docker compose --env-file ballastasera/.env -p ballastasera -f infra/docker-comp
 docker compose --env-file ballastasera/.env -p ballastasera -f infra/docker-compose.yml exec postgres psql -U ballastasera -d ballastasera
 ```
 
-Dentro de `psql`:
+Inside `psql`:
 
 ```sql
 \dt
@@ -47,18 +47,18 @@ SELECT extname FROM pg_extension WHERE extname = 'postgis';
 \q
 ```
 
-## Reinicio completo
+## Full reset
 
-`down -v` elimina tambien los datos locales porque borra el volumen.
+`down -v` also removes local data because it deletes the volume.
 
 ```powershell
 docker compose --env-file ballastasera/.env -p ballastasera -f infra/docker-compose.yml down -v
 docker compose --env-file ballastasera/.env -p ballastasera -f infra/docker-compose.yml up -d --wait
 ```
 
-## Conexion desde Spring Boot
+## Spring Boot connection
 
-Spring Boot usa la misma configuracion de `ballastasera/.env`:
+Spring Boot uses the same configuration from `ballastasera/.env`:
 
 ```text
 jdbc:postgresql://localhost:5432/ballastasera

@@ -1,6 +1,6 @@
 # ============================================================================
-#  BallaStasera - Database Postgres + PostGIS in Docker
-#  Avvio dalla radice del repository:
+#  BallaStasera - PostgreSQL + PostGIS database in Docker
+#  Avvia dalla radice del repository:
 #  docker compose --env-file ballastasera/.env -f infra/docker-compose.yml up -d
 #
 #  I file SQL vengono caricati automaticamente solo al primo avvio,
@@ -11,9 +11,9 @@ name: ballastasera
 
 services:
   postgres:
-    image: postgis/postgis:18-3.6 # Postgres 18 con PostGIS gia' incluso
+    image: postgis/postgis:18-3.6 # PostgreSQL 18 con PostGIS incluso
     restart: unless-stopped
-    # Le variabili DB_* sono condivise con Spring Boot in ballastasera/.env.
+    # Le variabili DB_* sono condivise con Spring Boot tramite ballastasera/.env.
     # Il fallback changeme è accettabile solo per lo sviluppo locale.
     environment:
       POSTGRES_USER: ${DB_USERNAME:-ballastasera}
@@ -22,7 +22,7 @@ services:
     ports:
       - "${DB_PORT:-5432}:5432" # host:container - connettiti a localhost:5432
     volumes:
-      - postgresql_data:/var/lib/postgresql # dati persistenti (Postgres 18+: mount senza /data)
+      - postgresql_data:/var/lib/postgresql # dati persistenti (mount PostgreSQL 18+)
       # Percorsi reali dei file SQL nella cartella docs/.
       - ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
