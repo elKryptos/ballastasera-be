@@ -1,7 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.*;
-import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
@@ -29,7 +28,6 @@ public class EventsController {
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
     private final EventsRepository eventsRepository;
-    private final EventsMapper eventsMapper;
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
      * dentro del bounding box visible. Nunca devuelve eventos pasados. */
@@ -55,7 +53,7 @@ public class EventsController {
     public ResponseEntity<EventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
                                                  @Valid @RequestBody EventCreateDto body) {
         var event = eventsService.create(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventsMapper.toEventDetailDto(event));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.toEventDetailDto(event));
     }
 
     /** Requiere estar autenticado y ser dueño del evento (via organizer.user.id). */
@@ -64,7 +62,7 @@ public class EventsController {
                                                  @PathVariable UUID id,
                                                  @Valid @RequestBody EventUpdateDto body) {
         var event = eventsService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 
     /** Requiere estar autenticado y ser dueño del evento. Publicar / despublicar / cancelar. */
@@ -73,7 +71,7 @@ public class EventsController {
                                                        @PathVariable UUID id,
                                                        @Valid @RequestBody EventStatusUpdateDto body) {
         var event = eventsService.updateStatus(principal.getId(), id, body.getStatus());
-        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 
     @DeleteMapping("/{id}")

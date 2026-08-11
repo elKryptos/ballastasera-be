@@ -26,6 +26,10 @@ public interface EventsService {
 
     EventDetailDto getEventDetail(UUID id);
 
+    /** Igual que getEventDetail pero a partir de un Events ya cargado en memoria,
+     * sin volver a consultar la DB. Pensado para create/update/updateStatus. */
+    EventDetailDto toEventDetailDto(Events event);
+
     /** Crea el evento a nombre del organizerId del dto; falla si ese organizer
      * no le pertenece a requesterId o si aun no esta verificado. Nace en DRAFT. */
     Events create(UUID requesterId, EventCreateDto dto);

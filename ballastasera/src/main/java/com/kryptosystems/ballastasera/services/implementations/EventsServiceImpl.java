@@ -113,11 +113,22 @@ public class EventsServiceImpl implements EventsService {
     public EventDetailDto getEventDetail(UUID id) {
         Events event = eventsRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("Event not found with id " + id));
+        return buildDetailDto(event);
+    }
 
+    @Override
+    public EventDetailDto toEventDetailDto(Events event) {
+        return buildDetailDto(event);
+    }
+
+    /** Mapea + completa los campos que el mapper ignora a proposito (liveNow,
+     * counts, fallback de instagramUrl). Recibe el Events ya cargado para no
+     * forzar un roundtrip extra a la DB cuando el caller ya lo tiene en memoria. */
+    private EventDetailDto buildDetailDto(Events event) {
         EventDetailDto dto = eventsMapper.toEventDetailDto(event);
         dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
-        dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(id, AttendanceStatus.GOING));
-        dto.setInterestedCount(eventAttendanceRepository.countByEventIdAndStatus(id, AttendanceStatus.INTERESTED));
+        dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.GOING));
+        dto.setInterestedCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.INTERESTED));
         dto.setInstagramUrl(event.getInstagramUrl() != null
                 ? event.getInstagramUrl()
                 : event.getOrganizer().getInstagram());
