@@ -1,7 +1,10 @@
 package com.kryptosystems.ballastasera.services.manager;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
+import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 
 import java.util.List;
@@ -22,4 +25,17 @@ public interface EventsService {
     List<EventCardDto> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId);
 
     EventDetailDto getEventDetail(UUID id);
+
+    /** Crea el evento a nombre del organizerId del dto; falla si ese organizer
+     * no le pertenece a requesterId o si aun no esta verificado. Nace en DRAFT. */
+    Events create(UUID requesterId, EventCreateDto dto);
+
+    /** Edita un evento propio. No permite cambiar de organizer ni de status. */
+    Events update(UUID id, UUID requesterId, EventUpdateDto dto);
+
+    /** Publicar / despublicar / cancelar un evento propio. */
+    Events updateStatus(UUID id, UUID requesterId, EventStatus status);
+
+    /** Borra un evento propio (ownership check incluido). */
+    void delete(UUID id, UUID requesterId);
 }

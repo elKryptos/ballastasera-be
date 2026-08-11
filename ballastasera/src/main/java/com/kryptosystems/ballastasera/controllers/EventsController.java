@@ -1,9 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
-import com.kryptosystems.ballastasera.models.dtos.AttendanceRequestDto;
-import com.kryptosystems.ballastasera.models.dtos.AttendeeDto;
-import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
-import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
+import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
@@ -16,15 +14,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,7 +29,7 @@ public class EventsController {
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
     private final EventsRepository eventsRepository;
-
+    private final EventsMapper eventsMapper;
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
      * dentro del bounding box visible. Nunca devuelve eventos pasados. */
@@ -55,6 +47,39 @@ public class EventsController {
     @GetMapping("/{id}")
     public ResponseEntity<EventDetailDto> getEventDetail(@PathVariable UUID id) {
         return ResponseEntity.ok(eventsService.getEventDetail(id));
+    }
+
+    /** Requiere estar autenticado. El organizerId del body debe pertenecer al
+     * usuario logueado y ese organizer debe estar verificado. Nace en PENDING. */
+    @PostMapping()
+    public ResponseEntity<EventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
+                                                 @Valid @RequestBody EventCreateDto body) {
+        var event = eventsService.create(principal.getId(), body);
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventsMapper.toEventDetailDto(event));
+    }
+
+    /** Requiere estar autenticado y ser dueño del evento (via organizer.user.id). */
+    @PatchMapping("/{id}")
+    public ResponseEntity<EventDetailDto> update(@AuthenticationPrincipal UserPrincipal principal,
+                                                 @PathVariable UUID id,
+                                                 @Valid @RequestBody EventUpdateDto body) {
+        var event = eventsService.update(id, principal.getId(), body);
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+    }
+
+    /** Requiere estar autenticado y ser dueño del evento. Publicar / despublicar / cancelar. */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<EventDetailDto> updateStatus(@AuthenticationPrincipal UserPrincipal principal,
+                                                       @PathVariable UUID id,
+                                                       @Valid @RequestBody EventStatusUpdateDto body) {
+        var event = eventsService.updateStatus(principal.getId(), id, body.getStatus());
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        eventsService.delete(id, principal.getId());
+        return ResponseEntity.noContent().build();
     }
 
     /** Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
@@ -107,4 +132,5 @@ public class EventsController {
     public ResponseEntity<Boolean> isFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         return ResponseEntity.ok(favoritesService.existsByUserIdAndEventId(principal.getId(), id));
     }
+
 }

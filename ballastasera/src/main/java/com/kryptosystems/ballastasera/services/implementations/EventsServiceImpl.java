@@ -3,22 +3,22 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
-import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
+import com.kryptosystems.ballastasera.models.entities.*;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
-import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
-import com.kryptosystems.ballastasera.repositories.EventsRepository;
+import com.kryptosystems.ballastasera.repositories.*;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
+import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +28,11 @@ public class EventsServiceImpl implements EventsService {
     private final EventsRepository eventsRepository;
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsMapper eventsMapper;
+    private final OrganizersRepository organizersRepository;
+    private final CitiesRepository citiesRepository;
+    private final VenuesRepository venuesRepository;
+    private final EventSeriesRepository eventSeriesRepository;
+    private final DanceStylesRepository danceStylesRepository;
 
     @Override
     public List<Events> findAll() {
@@ -96,7 +101,7 @@ public class EventsServiceImpl implements EventsService {
                 .map(eventsById::get)
                 .filter(Objects::nonNull)
                 .map(event -> {
-                    EventCardDto dto = eventsMapper.toCardDto(event);
+                    EventCardDto dto = eventsMapper.toEventCardDto(event);
                     dto.setLiveNow(EventTimingUtils.isLiveNow(event, now));
                     dto.setGoingCount(goingCounts.getOrDefault(event.getId(), 0L));
                     return dto;
@@ -109,7 +114,7 @@ public class EventsServiceImpl implements EventsService {
         Events event = eventsRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("Event not found with id " + id));
 
-        EventDetailDto dto = eventsMapper.toDetailDto(event);
+        EventDetailDto dto = eventsMapper.toEventDetailDto(event);
         dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
         dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(id, AttendanceStatus.GOING));
         dto.setInterestedCount(eventAttendanceRepository.countByEventIdAndStatus(id, AttendanceStatus.INTERESTED));
@@ -119,5 +124,95 @@ public class EventsServiceImpl implements EventsService {
         return dto;
     }
 
+    @Override
+    public Events create(UUID requesterId, EventCreateDto dto) {
+        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
+        if (!organizer.getUser().getId().equals(requesterId)) {
+            throw new AccessDeniedException("Not the owner of this organizer");
+        }
+        if (!organizer.isVerified()) {
+            throw new AccessDeniedException("Organizer not verified yet");
+        }
+        Events event = eventsMapper.toEventEntity(dto);
+        event.setOrganizer(organizer);
+        event.setCity(resolveCity(dto.getCityId()));
+        event.setVenue(resolveVenue(dto.getVenueId()));
+        event.setSeries(resolveSeries(dto.getSeriesId()));
+        event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
+        event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
+                slug -> eventsRepository.findBySlug(slug).isPresent()));
+        event.setStatus(EventStatus.PENDING);
+        return eventsRepository.save(event);
+    }
+
+    @Override
+    public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
+        Events event = findById(id);
+        assertOwnership(event, requesterId);
+        eventsMapper.updateEventEntityFromDto(dto, event);
+        if (dto.getCityId() != null) {
+           event.setCity(resolveCity(dto.getCityId()));
+        }
+        if (dto.getVenueId() != null) {
+            event.setVenue(resolveVenue(dto.getVenueId()));
+        }
+        if (dto.getSeriesId() != null) {
+            event.setSeries(resolveSeries(dto.getSeriesId()));
+        }
+        if (dto.getDanceStyleIds() != null) {
+            event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
+        }
+        if (dto.getTitle() != null) {
+            event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
+                    slug -> eventsRepository.findBySlug(slug)
+                            .map(existing -> !existing.getId().equals(id))
+                            .orElse(false)));
+        }
+        return eventsRepository.save(event);
+    }
+
+    @Override
+    public Events updateStatus(UUID id, UUID requesterId, EventStatus status) {
+        Events event = findById(id);
+        assertOwnership(event, requesterId);
+        event.setStatus(status);
+        return eventsRepository.save(event);
+    }
+
+    @Override
+    public void delete(UUID id, UUID requesterId) {
+        Events event = findById(id);
+        assertOwnership(event, requesterId);
+        eventsRepository.delete(event);
+    }
+
+    private void assertOwnership(Events event, UUID requesterId) {
+        if (!event.getOrganizer().getUser().getId().equals(requesterId)) {
+            throw new AccessDeniedException("Not the owner of this event");
+        }
+    }
+
+    private Cities resolveCity(Long cityId) {
+        return citiesRepository.findById(cityId)
+                .orElseThrow(() -> new EntityNotFoundException("City not found with id " + cityId));
+    }
+
+    private Venues resolveVenue(UUID venueId) {
+        if (venueId == null) return null;
+        return venuesRepository.findById(venueId)
+                .orElseThrow(() -> new EntityNotFoundException("Venue not found with id " + venueId));
+    }
+
+    private EventSeries resolveSeries(UUID seriesId) {
+        if (seriesId == null) return null;
+        return eventSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new EntityNotFoundException("Event series not found with id " + seriesId));
+    }
+
+    private Set<DanceStyles> resolveDanceStyles(Set<Long> danceStyleIds) {
+        if (danceStyleIds == null || danceStyleIds.isEmpty()) return null;
+        return new HashSet<>(danceStylesRepository.findAllById(danceStyleIds));
+    }
 
 }
