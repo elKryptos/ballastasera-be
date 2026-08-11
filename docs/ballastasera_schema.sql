@@ -160,7 +160,7 @@ CREATE TABLE events (
     description   TEXT,
     flyer_url     TEXT,                            -- immagine/volantino (URL, upload gestito da backend)
 	instagram_url TEXT,
-	whatsapp_url  TEXT
+	whatsapp_url  TEXT,
 
     start_at      TIMESTAMPTZ NOT NULL,           -- inizio (data + ora, con timezone)
     end_at        TIMESTAMPTZ,                    -- fine (opzionale)
