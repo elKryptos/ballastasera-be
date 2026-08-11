@@ -19,7 +19,7 @@ public class FavoritesMapper {
     private final EventsMapper eventsMapper;
 
     public EventCardDto toCardDto(Favorites favorite) {
-        return eventsMapper.toCardDto(favorite.getEvent());
+        return eventsMapper.toEventCardDto(favorite.getEvent());
     }
 
     public List<EventCardDto> toCardDtos(List<Favorites> favorites) {

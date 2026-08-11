@@ -90,7 +90,7 @@ public class OrganizersController {
     @GetMapping("/{id}/events")
     public ResponseEntity<List<EventCardDto>> getOrganizerEvents(@PathVariable UUID id) {
         var events = eventService.findByOrganizerId(id).stream()
-                .map(eventsMapper::toCardDto)
+                .map(eventsMapper::toEventCardDto)
                 .toList();
         return ResponseEntity.ok(events);
     }
