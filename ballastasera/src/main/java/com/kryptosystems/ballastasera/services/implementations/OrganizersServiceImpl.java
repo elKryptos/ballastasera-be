@@ -66,7 +66,8 @@ public class OrganizersServiceImpl implements OrganizersService {
         Organizers organizer = new Organizers();
         organizer.setUser(user);
         organizer.setName(dto.getName());
-        organizer.setSlug(uniqueSlug(dto.getName()));
+        organizer.setSlug(SlugUtils.uniqueSlug(dto.getName(),
+                slug -> organizersRepository.findBySlug(slug).isPresent()));
         organizer.setType(dto.getType());
         organizer.setDescription(dto.getDescription());
         organizer.setLogoUrl(dto.getLogoUrl());
@@ -77,16 +78,6 @@ public class OrganizersServiceImpl implements OrganizersService {
         organizer.setFacebook(dto.getFacebook());
         organizer.setVerified(false);
         return organizersRepository.save(organizer);
-    }
-
-    private String uniqueSlug(String name) {
-        String base = SlugUtils.slugify(name);
-        String slug = base;
-        int attempt = 1;
-        while (organizersRepository.findBySlug(slug).isPresent()) {
-            slug = base + "-" + attempt++;
-        }
-        return slug;
     }
 
     @Override
