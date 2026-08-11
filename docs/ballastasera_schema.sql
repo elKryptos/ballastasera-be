@@ -58,6 +58,8 @@ CREATE TABLE users (
     email        TEXT        NOT NULL UNIQUE,
     display_name TEXT        NOT NULL,
     avatar_url   TEXT,
+	instagram    TEXT,
+	show_profile_public BOOLEAN NOT NULL DEFAULT FALSE,
     role         user_role   NOT NULL DEFAULT 'USER',
     is_active    BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -147,44 +149,46 @@ CREATE TABLE event_series (
 --  Così la query per la mappa legge una sola tabella indicizzata.
 -- ============================================================================
 CREATE TABLE events (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organizer_id UUID   NOT NULL REFERENCES organizers(id)  ON DELETE CASCADE,
-    venue_id     UUID            REFERENCES venues(id)       ON DELETE SET NULL,
-    series_id    UUID            REFERENCES event_series(id) ON DELETE SET NULL,
-    city_id      BIGINT NOT NULL REFERENCES cities(id),
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organizer_id  UUID   NOT NULL REFERENCES organizers(id)  ON DELETE CASCADE,
+    venue_id      UUID            REFERENCES venues(id)       ON DELETE SET NULL,
+    series_id     UUID            REFERENCES event_series(id) ON DELETE SET NULL,
+    city_id       BIGINT NOT NULL REFERENCES cities(id),
 
-    title        TEXT   NOT NULL,
-    slug         TEXT   NOT NULL UNIQUE,
-    description  TEXT,
-    flyer_url    TEXT,                            -- immagine/volantino (URL, upload gestito da backend)
+    title         TEXT   NOT NULL,
+    slug          TEXT   NOT NULL UNIQUE,
+    description   TEXT,
+    flyer_url     TEXT,                            -- immagine/volantino (URL, upload gestito da backend)
+	instagram_url TEXT,
+	whatsapp_url  TEXT
 
-    start_at     TIMESTAMPTZ NOT NULL,           -- inizio (data + ora, con timezone)
-    end_at       TIMESTAMPTZ,                    -- fine (opzionale)
+    start_at      TIMESTAMPTZ NOT NULL,           -- inizio (data + ora, con timezone)
+    end_at        TIMESTAMPTZ,                    -- fine (opzionale)
 
-    is_free      BOOLEAN NOT NULL DEFAULT TRUE,
-    price        NUMERIC(8,2),                   -- prezzo ingresso (NULL se gratis)
-    currency     CHAR(3) NOT NULL DEFAULT 'EUR',
+    is_free       BOOLEAN NOT NULL DEFAULT TRUE,
+    price         NUMERIC(8,2),                   -- prezzo ingresso (NULL se gratis)
+    currency      CHAR(3) NOT NULL DEFAULT 'EUR',
 
     -- posizione sulla mappa (obbligatoria)
-    address      TEXT   NOT NULL,
-    latitude     DOUBLE PRECISION NOT NULL,
-    longitude    DOUBLE PRECISION NOT NULL,
+    address       TEXT   NOT NULL,
+    latitude      DOUBLE PRECISION NOT NULL,
+    longitude     DOUBLE PRECISION NOT NULL,
 
-    status       event_status NOT NULL DEFAULT 'PENDING', -- moderazione: pending -> published
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status        event_status NOT NULL DEFAULT 'PENDING', -- moderazione: pending -> published
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT chk_event_time  CHECK (end_at IS NULL OR end_at > start_at),
     CONSTRAINT chk_event_price CHECK (is_free OR price IS NOT NULL)
 );
-CREATE INDEX idx_events_start     ON events(start_at);
-CREATE INDEX idx_events_city      ON events(city_id);
-CREATE INDEX idx_events_status    ON events(status);
-CREATE INDEX idx_events_organizer ON events(organizer_id);
-CREATE INDEX idx_events_venue     ON events(venue_id);
-CREATE INDEX idx_events_coords    ON events(latitude, longitude);
+CREATE INDEX idx_events_start      ON events(start_at);
+CREATE INDEX idx_events_city       ON events(city_id);
+CREATE INDEX idx_events_status_end ON events(status, end_at);
+CREATE INDEX idx_events_organizer  ON events(organizer_id);
+CREATE INDEX idx_events_venue      ON events(venue_id);
+CREATE INDEX idx_events_coords     ON events(latitude, longitude);
 -- indice utile per la vista "prossimi eventi pubblicati di una città"
-CREATE INDEX idx_events_city_time ON events(city_id, start_at) WHERE status = 'PUBLISHED';
+CREATE INDEX idx_events_city_time  ON events(city_id, start_at) WHERE status = 'PUBLISHED';
 
 
 -- ============================================================================
@@ -237,8 +241,8 @@ SELECT
 FROM events e
 JOIN organizers o ON o.id = e.organizer_id
 JOIN cities     c ON c.id = e.city_id
-WHERE e.status = 'PUBLISHED'
-  AND e.start_at >= now()
+WHERE e.status = 'PUBLISHED'                                                                                                                                                                                                                                                                                                                                
+    AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > now()     
 ORDER BY e.start_at;
 
 

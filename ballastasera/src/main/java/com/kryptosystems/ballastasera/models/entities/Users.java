@@ -36,6 +36,12 @@ public class Users {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    @Column(name = "instagram")
+    private String instagram;
+
+    @Column(name = "show_profile_public", nullable = false)
+    private boolean showProfilePublic = false;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "role", nullable = false, columnDefinition = "user_role")

@@ -9,6 +9,8 @@ import java.util.UUID;
 public interface FavoritesService {
     List<Favorites> findByUserId(UUID userId);
     List<Favorites> findByEventId(UUID eventId);
-    Favorites save(Favorites favorite);
-    void deleteById(UserEventId id);
+    Favorites addFavorite(UUID userId, UUID eventId);
+    void removeFavorite(UUID userId, UUID eventId);
+    /** usado para el corazon de favoritos */
+    boolean existsByUserIdAndEventId(UUID userId, UUID eventId);
 }
