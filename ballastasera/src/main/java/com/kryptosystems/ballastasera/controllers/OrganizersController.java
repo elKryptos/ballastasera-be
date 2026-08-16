@@ -1,8 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.*;
-import com.kryptosystems.ballastasera.models.entities.Events;
-import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
@@ -21,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
