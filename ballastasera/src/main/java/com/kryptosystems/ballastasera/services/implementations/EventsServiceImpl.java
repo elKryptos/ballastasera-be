@@ -184,7 +184,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public Events updateStatus(UUID id, UUID requesterId, EventStatus status) {
+    public Events updateStatus(UUID requesterId, UUID id, EventStatus status) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
         event.setStatus(status);
