@@ -3,11 +3,13 @@ package com.kryptosystems.ballastasera.security;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomOidcUserService extends OidcUserService {
@@ -24,8 +26,14 @@ public class CustomOidcUserService extends OidcUserService {
         String avatarUrl = oidcUser.getPicture();
 
         Users user = usersRepository.findByGoogleId(googleId)
-                .or(() -> usersRepository.findByEmail(email))
-                .orElseGet(Users::new);
+                .or(() -> usersRepository.findByEmail(email)
+                                .map(existing -> {
+                                    if (existing.getGoogleId() != null && !existing.getGoogleId().equals(googleId)) {
+                                        log.warn("googleId cambiato per email={}: {} -> {}", email, existing.getGoogleId(), googleId);
+                                    }
+                                    return existing;
+                                }))
+                .orElse(new Users());
 
         user.setGoogleId(googleId);
         user.setEmail(email);

@@ -74,4 +74,17 @@ public class BackendErrorResponse {
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDetails);
     }
+
+    @ExceptionHandler(AddressNotFoundException.class)
+    public ResponseEntity<ErrorDetails> handleAddressNotFound(AddressNotFoundException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Address not found",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
 }

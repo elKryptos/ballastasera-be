@@ -38,7 +38,7 @@ public interface EventsService {
     Events update(UUID id, UUID requesterId, EventUpdateDto dto);
 
     /** Publicar / despublicar / cancelar un evento propio. */
-    Events updateStatus(UUID id, UUID requesterId, EventStatus status);
+    Events updateStatus(UUID requesterId, UUID id, EventStatus status);
 
     /** Borra un evento propio (ownership check incluido). */
     void delete(UUID id, UUID requesterId);

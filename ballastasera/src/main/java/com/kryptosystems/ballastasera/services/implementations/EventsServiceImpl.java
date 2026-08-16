@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
@@ -10,6 +11,7 @@ import com.kryptosystems.ballastasera.models.entities.*;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.*;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
+import com.kryptosystems.ballastasera.services.manager.GeocodingService;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
@@ -33,6 +35,7 @@ public class EventsServiceImpl implements EventsService {
     private final VenuesRepository venuesRepository;
     private final EventSeriesRepository eventSeriesRepository;
     private final DanceStylesRepository danceStylesRepository;
+    private final GeocodingService geocodingService;
 
     @Override
     public List<Events> findAll() {
@@ -154,6 +157,15 @@ public class EventsServiceImpl implements EventsService {
         event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
                 slug -> eventsRepository.findBySlug(slug).isPresent()));
         event.setStatus(EventStatus.PENDING);
+        /** Si el cliente no mando lat/lng (ej. no arrastro el pin en el mapa),
+         * las calculamos a partir de la direccion. */
+        if (event.getLatitude() == null || event.getLongitude() == null) {
+            GeocodingService.GeoPoint point = geocodingService.geoCode(event.getAddress(), event.getCity().getName())
+                    .orElseThrow(() -> new AddressNotFoundException(
+                            "Address not found: " + event.getAddress() + ". Correct the address or insert the coordinates manually."));
+            event.setLatitude(point.latitude());
+            event.setLongitude(point.longitude());
+        }
         return eventsRepository.save(event);
     }
 
@@ -180,11 +192,22 @@ public class EventsServiceImpl implements EventsService {
                             .map(existing -> !existing.getId().equals(id))
                             .orElse(false)));
         }
+        /** Solo re-geocodificamos si cambio la direccion y el cliente no mando
+         * coordenadas explicitas (ej. ajusto el pin a mano en el mapa). */
+        boolean addressChanged = dto.getAddress() != null;
+        boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
+        if (addressChanged && !coordsProvidedByClient) {
+            GeocodingService.GeoPoint point = geocodingService.geoCode(dto.getAddress(), event.getCity().getName())
+                    .orElseThrow(() -> new AddressNotFoundException(
+                            "Address not found: " + dto.getAddress() + ". Correct the address or insert the coordinates manually."));
+            event.setLatitude(point.latitude());
+            event.setLongitude(point.longitude());
+        }
         return eventsRepository.save(event);
     }
 
     @Override
-    public Events updateStatus(UUID id, UUID requesterId, EventStatus status) {
+    public Events updateStatus(UUID requesterId, UUID id, EventStatus status) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
         event.setStatus(status);
