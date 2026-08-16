@@ -18,18 +18,13 @@ public class EventUpdateDto {
 
     private UUID venueId;
     private UUID seriesId;
-
-    @NotNull
     private Long cityId;
-
-    @NotBlank
     private String title;
     private String description;
     private String flyerUrl;
     private String instagramUrl;
     private String whatsappUrl;
 
-    @NotNull
     @Future
     private OffsetDateTime startAt;
     private OffsetDateTime endAt;
@@ -39,7 +34,6 @@ public class EventUpdateDto {
     private BigDecimal price;
     private String currency;
 
-    @NotBlank
     private String address;
     private Double latitude;
     private Double longitude;
