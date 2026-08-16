@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @RequiredArgsConstructor
@@ -28,15 +29,27 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        // Must be declared before the public /api/organizers/{slug} route.
+                        .requestMatchers(HttpMethod.GET, "/api/organizers/me").authenticated()
                         .requestMatchers(HttpMethod.GET,
-                                "/api/events/**",
-                                "/api/cities/**",
-                                "/api/venues/**",
-                                "/api/organizers/**",
-                                "/api/dance-styles/**"
+                                "/api/events",
+                                "/api/events/{id}",
+                                "/api/events/{id}/attendees",
+                                "/api/cities",
+                                "/api/cities/{id}",
+                                "/api/organizers",
+                                "/api/organizers/{slug}",
+                                "/api/organizers/{id}/events",
+                                "/api/organizers/{id}/venues",
+                                "/api/organizers/{id}/event-series"
+
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.oidcUserService(customOidcUserService))
