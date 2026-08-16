@@ -101,6 +101,12 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void danceStylesRemainPublic() throws Exception {
+        mockMvc.perform(get("/api/dance-styles"))
+                .andExpect(status().isOk());
+    }
+
     private UsernamePasswordAuthenticationToken userAuthentication() {
         Users user = new Users();
         user.setId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
@@ -135,6 +141,11 @@ class SecurityConfigTest {
 
         @GetMapping("/api/cities")
         String getCities() {
+            return "ok";
+        }
+
+        @GetMapping("/api/dance-styles")
+        String getDanceStyles() {
             return "ok";
         }
     }
