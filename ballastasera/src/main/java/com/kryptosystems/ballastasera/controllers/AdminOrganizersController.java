@@ -14,7 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/admin/organizers")
 @RequiredArgsConstructor
-public class dimeAdminOrganizersController {
+public class AdminOrganizersController {
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
