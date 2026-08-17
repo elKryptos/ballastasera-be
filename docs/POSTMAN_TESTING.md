@@ -169,6 +169,7 @@ Content-Type: application/json
   "title": "Noche de Salsa",
   "description": "Fiesta social con clase previa",
   "startAt": "2026-09-01T22:00:00+02:00",
+  "endAt": "2026-09-02T02:00:00+02:00",
   "isFree": false,
   "price": 10.00,
   "currency": "EUR",
@@ -179,8 +180,9 @@ Content-Type: application/json
 }
 ```
 
-**Esperado**: `201` + `EventDetailDto` con `status: "PENDING"`. Guardate el `id` devuelto para los
-siguientes pasos. Si `organizerId` no te pertenece o no está `is_verified`, debe dar `403`.
+**Esperado**: `201` + `EventDetailDto`. El evento se guarda internamente con estado `PENDING`, pero
+el DTO de respuesta actual no expone `status`. Guardate el `id` devuelto para los siguientes pasos.
+Si `organizerId` no te pertenece o no está `is_verified`, debe dar `403`.
 
 ### `PATCH /api/events/{id}`
 
@@ -196,10 +198,9 @@ Content-Type: application/json
 }
 ```
 
-**Esperado**: `200` con el título y horario actualizados. `EventUpdateDto` tiene `@NotBlank`
-en `title`/`address` y `@NotNull` en `cityId`/`startAt` — mandalos siempre en el body aunque no
-cambien, o falla la validación (`400`). Los campos que no mandes quedan sin tocar gracias al
-`nullValuePropertyMappingStrategy = IGNORE` del mapper.
+**Esperado**: `200` con el título y horario actualizados. Todos los campos de `EventUpdateDto` son
+opcionales; solo se validan los campos que envíes. Los campos que no mandes quedan sin tocar gracias
+al `nullValuePropertyMappingStrategy = IGNORE` del mapper.
 
 ### `PATCH /api/events/{id}/status`
 
@@ -210,8 +211,9 @@ Content-Type: application/json
 { "status": "PUBLISHED" }
 ```
 
-**Esperado**: `200`, `status: "PUBLISHED"`. Valores válidos: `DRAFT`, `PENDING`, `PUBLISHED`,
-`CANCELLED`. Con otro usuario (no dueño) debe dar `403`.
+**Esperado**: `200` con `EventDetailDto`. El estado se actualiza en el servidor, pero el DTO de
+respuesta actual no expone `status`. Valores válidos: `DRAFT`, `PENDING`, `PUBLISHED`, `CANCELLED`.
+Con otro usuario (no dueño) debe dar `403`.
 
 ### `DELETE /api/events/{id}`
 

@@ -152,8 +152,8 @@ public class EventsServiceImpl implements EventsService {
         Events event = eventsMapper.toEventEntity(dto);
         event.setOrganizer(organizer);
         event.setCity(resolveCity(dto.getCityId()));
-        event.setVenue(resolveVenue(dto.getVenueId()));
-        event.setSeries(resolveSeries(dto.getSeriesId()));
+        event.setVenue(resolveVenue(dto.getVenueId(), organizer));
+        event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
         event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
         event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
                 slug -> eventsRepository.findBySlug(slug).isPresent()));
@@ -174,6 +174,7 @@ public class EventsServiceImpl implements EventsService {
     public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
+        Organizers organizer = event.getOrganizer();
         eventsMapper.updateEventEntityFromDto(dto, event);
         if (event.getEndAt() != null && !event.getStartAt().isBefore(event.getEndAt())) {
             throw new InvalidEventTimingException(
@@ -184,10 +185,10 @@ public class EventsServiceImpl implements EventsService {
            event.setCity(resolveCity(dto.getCityId()));
         }
         if (dto.getVenueId() != null) {
-            event.setVenue(resolveVenue(dto.getVenueId()));
+            event.setVenue(resolveVenue(dto.getVenueId(), organizer));
         }
         if (dto.getSeriesId() != null) {
-            event.setSeries(resolveSeries(dto.getSeriesId()));
+            event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
         }
         if (dto.getDanceStyleIds() != null) {
             event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
@@ -238,16 +239,30 @@ public class EventsServiceImpl implements EventsService {
                 .orElseThrow(() -> new EntityNotFoundException("City not found with id " + cityId));
     }
 
-    private Venues resolveVenue(UUID venueId) {
+    private Venues resolveVenue(UUID venueId, Organizers organizer) {
         if (venueId == null) return null;
-        return venuesRepository.findById(venueId)
+        Venues venue = venuesRepository.findById(venueId)
                 .orElseThrow(() -> new EntityNotFoundException("Venue not found with id " + venueId));
+
+        if (venue.getOrganizer() != null
+                && !venue.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AccessDeniedException("Venue does not belong to this organizer");
+        }
+
+        return venue;
     }
 
-    private EventSeries resolveSeries(UUID seriesId) {
+    private EventSeries resolveSeries(UUID seriesId, Organizers organizer) {
         if (seriesId == null) return null;
-        return eventSeriesRepository.findById(seriesId)
-                .orElseThrow(() -> new EntityNotFoundException("Event series not found with id " + seriesId));
+        EventSeries series = eventSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Event series not found with id " + seriesId));
+
+        if (!series.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AccessDeniedException("Event series does not belong to this organizer");
+        }
+
+        return series;
     }
 
     private Set<DanceStyles> resolveDanceStyles(Set<Long> danceStyleIds) {

@@ -15,14 +15,14 @@ Stack: Spring Boot, PostgreSQL, Spring Security (OAuth2 Google + JWT stateless),
 | Regla | Alcance |
 |---|---|
 | `permitAll` | `/oauth2/**`, `/login/**` |
-| `permitAll` (solo `GET`) | `/api/events/**`, `/api/cities/**`, `/api/venues/**`, `/api/organizers/**`, `/api/dance-styles/**` |
+| `permitAll` (solo `GET`) | `/api/events`, `/api/events/{id}`, `/api/events/{id}/attendees`, `/api/cities/**`, `/api/organizers/**`, `/api/dance-styles/**` |
 | `authenticated` | todo lo demás (`POST`/`PATCH`/`DELETE` en `/api/**`, y `/auth/me`) |
 
 Consecuencia: **consultar el mapa y el detalle de un evento nunca requiere login**; publicar, marcar
 asistencia o editar el perfil sí.
 
-`GlobalExceptionHandler` traduce `EntityNotFoundException` → `404` con `{"error": "..."}` en vez del
-`500` por defecto de Spring.
+`BackendErrorResponse` traduce `EntityNotFoundException` → `404` y `AccessDeniedException` → `403`
+con un `ErrorDetails` JSON en vez del `500` por defecto de Spring.
 
 ---
 
@@ -61,7 +61,7 @@ start_at <= now() < COALESCE(end_at, start_at + 4 horas)
 ```
 
 Las 4 horas son el valor por defecto cuando el organizador no puso `end_at`. Este cálculo se hace
-**siempre en el servidor** (`EventsServiceImpl.isLiveNow`), nunca se confía en el reloj del cliente.
+**siempre en el servidor** (`EventTimingUtils.isLiveNow`), nunca se confía en el reloj del cliente.
 
 La query del mapa (`EventsRepository.findActiveOrUpcomingIdsInBounds`) usa la misma condición para
 **excluir eventos pasados directamente en SQL** — el mapa nunca recibe puntos "muertos" que haya que
@@ -184,6 +184,48 @@ completo (`OrganizerDetailDto`: website, phone, contactEmail, facebook, instagra
 `goingCount`/`interestedCount` por separado.
 
 `404` si el evento no existe.
+
+---
+
+### Mutaciones de Events — requieren login y ownership
+
+Las mutaciones requieren un usuario autenticado. El servicio comprueba que el organizer del evento
+pertenezca al usuario autenticado (`event.organizer.user.id`). Un usuario anónimo recibe `401` y un
+usuario autenticado sin permisos recibe `403`.
+
+### `POST /api/events` — crear evento
+
+El `organizerId` del body debe pertenecer al usuario autenticado y el organizer debe estar verificado.
+El evento se guarda inicialmente con estado `PENDING`.
+
+`cityId`, `title`, `startAt`, `endAt` y `address` son obligatorios. `venueId` y `seriesId` son
+opcionales. Un venue sin organizer puede compartirse; un venue o una serie perteneciente a otro
+organizer se rechaza con `403`.
+
+`201 Created` con `EventDetailDto`. El DTO de respuesta actual no expone el campo `status`.
+`400` para datos inválidos, `403` para ownership/verification/asociaciones ajenas y `404` para
+organizer, ciudad, venue o serie inexistentes.
+
+### `PATCH /api/events/{id}` — editar evento propio
+
+Todos los campos del `EventUpdateDto` son opcionales. Solo el organizer propietario puede editar el
+evento; no se puede cambiar su organizer ni su status desde este endpoint. Las asociaciones `venueId`
+y `seriesId` se vuelven a validar contra el organizer del evento.
+
+`200 OK` con `EventDetailDto`. `400` para datos o rangos temporales inválidos, `403` si el usuario no
+es propietario o intenta asociar un venue/serie ajeno y `404` si el evento o una asociación no existe.
+
+### `PATCH /api/events/{id}/status` — cambiar estado
+
+Solo el organizer propietario puede cambiar el estado. Los valores válidos son `DRAFT`, `PENDING`,
+`PUBLISHED` y `CANCELLED`; actualmente no hay una matriz adicional de transiciones.
+
+`200 OK` con `EventDetailDto`. El DTO de respuesta actual no expone el campo `status`.
+
+### `DELETE /api/events/{id}` — eliminar evento propio
+
+Solo el organizer propietario puede eliminar el evento. Devuelve `204 No Content`, `403` si el usuario
+no es propietario y `404` si el evento no existe.
 
 ---
 
@@ -343,9 +385,6 @@ Devuelve el mismo shape que `GET /auth/me` con los valores actualizados.
 
 ## 6. Pendiente (no implementado todavía)
 
-- `POST /api/events` (crear evento) y `PATCH`/`DELETE` — requiere que el usuario tenga un `Organizer`
-  verificado; ya existe `POST /api/organizers` para postularse.
-- `POST/DELETE /api/events/{id}/favorite` (seguir/guardar evento, distinto de "voy").
 - Restringir `/api/admin/organizers/**` a `ROLE_ADMIN` (hoy cualquier usuario autenticado puede
   llamarlo).
 - Migraciones versionadas (Flyway/Liquibase) — hoy el schema se aplica a mano contra la BD real, sin

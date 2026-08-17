@@ -14,14 +14,17 @@ Convención de estado por bloque:
 
 ## Bloque 1 — CRUD de contenido del organizador (bloqueante)
 
-Sin esto ningún organizador puede publicar nada; hoy solo hay lectura + admin-verify.
+El CRUD de Events ya está disponible; los CRUD de Venues y Event Series siguen pendientes.
 
 ### Events (`/api/events`, auth + ownership organizer)
-- [ ] POST `/api/events` — crear evento (DTO `EventCreateDto`)
-- [ ] PATCH `/api/events/{id}` — editar evento propio
-- [ ] DELETE `/api/events/{id}` — borrar/cancelar evento propio
-- [ ] PATCH `/api/events/{id}/status` — publicar / despublicar / cancelar (`EventStatus`)
-- [ ] Validar ownership: `event.organizer.user.id == principal.getId()`
+- [x] POST `/api/events` — crear evento (DTO `EventCreateDto`)
+- [x] PATCH `/api/events/{id}` — editar evento propio
+- [x] DELETE `/api/events/{id}` — borrar/cancelar evento propio
+- [x] PATCH `/api/events/{id}/status` — publicar / despublicar / cancelar (`EventStatus`)
+- [x] Validar ownership: `event.organizer.user.id == principal.getId()`
+
+Pruebas automatizadas: `EventsServiceImplTest` (14), `EventsControllerTest` (8) y
+`SecurityConfigTest` (11). La suite Maven completa pasa con 43 tests.
 
 ### Venues (`/api/venues`)
 - [ ] GET `/api/venues` — listado público (falta controller entero, servicio/repo ya existen)
@@ -46,7 +49,7 @@ Sin esto ningún organizador puede publicar nada; hoy solo hay lectura + admin-v
 - [x] GET `/api/dance-styles/{id}`
 
 Pruebas automatizadas: `CitiesControllerTest`, `CitiesServiceImplTest`, `DanceStylesControllerTest`,
-`DanceStylesServiceImplTest`, `SecurityConfigTest` y `CitiesRepositoryTest`. La suite Maven completa pasa con 17 tests.
+`DanceStylesServiceImplTest`, `SecurityConfigTest` y `CitiesRepositoryTest`. La suite Maven completa pasa con 43 tests.
 
 ---
 
