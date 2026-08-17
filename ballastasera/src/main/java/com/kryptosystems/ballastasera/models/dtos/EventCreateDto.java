@@ -1,5 +1,7 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.validations.EventTimeRange;
+import com.kryptosystems.ballastasera.validations.ValidEventTiming;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -17,7 +19,8 @@ import java.util.UUID;
  * al principal autenticado antes de guardar nada. */
 @Getter
 @Setter
-public class EventCreateDto {
+@ValidEventTiming
+public class EventCreateDto implements EventTimeRange {
 
     @NotNull
     private UUID organizerId;
@@ -38,6 +41,8 @@ public class EventCreateDto {
     @NotNull
     @Future
     private OffsetDateTime startAt;
+
+    @NotNull
     private OffsetDateTime endAt;
     private boolean isFree = true;
 

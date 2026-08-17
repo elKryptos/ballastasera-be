@@ -1,5 +1,7 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.validations.EventTimeRange;
+import com.kryptosystems.ballastasera.validations.ValidEventTiming;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -14,7 +16,8 @@ import java.util.UUID;
 
 @Getter
 @Setter
-public class EventUpdateDto {
+@ValidEventTiming
+public class EventUpdateDto implements EventTimeRange {
 
     private UUID venueId;
     private UUID seriesId;
