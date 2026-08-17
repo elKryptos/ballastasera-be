@@ -7,6 +7,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -17,7 +18,10 @@ public class DanceStylesServiceImpl implements DanceStylesService {
 
     @Override
     public List<DanceStyles> findAll() {
-        return danceStylesRepository.findAll();
+        return danceStylesRepository.findAll()
+                .stream()
+                .sorted(Comparator.comparing(DanceStyles::getName))
+                .toList();
     }
 
     @Override

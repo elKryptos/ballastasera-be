@@ -38,12 +38,15 @@ Sin esto ningún organizador puede publicar nada; hoy solo hay lectura + admin-v
 
 ---
 
-## Bloque 2 — Catálogos públicos faltantes (rápido, ya tienen repo/service)
+## Bloque 2 — Catálogos públicos
 
-- [ ] GET `/api/cities` — listado (para poblar filtros/mapa)
-- [ ] GET `/api/cities/{id}`
-- [ ] GET `/api/dance-styles` — listado
-- [ ] GET `/api/dance-styles/{id}`
+- [x] GET `/api/cities` — listado (para poblar filtros/mapa)
+- [x] GET `/api/cities/{id}`
+- [x] GET `/api/dance-styles` — listado
+- [x] GET `/api/dance-styles/{id}`
+
+Pruebas automatizadas: `CitiesControllerTest`, `CitiesServiceImplTest`, `DanceStylesControllerTest`,
+`DanceStylesServiceImplTest`, `SecurityConfigTest` y `CitiesRepositoryTest`. La suite Maven completa pasa con 17 tests.
 
 ---
 

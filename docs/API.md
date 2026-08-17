@@ -71,6 +71,62 @@ filtrar o pintar en gris en el frontend.
 
 ## 4. Endpoints
 
+### `GET /api/cities` — público
+
+Lista las ciudades activas disponibles para filtros y navegación del catálogo. La respuesta se ordena
+alfabéticamente por `name`.
+
+**Respuesta** — `List<CityDto>`:
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Milano",
+    "province": "MI",
+    "region": "Lombardia",
+    "country": "IT",
+    "latitude": 45.4642,
+    "longitude": 9.1900,
+    "slug": "milano",
+    "isActive": true
+  }
+]
+```
+
+### `GET /api/cities/{id}` — público
+
+Devuelve una ciudad activa por su identificador.
+
+`404` si la ciudad no existe o está inactiva.
+
+---
+
+### `GET /api/dance-styles` — público
+
+Lista los estilos de baile disponibles para filtros y clasificación de eventos. La respuesta se ordena
+alfabéticamente por `name`.
+
+**Respuesta** — `List<DanceStyleDto>`:
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Bachata",
+    "slug": "bachata"
+  }
+]
+```
+
+### `GET /api/dance-styles/{id}` — público
+
+Devuelve un estilo de baile por su identificador.
+
+`404` si el estilo de baile no existe.
+
+---
+
 ### `GET /api/events` — público
 
 Marcadores del mapa: eventos publicados, en vivo o por empezar, dentro del viewport visible. Nunca
@@ -290,8 +346,6 @@ Devuelve el mismo shape que `GET /auth/me` con los valores actualizados.
 - `POST /api/events` (crear evento) y `PATCH`/`DELETE` — requiere que el usuario tenga un `Organizer`
   verificado; ya existe `POST /api/organizers` para postularse.
 - `POST/DELETE /api/events/{id}/favorite` (seguir/guardar evento, distinto de "voy").
-- `GET /api/cities`, `GET /api/dance-styles` (catálogos simples, ya permitidos en `SecurityConfig` pero
-  sin controller todavía).
 - Restringir `/api/admin/organizers/**` a `ROLE_ADMIN` (hoy cualquier usuario autenticado puede
   llamarlo).
 - Migraciones versionadas (Flyway/Liquibase) — hoy el schema se aplica a mano contra la BD real, sin
