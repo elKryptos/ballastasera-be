@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.repositories.CitiesRepository;
 import com.kryptosystems.ballastasera.services.manager.CitiesService;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -49,8 +50,10 @@ public class CitiesServiceImpl implements CitiesService {
     }
 
     @Override
-    public void deleteById(Long id) {
-        citiesRepository.deleteById(id);
+    @Transactional
+    public void deactivate(Long id) {
+        Cities city = findById(id);
+        city.setActive(false);
     }
 
 
