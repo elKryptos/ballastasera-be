@@ -47,7 +47,5 @@ Thumbs.db
 skills-lock.json
 opencode.json
 
-### Personal documents (Rodrigo) ###
-/ballastasera/BACKEND_DEVELOPMENT_ROADMAP.md
-/ballastasera/BALLASTASERA_PROJECT_RECAP.md
-/ballastasera/GUIA_SPRING_BOOT_Y_ARQUITECTURA*.pdf
+### Personal roadmap (Rodrigo) ###
+/BACKEND_DEVELOPMENT_ROADMAP.md

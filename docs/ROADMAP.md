@@ -45,7 +45,7 @@ Sin esto ningún organizador puede publicar nada; hoy solo hay lectura + admin-v
 - [x] GET `/api/dance-styles` — listado
 - [x] GET `/api/dance-styles/{id}`
 
-Pruebas automatizadas: `CitiesControllerTest`, `DanceStylesControllerTest`,
+Pruebas automatizadas: `CitiesControllerTest`, `CitiesServiceImplTest`, `DanceStylesControllerTest`,
 `DanceStylesServiceImplTest` y `SecurityConfigTest`. La suite Maven completa pasa con 16 tests.
 
 ---

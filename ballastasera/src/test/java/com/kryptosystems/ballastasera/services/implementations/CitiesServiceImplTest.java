@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,18 +27,10 @@ class CitiesServiceImplTest {
     private CitiesServiceImpl citiesService;
 
     @Test
-    void deactivateMarksExistingCityAsInactive() {
-        Cities city = new Cities();
-        city.setId(1L);
-        city.setName("Milano");
-        city.setActive(true);
+    void deleteByIdDelegatesToRepository() {
+        citiesService.deleteById(1L);
 
-        when(citiesRepository.findById(1L))
-                .thenReturn(Optional.of(city));
-
-        citiesService.deactivate(1L);
-
-        assertFalse(city.isActive());
+        verify(citiesRepository).deleteById(1L);
     }
 
     @Test

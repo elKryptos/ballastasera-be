@@ -11,5 +11,5 @@ public interface CitiesService {
     Cities findById(Long id);
     Cities findBySlug(String slug);
     Cities save(Cities city);
-    void deactivate(Long id);
+    void deleteById(Long id);
 }
