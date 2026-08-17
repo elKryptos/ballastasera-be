@@ -19,13 +19,19 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,6 +77,34 @@ class SecurityConfigTest {
     @Test
     void anonymousCannotCheckFavorite() throws Exception {
         mockMvc.perform(get("/api/events/{id}/favorite", EVENT_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void anonymousCannotCreateEvents() throws Exception {
+        mockMvc.perform(post("/api/events"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void anonymousCannotUpdateEvents() throws Exception {
+        mockMvc.perform(patch("/api/events/{id}", EVENT_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void anonymousCannotUpdateEventStatus() throws Exception {
+        mockMvc.perform(patch("/api/events/{id}/status", EVENT_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void anonymousCannotDeleteEvents() throws Exception {
+        mockMvc.perform(delete("/api/events/{id}", EVENT_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
@@ -138,6 +172,25 @@ class SecurityConfigTest {
         @GetMapping("/api/events/{id}/favorite")
         boolean checkFavorite(@PathVariable UUID id) {
             return false;
+        }
+
+        @PostMapping("/api/events")
+        String createEvent() {
+            return "ok";
+        }
+
+        @PatchMapping("/api/events/{id}")
+        String updateEvent(@PathVariable UUID id) {
+            return "ok";
+        }
+
+        @PatchMapping("/api/events/{id}/status")
+        String updateEventStatus(@PathVariable UUID id) {
+            return "ok";
+        }
+
+        @DeleteMapping("/api/events/{id}")
+        void deleteEvent(@PathVariable UUID id) {
         }
 
         @GetMapping("/api/events/{id}")
