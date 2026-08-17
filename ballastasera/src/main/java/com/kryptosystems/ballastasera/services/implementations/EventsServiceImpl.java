@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
+import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
@@ -174,6 +175,11 @@ public class EventsServiceImpl implements EventsService {
         Events event = findById(id);
         assertOwnership(event, requesterId);
         eventsMapper.updateEventEntityFromDto(dto, event);
+        if (event.getEndAt() != null && !event.getStartAt().isBefore(event.getEndAt())) {
+            throw new InvalidEventTimingException(
+                    "endAt (" + event.getEndAt() + ") must be after startAt (" + event.getStartAt() + ")"
+            );
+        }
         if (dto.getCityId() != null) {
            event.setCity(resolveCity(dto.getCityId()));
         }
