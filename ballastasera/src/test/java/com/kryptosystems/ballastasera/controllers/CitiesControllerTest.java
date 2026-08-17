@@ -1,14 +1,14 @@
 package com.kryptosystems.ballastasera.controllers;
 
-import com.kryptosystems.ballastasera.models.dtos.CityDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
-import com.kryptosystems.ballastasera.models.mappers.CitiesMapper;
+import com.kryptosystems.ballastasera.models.mappers.CitiesMapperImpl;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.services.manager.CitiesService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(CitiesController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(CitiesMapperImpl.class)
 class CitiesControllerTest {
 
     @Autowired
@@ -28,9 +29,6 @@ class CitiesControllerTest {
 
     @MockitoBean
     private CitiesService citiesService;
-
-    @MockitoBean
-    private CitiesMapper citiesMapper;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -42,16 +40,8 @@ class CitiesControllerTest {
         city.setName("Milano");
         city.setActive(true);
 
-        CityDto dto = new CityDto();
-        dto.setId(1L);
-        dto.setName("Milano");
-        dto.setActive(true);
-
         when(citiesService.findActive())
                 .thenReturn(List.of(city));
-
-        when(citiesMapper.toDto(city))
-                .thenReturn(dto);
 
         mockMvc.perform(get("/api/cities"))
                 .andExpect(status().isOk())
@@ -67,16 +57,8 @@ class CitiesControllerTest {
         city.setName("Milano");
         city.setActive(true);
 
-        CityDto dto = new CityDto();
-        dto.setId(1L);
-        dto.setName("Milano");
-        dto.setActive(true);
-
         when(citiesService.findActiveById(1L))
                 .thenReturn(city);
-
-        when(citiesMapper.toDto(city))
-                .thenReturn(dto);
 
         mockMvc.perform(get("/api/cities/1"))
                 .andExpect(status().isOk())
