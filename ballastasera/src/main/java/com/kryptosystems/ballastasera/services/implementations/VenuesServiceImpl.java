@@ -1,13 +1,17 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
 import com.kryptosystems.ballastasera.exceptions.DuplicateVenueException;
+import com.kryptosystems.ballastasera.exceptions.VenueHasActiveEventsException;
 import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.repositories.CitiesRepository;
+import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.repositories.VenuesRepository;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
@@ -27,6 +31,7 @@ public class VenuesServiceImpl implements VenuesService {
     private final VenuesRepository venuesRepository;
     private final OrganizersRepository organizersRepository;
     private final CitiesRepository citiesRepository;
+    private final EventsRepository eventsRepository;
     private final GeocodingService geocodingService;
     private final VenuesMapper venuesMapper;
 
@@ -96,10 +101,48 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
+    public Venues update(UUID id, UUID requesterId, VenueUpdateDto dto) {
+        Venues venue = findById(id);
+        assertOwnership(venue, requesterId);
+        if (dto.getName() != null) {
+            venuesRepository.findByCityIdAndNameIgnoreCaseAndIdNot(venue.getCity().getId(), dto.getName(), id)
+                    .ifPresent(existing -> {
+                        throw new DuplicateVenueException("A venue with name " + dto.getName() + " already exists in this city", existing.getId());
+                    });
+        }
+        venuesMapper.updateVenueEntityFromDto(dto, venue);
+        boolean addressChanged = dto.getAddress() != null && !dto.getAddress().equals(venue.getAddress());
+        boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
+        if (addressChanged && !coordsProvidedByClient) {
+            GeocodingService.GeoPoint point = geocodingService.geoCode(dto.getAddress(), venue.getCity().getName())
+                    .orElseThrow(() -> new AddressNotFoundException(
+                            "Address not found: " + dto.getAddress() + ". Correct the address or insert the coordinates manually."));
+            venue.setLatitude(point.latitude());
+            venue.setLongitude(point.longitude());
+        }
+        return venuesRepository.save(venue);
+    }
+
+    @Override
+    public void delete(UUID id) {
+        Venues venue = findById(id);
+        if (eventsRepository.existsByVenueIdAndStatusNot(id, EventStatus.CANCELLED)) {
+            throw new VenueHasActiveEventsException("Venue " + id + " has active events and cannot be deleted");
+        }
+        venuesRepository.delete(venue);
+    }
+
+    @Override
     public List<Venues> search(Long cityId, String query) {
         if (query == null || query.isBlank()) {
             return venuesRepository.findByCityId(cityId);
         }
         return venuesRepository.findByCityIdAndNameContainingIgnoreCase(cityId, query);
+    }
+
+    private void assertOwnership(Venues venue, UUID requesterId) {
+        if (!venue.getOrganizer().getUser().getId().equals(requesterId)) {
+            throw new AccessDeniedException("Not the owner of this venue");
+        }
     }
 }

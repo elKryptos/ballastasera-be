@@ -128,4 +128,18 @@ public class BackendErrorResponse {
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
+
+    @ExceptionHandler(VenueHasActiveEventsException.class)
+    public ResponseEntity<ErrorDetails> handleVenueHasActiveEvents(VenueHasActiveEventsException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Venue has active events",
+                HttpStatus.CONFLICT
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
 }

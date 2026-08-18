@@ -12,4 +12,5 @@ public interface VenuesRepository extends JpaRepository<Venues, UUID> {
     List<Venues> findByOrganizerId(UUID organizerId);
     Optional<Venues> findByCityIdAndNameIgnoreCase(Long cityId, String name);
     List<Venues> findByCityIdAndNameContainingIgnoreCase(Long cityId, String name);
+    Optional<Venues> findByCityIdAndNameIgnoreCaseAndIdNot(Long cityId, String name, UUID id);
 }
