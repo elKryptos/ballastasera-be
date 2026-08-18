@@ -27,11 +27,21 @@ Pruebas automatizadas: `EventsServiceImplTest` (14), `EventsControllerTest` (8) 
 `SecurityConfigTest` (11). La suite Maven completa pasa con 43 tests.
 
 ### Venues (`/api/venues`)
-- [ ] GET `/api/venues` — listado público (falta controller entero, servicio/repo ya existen)
-- [ ] GET `/api/venues/{id}` — detalle público
-- [ ] POST `/api/venues` — crear venue propio (organizer)
-- [ ] PATCH `/api/venues/{id}` — editar venue propio
-- [ ] DELETE `/api/venues/{id}` — borrar venue propio (bloquear si tiene eventos activos)
+- [x] GET `/api/venues` — listado público / autocomplete (`cityId` + `search` opcional)
+- [x] GET `/api/venues/{id}` — detalle público (`VenueDetailDto`)
+- [x] POST `/api/venues` — crea venue publico reutilizable para no repetir direción
+- [x] PATCH `/api/venues/{id}` — editar venue propio (dueño = organizer que lo creó)
+- [x] DELETE `/api/admin/venues/{id}` — solo ADMIN (no el organizer creador); bloquea si el
+      venue tiene eventos activos (cualquier status distinto de `CANCELLED`)
+
+Decisión: el venue es un recurso reusable entre organizadores (varios eventos de distintos
+organizers pueden apuntar al mismo venue), así que el creador **no** puede borrarlo
+unilateralmente — se movió a `AdminController` bajo `/api/admin/venues/{id}`, protegido por
+`hasRole("ADMIN")` en `SecurityConfig`. El PATCH sí sigue siendo del dueño original.
+
+Sin tests automatizados todavía — falta `VenuesServiceImplTest` y `VenuesControllerTest`
+(la suite Maven sigue en 43 tests, ninguno cubre Venues). Pendiente antes de dar el bloque
+por cerrado del todo.
 
 ### Event Series (`/api/event-series`)
 - [ ] POST `/api/event-series` — crear serie recurrente (rrule)

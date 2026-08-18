@@ -222,3 +222,131 @@ DELETE http://localhost:8080/api/events/<id_del_evento_creado>
 ```
 
 **Esperado**: `204 No Content`. Un `GET` posterior al mismo `id` debe dar `404`.
+
+---
+
+## 5. CRUD de venues
+
+El seed trae un venue reutilizable ya creado:
+
+| Qué | ID |
+|---|---|
+| Venue "Sala Havana" (Milano, sin eventos activos) | `33333333-3333-3333-3333-333333333333` |
+
+### `GET /api/venues` (público, listado/autocomplete)
+
+```
+GET http://localhost:8080/api/venues?cityId=1
+```
+
+**Esperado**: `200` con un array que incluye "Sala Havana".
+
+```
+GET http://localhost:8080/api/venues?cityId=1&search=havana
+```
+
+**Esperado**: mismo resultado filtrado — confirma que `search` no distingue mayúsculas/minúsculas.
+
+### `GET /api/venues/{id}` (público, detalle)
+
+```
+GET http://localhost:8080/api/venues/33333333-3333-3333-3333-333333333333
+```
+
+**Esperado**: `200` con `VenueDetailDto` completo — `organizerName: "Tropical Milano"`,
+`cityName: "Milano"`, `address`, `description`, `createdAt`/`updatedAt`.
+
+```
+GET http://localhost:8080/api/venues/00000000-0000-0000-0000-000000000000
+```
+
+**Esperado**: `404` con `{"message": "Venue not found with id ..."}`.
+
+### `POST /api/venues` (dueño autenticado, organizer verificado)
+
+Usa el mismo `<tu_organizer_id>` verificado de la sección 4.
+
+```
+POST http://localhost:8080/api/venues
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "organizerId": "<tu_organizer_id>",
+  "cityId": 1,
+  "name": "Mi Sala de Prueba",
+  "address": "Via Tortona 20, Milano",
+  "postalCode": "20144",
+  "description": "Venue de prueba para Postman",
+  "latitude": 45.4522,
+  "longitude": 9.1620
+}
+```
+
+**Esperado**: `201` + `VenuesSummaryDto`. Guardate el `id` devuelto (`<venue_id_creado>`) para
+los pasos siguientes. Repetir el mismo `name` + `cityId` debe dar `409` (`DuplicateVenueException`).
+Si omitís `latitude`/`longitude`, el backend geocodifica la `address` contra Nominatim — puede
+tardar ~1s y depende de que la dirección sea real.
+
+### `PATCH /api/venues/{id}` (dueño autenticado)
+
+```
+PATCH http://localhost:8080/api/venues/<venue_id_creado>
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "description": "Descripción actualizada" }
+```
+
+**Esperado**: `200` con `VenueDetailDto`, solo `description` cambia (resto queda intacto gracias
+al `nullValuePropertyMappingStrategy = IGNORE`). Con otro usuario (no dueño del organizer) debe
+dar `403`.
+
+```
+PATCH http://localhost:8080/api/venues/33333333-3333-3333-3333-333333333333
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "name": "Sala Havana" }
+```
+
+**Esperado**: `403` (no sos el dueño de este venue del seed) — si en cambio das `409`, revisá
+el orden ownership-vs-duplicado en `VenuesServiceImpl.update`.
+
+### `DELETE /api/admin/venues/{id}` (solo ADMIN)
+
+El borrado **no** es del dueño — es admin-only. Para probarlo, promové tu usuario real a
+`ADMIN` (no hace falta volver a loguearte, el rol se lee de la DB en cada request):
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE id = '<tu_user_id>';
+```
+
+```
+DELETE http://localhost:8080/api/admin/venues/<venue_id_creado>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `204 No Content` (tu venue de prueba no tiene eventos). Un `GET` posterior al
+mismo `id` debe dar `404`.
+
+```
+DELETE http://localhost:8080/api/admin/venues/33333333-3333-3333-3333-333333333333
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `409` (`VenueHasActiveEventsException`) — "Sala Havana" tiene eventos `PUBLISHED`
+del seed (`aaaa`, `bbbb`, `cccc`) asociados.
+
+```sql
+-- baja tu rol de nuevo para seguir probando como usuario normal
+UPDATE users SET role = 'ORGANIZER' WHERE id = '<tu_user_id>';
+```
+
+```
+DELETE http://localhost:8080/api/admin/venues/33333333-3333-3333-3333-333333333333
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `403` — confirma que `hasRole("ADMIN")` en `SecurityConfig` bloquea a un
+usuario autenticado que no sea admin, aunque sea el dueño del venue.
