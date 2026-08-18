@@ -9,7 +9,7 @@ import com.kryptosystems.ballastasera.models.mappers.EventAttendanceMapper;
 import com.kryptosystems.ballastasera.models.mappers.FavoritesMapper;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
-import com.kryptosystems.ballastasera.services.manager.UserService;
+import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl implements UserService {
+public class UserActivityServiceImpl implements UserActivityService {
 
     private final FavoritesRepository favoritesRepository;
     private final EventAttendanceRepository eventAttendanceRepository;

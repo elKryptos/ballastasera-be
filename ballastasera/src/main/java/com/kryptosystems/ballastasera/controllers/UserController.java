@@ -3,7 +3,7 @@ package com.kryptosystems.ballastasera.controllers;
 import com.kryptosystems.ballastasera.models.dtos.AttendanceCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
-import com.kryptosystems.ballastasera.services.manager.UserService;
+import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,16 +18,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserService userService;
+    private final UserActivityService userActivityService;
 
     @GetMapping("/me/favorites")
     public ResponseEntity<List<EventCardDto>> getMyFavorites(@AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(userService.getMyFavorites(principal.getId()));
+        return ResponseEntity.ok(userActivityService.getMyFavorites(principal.getId()));
     }
 
     @GetMapping("/me/attendance")
     public ResponseEntity<List<AttendanceCardDto>> getMyAttendance(@AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(userService.getMyAttendance(principal.getId()));
+        return ResponseEntity.ok(userActivityService.getMyAttendance(principal.getId()));
     }
 
 }
