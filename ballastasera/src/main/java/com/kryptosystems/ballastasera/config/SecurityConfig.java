@@ -39,12 +39,12 @@ public class SecurityConfig {
                                 "/api/cities/{id}",
                                 "/api/dance-styles",
                                 "/api/dance-styles/{id}",
+                                "/api/venues",
                                 "/api/organizers",
                                 "/api/organizers/{slug}",
                                 "/api/organizers/{id}/events",
                                 "/api/organizers/{id}/venues",
                                 "/api/organizers/{id}/event-series"
-
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
