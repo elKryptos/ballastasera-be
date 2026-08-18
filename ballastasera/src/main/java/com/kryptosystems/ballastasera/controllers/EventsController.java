@@ -79,6 +79,12 @@ public class EventsController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/{id}/venue")
+    public ResponseEntity<EventDetailDto> removeVenue(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        var event = eventsService.removeVenue(id, principal.getId());
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    }
+
     /** Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
      * de esta lista y siempre incluye a todos, con o sin opt-in. */

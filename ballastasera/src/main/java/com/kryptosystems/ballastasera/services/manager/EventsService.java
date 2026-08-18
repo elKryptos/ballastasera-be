@@ -42,4 +42,7 @@ public interface EventsService {
 
     /** Borra un evento propio (ownership check incluido). */
     void delete(UUID id, UUID requesterId);
+
+    /** Remueve el venue del evento si presente. Debe ser el organizador y owner del evento. */
+    Events removeVenue(UUID eventId, UUID requesterId);
 }
