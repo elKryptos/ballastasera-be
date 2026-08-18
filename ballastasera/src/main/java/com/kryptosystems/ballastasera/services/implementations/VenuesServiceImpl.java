@@ -6,6 +6,7 @@ import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Venues;
+import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.repositories.CitiesRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.repositories.VenuesRepository;
@@ -27,6 +28,7 @@ public class VenuesServiceImpl implements VenuesService {
     private final OrganizersRepository organizersRepository;
     private final CitiesRepository citiesRepository;
     private final GeocodingService geocodingService;
+    private final VenuesMapper venuesMapper;
 
     @Override
     public List<Venues> findAll() {
@@ -77,16 +79,10 @@ public class VenuesServiceImpl implements VenuesService {
                     throw new DuplicateVenueException("A venue with name " + dto.getName() + " already exists in this city", existing.getId());
                 });
 
-        Venues venue = new Venues();
+        Venues venue = venuesMapper.toVenueEntity(dto);
         venue.setOrganizer(organizer);
         venue.setCreatedBy(organizer.getUser());
         venue.setCity(city);
-        venue.setName(dto.getName());
-        venue.setAddress(dto.getAddress());
-        venue.setPostalCode(dto.getPostalCode());
-        venue.setDescription(dto.getDescription());
-        venue.setLatitude(dto.getLatitude());
-        venue.setLongitude(dto.getLongitude());
 
         if (venue.getLatitude() == null || venue.getLongitude() == null) {
             GeocodingService.GeoPoint point = geocodingService.geoCode(venue.getAddress(), city.getName())
