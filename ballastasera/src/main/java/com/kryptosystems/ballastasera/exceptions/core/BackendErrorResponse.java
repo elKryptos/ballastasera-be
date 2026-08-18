@@ -1,5 +1,6 @@
-package com.kryptosystems.ballastasera.exceptions;
+package com.kryptosystems.ballastasera.exceptions.core;
 
+import com.kryptosystems.ballastasera.exceptions.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;

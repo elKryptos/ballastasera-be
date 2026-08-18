@@ -1,6 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
-import com.kryptosystems.ballastasera.exceptions.BackendErrorResponse;
+import com.kryptosystems.ballastasera.exceptions.core.BackendErrorResponse;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
