@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
+import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
@@ -152,7 +153,7 @@ public class EventsServiceImpl implements EventsService {
         Events event = eventsMapper.toEventEntity(dto);
         event.setOrganizer(organizer);
         event.setCity(resolveCity(dto.getCityId()));
-        event.setVenue(resolveVenue(dto.getVenueId(), organizer));
+        event.setVenue(resolveVenue(dto.getVenueId(), event.getCity().getId()));
         event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
         event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
         event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
@@ -185,7 +186,7 @@ public class EventsServiceImpl implements EventsService {
            event.setCity(resolveCity(dto.getCityId()));
         }
         if (dto.getVenueId() != null) {
-            event.setVenue(resolveVenue(dto.getVenueId(), organizer));
+            event.setVenue(resolveVenue(dto.getVenueId(), event.getCity().getId()));
         }
         if (dto.getSeriesId() != null) {
             event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
@@ -228,6 +229,14 @@ public class EventsServiceImpl implements EventsService {
         eventsRepository.delete(event);
     }
 
+    @Override
+    public Events removeVenue(UUID eventId, UUID requesterId) {
+        Events event = findById(eventId);
+        assertOwnership(event, requesterId);
+        event.setVenue(null);
+        return eventsRepository.save(event);
+    }
+
     private void assertOwnership(Events event, UUID requesterId) {
         if (!event.getOrganizer().getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event");
@@ -239,14 +248,13 @@ public class EventsServiceImpl implements EventsService {
                 .orElseThrow(() -> new EntityNotFoundException("City not found with id " + cityId));
     }
 
-    private Venues resolveVenue(UUID venueId, Organizers organizer) {
+    private Venues resolveVenue(UUID venueId, Long cityId) {
         if (venueId == null) return null;
         Venues venue = venuesRepository.findById(venueId)
                 .orElseThrow(() -> new EntityNotFoundException("Venue not found with id " + venueId));
 
-        if (venue.getOrganizer() != null
-                && !venue.getOrganizer().getId().equals(organizer.getId())) {
-            throw new AccessDeniedException("Venue does not belong to this organizer");
+        if (!venue.getCity().getId().equals(cityId)) {
+            throw new VenueCityMismatchException("Venue " + venueId + " belongs to a different city than the event");
         }
 
         return venue;

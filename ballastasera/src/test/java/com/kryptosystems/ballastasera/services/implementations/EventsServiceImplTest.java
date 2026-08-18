@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
@@ -132,17 +133,22 @@ class EventsServiceImplTest {
     }
 
     @Test
-    void createAllowsVenueWithoutOrganizer() {
+    void createAllowsVenueFromMatchingCityRegardlessOfOwner() {
         Organizers organizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        Organizers otherOrganizer = organizer(OTHER_ORGANIZER_ID, OTHER_USER_ID, true);
         EventCreateDto dto = createDto(ORGANIZER_ID);
         dto.setVenueId(VENUE_ID);
         Events mappedEvent = mappedEvent();
+        Cities city = new Cities();
+        city.setId(1L);
         Venues venue = new Venues();
         venue.setId(VENUE_ID);
+        venue.setCity(city);
+        venue.setOrganizer(otherOrganizer);
 
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
         when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
-        when(citiesRepository.findById(1L)).thenReturn(Optional.of(new Cities()));
+        when(citiesRepository.findById(1L)).thenReturn(Optional.of(city));
         when(venuesRepository.findById(VENUE_ID)).thenReturn(Optional.of(venue));
         when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
         when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
@@ -154,23 +160,26 @@ class EventsServiceImplTest {
     }
 
     @Test
-    void createRejectsVenueOwnedByAnotherOrganizer() {
+    void createRejectsVenueFromDifferentCity() {
         Organizers organizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
-        Organizers otherOrganizer = organizer(OTHER_ORGANIZER_ID, OTHER_USER_ID, true);
         EventCreateDto dto = createDto(ORGANIZER_ID);
         dto.setVenueId(VENUE_ID);
+        Cities city = new Cities();
+        city.setId(1L);
+        Cities otherCity = new Cities();
+        otherCity.setId(2L);
         Venues venue = new Venues();
         venue.setId(VENUE_ID);
-        venue.setOrganizer(otherOrganizer);
+        venue.setCity(otherCity);
         Events mappedEvent = mappedEvent();
 
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
         when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
-        when(citiesRepository.findById(1L)).thenReturn(Optional.of(new Cities()));
+        when(citiesRepository.findById(1L)).thenReturn(Optional.of(city));
         when(venuesRepository.findById(VENUE_ID)).thenReturn(Optional.of(venue));
 
         assertThrows(
-                AccessDeniedException.class,
+                VenueCityMismatchException.class,
                 () -> eventsService.create(REQUESTER_ID, dto)
         );
 
@@ -217,21 +226,25 @@ class EventsServiceImplTest {
     }
 
     @Test
-    void updateRejectsVenueOwnedByAnotherOrganizer() {
+    void updateRejectsVenueFromDifferentCity() {
         Organizers organizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
-        Organizers otherOrganizer = organizer(OTHER_ORGANIZER_ID, OTHER_USER_ID, true);
         Events event = event(organizer);
+        Cities city = new Cities();
+        city.setId(1L);
+        event.setCity(city);
         EventUpdateDto dto = new EventUpdateDto();
         dto.setVenueId(VENUE_ID);
+        Cities otherCity = new Cities();
+        otherCity.setId(2L);
         Venues venue = new Venues();
         venue.setId(VENUE_ID);
-        venue.setOrganizer(otherOrganizer);
+        venue.setCity(otherCity);
 
         when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(venuesRepository.findById(VENUE_ID)).thenReturn(Optional.of(venue));
 
         assertThrows(
-                AccessDeniedException.class,
+                VenueCityMismatchException.class,
                 () -> eventsService.update(EVENT_ID, REQUESTER_ID, dto)
         );
 

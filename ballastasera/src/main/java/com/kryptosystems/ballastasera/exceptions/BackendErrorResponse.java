@@ -100,4 +100,31 @@ public class BackendErrorResponse {
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
     }
+
+    @ExceptionHandler(VenueCityMismatchException.class)
+    public ResponseEntity<ErrorDetails> handleVenueCityMismatch(VenueCityMismatchException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Venue does not belong to the selected city",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    @ExceptionHandler(DuplicateVenueException.class)
+    public ResponseEntity<ErrorDetails> handleDuplicateVenue(DuplicateVenueException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Venue already exists",
+                HttpStatus.CONFLICT,
+                Map.of("existingVenueId", ex.getExistingVenueId().toString())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
 }
