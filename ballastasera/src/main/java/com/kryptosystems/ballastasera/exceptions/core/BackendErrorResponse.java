@@ -9,8 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -61,6 +63,33 @@ public class BackendErrorResponse {
                 HttpStatus.FORBIDDEN
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorDetails);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorDetails> handleMissingParam(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Missing request parameter: " + ex.getParameterName(),
+                request.getRequestURI(),
+                "Required parameter '" + ex.getParameterName() + "' of type " + ex.getParameterType() + " is missing",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorDetails> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Invalid value for parameter: " + ex.getName(),
+                request.getRequestURI(),
+                "Parameter '" + ex.getName() + "' should be of type " + requiredType,
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
     }
 
     @ExceptionHandler(Exception.class)
