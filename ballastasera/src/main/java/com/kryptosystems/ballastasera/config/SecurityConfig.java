@@ -32,6 +32,7 @@ public class SecurityConfig {
                         // Must be declared before the public /api/organizers/{slug} route.
                         .requestMatchers(HttpMethod.GET, "/api/organizers/me").authenticated()
                         .requestMatchers(HttpMethod.GET,
+                                "/api/health",
                                 "/api/events",
                                 "/api/events/{id}",
                                 "/api/events/{id}/attendees",
