@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Set;
 import java.util.UUID;
@@ -24,7 +25,7 @@ public class EventSeriesUpdateDto {
     private Boolean isFree;
 
     @DecimalMin(value = "0.0", inclusive = true)
-    private Double price;
+    private BigDecimal price;
     private String currency;
 
     private String address;
