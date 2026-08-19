@@ -72,22 +72,16 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 ```
 Fornisce `gen_random_uuid()`, usata come default delle chiavi primarie UUID.
 
-**Funzione + trigger `set_updated_at`**
-```sql
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-```
-Un *trigger* è codice che si esegue da solo quando succede qualcosa. Questa
-funzione viene agganciata a ogni tabella che ha `updated_at`, con un trigger
-`BEFORE UPDATE`: a ogni modifica di una riga, `updated_at` viene messo a `now()`
-in automatico. Così l'applicazione non deve ricordarsi di farlo.
+**`updated_at` gestito da Hibernate, non da un trigger DB**
+Lo schema reale (`ballastasera_schema.sql`) non ha nessun trigger `BEFORE UPDATE`.
+La colonna `updated_at` viene impostata dal codice applicativo tramite
+l'annotazione `@UpdateTimestamp` di Hibernate su ogni entity. Il `DEFAULT now()`
+in colonna resta solo come rete di sicurezza per INSERT fatti fuori dall'app
+(es. seed SQL diretto). Meno logica duplicata nel DB — tutta la gestione vive
+nel backend.
 
-Tabelle con questo trigger: `users`, `organizers`, `venues`, `event_series`, `events`.
+Tabelle con `created_at`/`updated_at` gestiti così: `users`, `organizers`,
+`venues`, `event_series`, `events`.
 
 ---
 
@@ -214,22 +208,50 @@ e senza errori di battitura.
 
 ---
 
-### 4.6 `event_series` — serie di eventi ricorrenti (opzionale)
+### 4.6 `event_series` — serie di eventi ricorrenti
 
 Raggruppa gli eventi che si ripetono ("ogni giovedì salsa al locale X"). Il campo
 `rrule` contiene la regola di ricorrenza in formato iCalendar (es.
-`FREQ=WEEKLY;BYDAY=TH`). La serie **non** è l'evento: l'app genera le singole
-occorrenze nella tabella `events` a partire dalla regola.
+`FREQ=WEEKLY;BYDAY=TH` — solo i giorni, non l'ora). La serie **non** è l'evento:
+è il template da cui l'app genera le singole occorrenze nella tabella `events`
+(collegate via `events.series_id`). Per questo specchia gran parte delle colonne
+di `events`: senza quei dati (venue, prezzo, orario...) non ci sarebbe niente
+da copiare in ogni occorrenza generata.
 
 | Colonna | Tipo | Note |
 |---------|------|------|
 | `id` | UUID PK | |
 | `organizer_id` | UUID, NOT NULL, FK → `organizers` | |
+| `venue_id` | UUID, FK → `venues`, NULL ammesso | come su `events` |
+| `city_id` | BIGINT, NOT NULL, FK → `cities` | |
 | `title` | TEXT, NOT NULL | |
 | `rrule` | TEXT | regola ricorrenza iCalendar |
-| `created_at`, `updated_at` | TIMESTAMPTZ | trigger su `updated_at` |
+| `description`, `flyer_url`, `instagram_url`, `whatsapp_url` | TEXT | copiati su ogni occorrenza generata |
+| `is_free` | BOOL, default TRUE | |
+| `price` | NUMERIC(8,2) | NULL se gratis |
+| `currency` | CHAR(3), default `EUR` | |
+| `address` | TEXT, NOT NULL | posizione (obbligatoria, come `events`) |
+| `latitude`, `longitude` | DOUBLE, NOT NULL | denormalizzate dal venue o inserite a mano |
+| `start_time` | TIME, NOT NULL | orario di inizio di ogni occorrenza (la rrule non lo contiene) |
+| `end_time` | TIME | orario di fine (opzionale) |
+| `created_at`, `updated_at` | TIMESTAMPTZ | `updated_at` via Hibernate, non trigger |
 
-**Relazioni:** molte serie → un `organizer`. Una serie → molti `events`.
+Vincoli di controllo:
+- `chk_event_series_price`: `is_free OR price IS NOT NULL` — stesso criterio di `events`.
+
+**Relazioni:** molte serie → un `organizer` (obbligatoria), un `venue`
+(opzionale), una `city` (obbligatoria). Una serie → molti `events`. Collegata a
+`dance_styles` in molti-a-molti tramite `event_series_dance_styles` (stessi
+stili copiati su ogni occorrenza generata in `event_dance_styles`).
+
+**Tabella ponte `event_series_dance_styles`** (stessa struttura di `event_dance_styles`):
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `series_id` | UUID, FK → `event_series` | parte della PK |
+| `dance_style_id` | BIGINT, FK → `dance_styles` | parte della PK |
+
+Chiave primaria: `(series_id, dance_style_id)`.
 
 ---
 
@@ -343,16 +365,19 @@ events >─< dance_styles                      (molti-a-molti via event_dance_st
 | `venues.organizer_id` | `organizers` | no (NULL ammesso) |
 | `venues.created_by` | `users` | no |
 | `event_series.organizer_id` | `organizers` | sì |
+| `event_series.venue_id` | `venues` | no (NULL ammesso) |
+| `event_series.city_id` | `cities` | sì |
 | `events.organizer_id` | `organizers` | sì |
 | `events.city_id` | `cities` | sì |
 | `events.venue_id` | `venues` | no |
 | `events.series_id` | `event_series` | no |
 
-**Le tre molti-a-molti (via tabelle ponte):**
+**Le quattro molti-a-molti (via tabelle ponte):**
 
 | Relazione | Tabella ponte | Chiave primaria |
 |-----------|---------------|-----------------|
 | `events` ↔ `dance_styles` | `event_dance_styles` | (event_id, dance_style_id) |
+| `event_series` ↔ `dance_styles` | `event_series_dance_styles` | (series_id, dance_style_id) |
 | `users` ↔ `events` (preferiti) | `favorites` | (user_id, event_id) |
 | `users` ↔ `events` (partecipazione) | `event_attendance` | (user_id, event_id) |
 
@@ -371,16 +396,18 @@ Cosa succede ai figli quando si cancella un genitore. Due comportamenti in uso:
 | `venues.organizer_id` → organizers | SET NULL | il locale resta, perde solo il collegamento all'organizer |
 | `venues.created_by` → users | SET NULL | il locale resta, si perde chi l'ha creato |
 | `event_series.organizer_id` → organizers | CASCADE | cancelli l'organizer → spariscono le sue serie |
+| `event_series.venue_id` → venues | SET NULL | la serie resta, perde solo il collegamento al venue |
 | `events.organizer_id` → organizers | CASCADE | cancelli l'organizer → spariscono i suoi eventi |
 | `events.venue_id` → venues | SET NULL | l'evento sopravvive (ha già le coordinate proprie) |
-| `events.series_id` → event_series | SET NULL | l'evento resta come occorrenza singola |
+| `events.series_id` → event_series | SET NULL | l'evento resta come occorrenza singola (storico, non si cancella) |
 | `event_dance_styles.*` | CASCADE | cancelli evento o stile → spariscono i collegamenti |
+| `event_series_dance_styles.*` | CASCADE | cancelli la serie o lo stile → spariscono i collegamenti |
 | `favorites.*` | CASCADE | cancelli utente o evento → spariscono i preferiti |
 | `event_attendance.*` | CASCADE | cancelli utente o evento → spariscono le partecipazioni |
 
 > Nota: `events.city_id` → cities **non** ha una regola ON DELETE, quindi usa il
 > default `NO ACTION`: PostgreSQL impedisce di cancellare una città se ha ancora
-> eventi collegati. Stesso discorso per `venues.city_id`.
+> eventi collegati. Stesso discorso per `venues.city_id` e `event_series.city_id`.
 
 ---
 
@@ -396,12 +423,15 @@ Gli indici non cambiano i risultati, solo la velocità delle ricerche.
 | `idx_venues_coords` | venues | ricerche per coordinate |
 | `idx_events_start` | events | ordinare/filtrare per data |
 | `idx_events_city` | events | eventi di una città |
-| `idx_events_status` | events | filtrare per stato (published...) |
+| `idx_events_status_end` | events | filtrare per stato (published...) + fine evento |
 | `idx_events_organizer` | events | eventi di un organizer |
 | `idx_events_venue` | events | eventi in un locale |
 | `idx_events_coords` | events | ricerche per coordinate (mappa) |
 | `idx_events_city_time` | events | **indice parziale**: solo `WHERE status='published'`, ottimizza "prossimi eventi pubblicati di una città" |
 | `idx_eds_style` | event_dance_styles | tutti gli eventi di uno stile |
+| `idx_event_series_organizer` | event_series | le serie di un organizer |
+| `idx_event_series_venue` | event_series | le serie legate a un venue |
+| `idx_event_series_city` | event_series | le serie di una città |
 | `idx_favorites_event` | favorites | chi ha messo tra i preferiti un evento |
 | `idx_attendance_event` | event_attendance | chi partecipa a un evento |
 

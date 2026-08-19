@@ -1,4 +1,4 @@
-package com.kryptosystems.ballastasera.exceptions;
+package com.kryptosystems.ballastasera.exceptions.core;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;

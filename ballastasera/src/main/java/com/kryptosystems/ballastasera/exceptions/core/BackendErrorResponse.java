@@ -1,5 +1,6 @@
-package com.kryptosystems.ballastasera.exceptions;
+package com.kryptosystems.ballastasera.exceptions.core;
 
+import com.kryptosystems.ballastasera.exceptions.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -8,8 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -62,6 +65,33 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorDetails);
     }
 
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorDetails> handleMissingParam(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Missing request parameter: " + ex.getParameterName(),
+                request.getRequestURI(),
+                "Required parameter '" + ex.getParameterName() + "' of type " + ex.getParameterType() + " is missing",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorDetails> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Invalid value for parameter: " + ex.getName(),
+                request.getRequestURI(),
+                "Parameter '" + ex.getName() + "' should be of type " + requiredType,
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDetails> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception", ex);
@@ -100,4 +130,45 @@ public class BackendErrorResponse {
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
     }
+
+    @ExceptionHandler(VenueCityMismatchException.class)
+    public ResponseEntity<ErrorDetails> handleVenueCityMismatch(VenueCityMismatchException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Venue does not belong to the selected city",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    @ExceptionHandler(DuplicateVenueException.class)
+    public ResponseEntity<ErrorDetails> handleDuplicateVenue(DuplicateVenueException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Venue already exists",
+                HttpStatus.CONFLICT,
+                Map.of("existingVenueId", ex.getExistingVenueId().toString())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+    @ExceptionHandler(VenueHasActiveEventsException.class)
+    public ResponseEntity<ErrorDetails> handleVenueHasActiveEvents(VenueHasActiveEventsException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Venue has active events",
+                HttpStatus.CONFLICT
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
 }

@@ -32,6 +32,7 @@ public class SecurityConfig {
                         // Must be declared before the public /api/organizers/{slug} route.
                         .requestMatchers(HttpMethod.GET, "/api/organizers/me").authenticated()
                         .requestMatchers(HttpMethod.GET,
+                                "/api/health",
                                 "/api/events",
                                 "/api/events/{id}",
                                 "/api/events/{id}/attendees",
@@ -39,12 +40,14 @@ public class SecurityConfig {
                                 "/api/cities/{id}",
                                 "/api/dance-styles",
                                 "/api/dance-styles/{id}",
+                                "/api/venues",
+                                "/api/venues/{id}",
+                                "/api/event-series/{id}",
                                 "/api/organizers",
                                 "/api/organizers/{slug}",
                                 "/api/organizers/{id}/events",
                                 "/api/organizers/{id}/venues",
                                 "/api/organizers/{id}/event-series"
-
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()

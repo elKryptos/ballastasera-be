@@ -67,6 +67,7 @@ public interface EventsMapper {
     @Mapping(target = "danceStyles", ignore = true)
     @Mapping(target = "favorites", ignore = true)
     @Mapping(target = "eventAttendances", ignore = true)
+    @Mapping(target = "free", source = "isFree")
     void updateEventEntityFromDto(EventUpdateDto dto, @MappingTarget Events event);
 
     default List<String> toStyleNames(Events event) {

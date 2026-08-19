@@ -6,7 +6,7 @@ import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import java.util.List;
 import java.util.UUID;
 
-public interface UserService {
+public interface UserActivityService {
 
     List<EventCardDto> getMyFavorites(UUID userId);
     List<AttendanceCardDto> getMyAttendance(UUID userId);

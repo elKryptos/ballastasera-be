@@ -169,6 +169,7 @@ Content-Type: application/json
   "title": "Noche de Salsa",
   "description": "Fiesta social con clase previa",
   "startAt": "2026-09-01T22:00:00+02:00",
+  "endAt": "2026-09-02T02:00:00+02:00",
   "isFree": false,
   "price": 10.00,
   "currency": "EUR",
@@ -179,8 +180,9 @@ Content-Type: application/json
 }
 ```
 
-**Esperado**: `201` + `EventDetailDto` con `status: "PENDING"`. Guardate el `id` devuelto para los
-siguientes pasos. Si `organizerId` no te pertenece o no está `is_verified`, debe dar `403`.
+**Esperado**: `201` + `EventDetailDto`. El evento se guarda internamente con estado `PENDING`, pero
+el DTO de respuesta actual no expone `status`. Guardate el `id` devuelto para los siguientes pasos.
+Si `organizerId` no te pertenece o no está `is_verified`, debe dar `403`.
 
 ### `PATCH /api/events/{id}`
 
@@ -196,10 +198,9 @@ Content-Type: application/json
 }
 ```
 
-**Esperado**: `200` con el título y horario actualizados. `EventUpdateDto` tiene `@NotBlank`
-en `title`/`address` y `@NotNull` en `cityId`/`startAt` — mandalos siempre en el body aunque no
-cambien, o falla la validación (`400`). Los campos que no mandes quedan sin tocar gracias al
-`nullValuePropertyMappingStrategy = IGNORE` del mapper.
+**Esperado**: `200` con el título y horario actualizados. Todos los campos de `EventUpdateDto` son
+opcionales; solo se validan los campos que envíes. Los campos que no mandes quedan sin tocar gracias
+al `nullValuePropertyMappingStrategy = IGNORE` del mapper.
 
 ### `PATCH /api/events/{id}/status`
 
@@ -210,13 +211,247 @@ Content-Type: application/json
 { "status": "PUBLISHED" }
 ```
 
-**Esperado**: `200`, `status: "PUBLISHED"`. Valores válidos: `DRAFT`, `PENDING`, `PUBLISHED`,
-`CANCELLED`. Con otro usuario (no dueño) debe dar `403`.
+**Esperado**: `200` con `EventDetailDto`. El estado se actualiza en el servidor, pero el DTO de
+respuesta actual no expone `status`. Valores válidos: `DRAFT`, `PENDING`, `PUBLISHED`, `CANCELLED`.
+Con otro usuario (no dueño) debe dar `403`.
 
 ### `DELETE /api/events/{id}`
 
 ```
 DELETE http://localhost:8080/api/events/<id_del_evento_creado>
+```
+
+**Esperado**: `204 No Content`. Un `GET` posterior al mismo `id` debe dar `404`.
+
+---
+
+## 5. CRUD de venues
+
+El seed trae un venue reutilizable ya creado:
+
+| Qué | ID |
+|---|---|
+| Venue "Sala Havana" (Milano, sin eventos activos) | `33333333-3333-3333-3333-333333333333` |
+
+### `GET /api/venues` (público, listado/autocomplete)
+
+```
+GET http://localhost:8080/api/venues?cityId=1
+```
+
+**Esperado**: `200` con un array que incluye "Sala Havana".
+
+```
+GET http://localhost:8080/api/venues?cityId=1&search=havana
+```
+
+**Esperado**: mismo resultado filtrado — confirma que `search` no distingue mayúsculas/minúsculas.
+
+### `GET /api/venues/{id}` (público, detalle)
+
+```
+GET http://localhost:8080/api/venues/33333333-3333-3333-3333-333333333333
+```
+
+**Esperado**: `200` con `VenueDetailDto` completo — `organizerName: "Tropical Milano"`,
+`cityName: "Milano"`, `address`, `description`, `createdAt`/`updatedAt`.
+
+```
+GET http://localhost:8080/api/venues/00000000-0000-0000-0000-000000000000
+```
+
+**Esperado**: `404` con `{"message": "Venue not found with id ..."}`.
+
+### `POST /api/venues` (dueño autenticado, organizer verificado)
+
+Usa el mismo `<tu_organizer_id>` verificado de la sección 4.
+
+```
+POST http://localhost:8080/api/venues
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "organizerId": "<tu_organizer_id>",
+  "cityId": 1,
+  "name": "Mi Sala de Prueba",
+  "address": "Via Tortona 20, Milano",
+  "postalCode": "20144",
+  "description": "Venue de prueba para Postman",
+  "latitude": 45.4522,
+  "longitude": 9.1620
+}
+```
+
+**Esperado**: `201` + `VenuesSummaryDto`. Guardate el `id` devuelto (`<venue_id_creado>`) para
+los pasos siguientes. Repetir el mismo `name` + `cityId` debe dar `409` (`DuplicateVenueException`).
+Si omitís `latitude`/`longitude`, el backend geocodifica la `address` contra Nominatim — puede
+tardar ~1s y depende de que la dirección sea real.
+
+### `PATCH /api/venues/{id}` (dueño autenticado)
+
+```
+PATCH http://localhost:8080/api/venues/<venue_id_creado>
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "description": "Descripción actualizada" }
+```
+
+**Esperado**: `200` con `VenueDetailDto`, solo `description` cambia (resto queda intacto gracias
+al `nullValuePropertyMappingStrategy = IGNORE`). Con otro usuario (no dueño del organizer) debe
+dar `403`.
+
+```
+PATCH http://localhost:8080/api/venues/33333333-3333-3333-3333-333333333333
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "name": "Sala Havana" }
+```
+
+**Esperado**: `403` (no sos el dueño de este venue del seed) — si en cambio das `409`, revisá
+el orden ownership-vs-duplicado en `VenuesServiceImpl.update`.
+
+### `DELETE /api/admin/venues/{id}` (solo ADMIN)
+
+El borrado **no** es del dueño — es admin-only. Para probarlo, promové tu usuario real a
+`ADMIN` (no hace falta volver a loguearte, el rol se lee de la DB en cada request):
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE id = '<tu_user_id>';
+```
+
+```
+DELETE http://localhost:8080/api/admin/venues/<venue_id_creado>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `204 No Content` (tu venue de prueba no tiene eventos). Un `GET` posterior al
+mismo `id` debe dar `404`.
+
+```
+DELETE http://localhost:8080/api/admin/venues/33333333-3333-3333-3333-333333333333
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `409` (`VenueHasActiveEventsException`) — "Sala Havana" tiene eventos `PUBLISHED`
+del seed (`aaaa`, `bbbb`, `cccc`) asociados.
+
+```sql
+-- baja tu rol de nuevo para seguir probando como usuario normal
+UPDATE users SET role = 'ORGANIZER' WHERE id = '<tu_user_id>';
+```
+
+```
+DELETE http://localhost:8080/api/admin/venues/33333333-3333-3333-3333-333333333333
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `403` — confirma que `hasRole("ADMIN")` en `SecurityConfig` bloquea a un
+usuario autenticado que no sea admin, aunque sea el dueño del venue.
+
+---
+
+## 6. CRUD de Event Series
+
+Mismo organizer verificado de las secciones 4 y 5 (`<tu_organizer_id>`). No hay ninguna serie
+en el seed, hay que crearla primero para poder probar el resto.
+
+### `POST /api/event-series` (dueño autenticado, organizer verificado)
+
+```
+POST http://localhost:8080/api/event-series
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "organizerId": "<tu_organizer_id>",
+  "venueId": "33333333-3333-3333-3333-333333333333",
+  "cityId": 1,
+  "title": "Jueves de Salsa",
+  "rrule": "FREQ=WEEKLY;BYDAY=TH",
+  "description": "Clase + social todos los jueves",
+  "isFree": false,
+  "price": 8.00,
+  "currency": "EUR",
+  "address": "Via Tortona 20, Milano",
+  "latitude": 45.4522,
+  "longitude": 9.1620,
+  "startTime": "21:30:00",
+  "endTime": "01:00:00",
+  "danceStyleIds": [1, 2]
+}
+```
+
+**Esperado**: `201` + `EventSeriesDetailDto`. Guardate el `id` devuelto (`<series_id_creado>`)
+para los pasos siguientes. Si `organizerId` no te pertenece o no está `is_verified`, debe dar
+`403`. Si `venueId` pertenece a otra ciudad que la de `cityId`, debe dar `400`
+(`VenueCityMismatchException`).
+
+### `GET /api/event-series/{id}` (público)
+
+```
+GET http://localhost:8080/api/event-series/<series_id_creado>
+```
+
+**Esperado**: `200` con `EventSeriesDetailDto` — `venueName: "Sala Havana"`, `cityName: "Milano"`,
+`danceStyles` con los dos estilos elegidos, `free: false`, `price: 8.00`.
+
+```
+GET http://localhost:8080/api/event-series/00000000-0000-0000-0000-000000000000
+```
+
+**Esperado**: `404` con `{"message": "Event series not found with id ..."}`.
+
+### `GET /api/organizers/{id}/event-series` (público, listado)
+
+```
+GET http://localhost:8080/api/organizers/11111111-1111-1111-1111-111111111111/event-series
+```
+
+**Esperado**: `200` con un array que incluye "Jueves de Salsa" (`EventSeriesSummaryDto`).
+
+### `PATCH /api/event-series/{id}` (dueño autenticado)
+
+```
+PATCH http://localhost:8080/api/event-series/<series_id_creado>
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "price": 10.00, "startTime": "22:00:00" }
+```
+
+**Esperado**: `200` con `EventSeriesDetailDto`, solo `price` y `startTime` cambian (resto queda
+intacto gracias al `nullValuePropertyMappingStrategy = IGNORE`). Con otro usuario (no dueño) debe
+dar `403`.
+
+```
+PATCH http://localhost:8080/api/event-series/<series_id_creado>
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "cityId": 1, "venueId": "33333333-3333-3333-3333-333333333333" }
+```
+
+**Esperado**: `200` sin cambios de negocio (mismo venue/ciudad) — sirve para confirmar que mandar
+`cityId` sin `venueId` (o viceversa) no rompe nada, ahora que el bug de `update()` está corregido.
+
+### `DELETE /api/event-series/{id}/venue` (dueño autenticado)
+
+```
+DELETE http://localhost:8080/api/event-series/<series_id_creado>/venue
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `200` con `EventSeriesDetailDto` y `venueName: null` — la serie sigue existiendo,
+solo pierde el vínculo al venue (igual que `DELETE /api/events/{id}/venue`).
+
+### `DELETE /api/event-series/{id}` (dueño autenticado)
+
+```
+DELETE http://localhost:8080/api/event-series/<series_id_creado>
+Authorization: Bearer <tu token>
 ```
 
 **Esperado**: `204 No Content`. Un `GET` posterior al mismo `id` debe dar `404`.

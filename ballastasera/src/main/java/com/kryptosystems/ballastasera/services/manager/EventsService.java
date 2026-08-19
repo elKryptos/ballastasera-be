@@ -31,7 +31,7 @@ public interface EventsService {
     EventDetailDto toEventDetailDto(Events event);
 
     /** Crea el evento a nombre del organizerId del dto; falla si ese organizer
-     * no le pertenece a requesterId o si aun no esta verificado. Nace en DRAFT. */
+     * no le pertenece a requesterId o si aun no esta verificado. Nace en PENDING. */
     Events create(UUID requesterId, EventCreateDto dto);
 
     /** Edita un evento propio. No permite cambiar de organizer ni de status. */
@@ -42,4 +42,7 @@ public interface EventsService {
 
     /** Borra un evento propio (ownership check incluido). */
     void delete(UUID id, UUID requesterId);
+
+    /** Remueve el venue del evento si presente. Debe ser el organizador y owner del evento. */
+    Events removeVenue(UUID eventId, UUID requesterId);
 }

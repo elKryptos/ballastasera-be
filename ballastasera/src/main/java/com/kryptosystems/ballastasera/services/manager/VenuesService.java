@@ -1,5 +1,7 @@
 package com.kryptosystems.ballastasera.services.manager;
 
+import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 
 import java.util.List;
@@ -12,4 +14,8 @@ public interface VenuesService {
     List<Venues> findByOrganizerId(UUID organizerId);
     Venues save(Venues venue);
     void deleteById(UUID id);
+    Venues create(UUID requesterId, VenueCreateDto dto);
+    Venues update(UUID id, UUID requesterId, VenueUpdateDto dto);
+    void delete(UUID id);
+    List<Venues> search(Long cityId, String query);
 }

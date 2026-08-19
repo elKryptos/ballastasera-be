@@ -41,6 +41,7 @@ public class EventsController {
         return ResponseEntity.ok(eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId));
     }
 
+    /** Publico */
     @GetMapping("/{id}")
     public ResponseEntity<EventDetailDto> getEventDetail(@PathVariable UUID id) {
         return ResponseEntity.ok(eventsService.getEventDetail(id));
@@ -79,7 +80,14 @@ public class EventsController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
+    /** Requiere estar autenticado */
+    @DeleteMapping("/{id}/venue")
+    public ResponseEntity<EventDetailDto> removeVenue(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        var event = eventsService.removeVenue(id, principal.getId());
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    }
+
+    /** Público. Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
      * de esta lista y siempre incluye a todos, con o sin opt-in. */
     @GetMapping("/{id}/attendees")
@@ -91,7 +99,7 @@ public class EventsController {
         return ResponseEntity.ok(eventAttendanceService.findPublicGoingAttendees(id, PageRequest.of(page, size)));
     }
 
-    /** Marca "GOING" o "INTERESTED". Idempotente: repetir con otro status lo actualiza. */
+    /** Requiere estar autenticato. Marca "GOING" o "INTERESTED". Idempotente: repetir con otro status lo actualiza. */
     @PostMapping("/{id}/attendance")
     public ResponseEntity<Void> setAttendance(
             @PathVariable UUID id,
@@ -102,7 +110,7 @@ public class EventsController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Elimina la marca "GOING" o "INTERESTED". La lista de asistentes se actualiza con -1 */
+    /** Requiere estar autenticado. Elimina la marca "GOING" o "INTERESTED". La lista de asistentes se actualiza con -1 */
     @DeleteMapping("/{id}/attendance")
     public ResponseEntity<Void> removeAttendance(
             @PathVariable UUID id,
@@ -119,12 +127,14 @@ public class EventsController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Requiere estar autenticado */
     @DeleteMapping("/{id}/favorite")
     public ResponseEntity<Void> removeFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         favoritesService.removeFavorite(principal.getId(), id);
         return ResponseEntity.noContent().build();
     }
 
+    /** Requiere estar autenticado */
     @GetMapping("/{id}/favorite")
     public ResponseEntity<Boolean> isFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         return ResponseEntity.ok(favoritesService.existsByUserIdAndEventId(principal.getId(), id));

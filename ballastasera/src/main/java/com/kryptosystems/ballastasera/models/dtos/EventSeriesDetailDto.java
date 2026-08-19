@@ -10,12 +10,16 @@ import java.util.UUID;
 
 @Getter
 @Setter
-public class EventSeriesSummaryDto {
+public class EventSeriesDetailDto {
 
     private UUID id;
     private String title;
     private String rrule;
+    private String description;
     private String flyerUrl;
+
+    private String instagramUrl;
+    private String whatsappUrl;
 
     private LocalTime startTime;
     private LocalTime endTime;
@@ -25,9 +29,11 @@ public class EventSeriesSummaryDto {
     private String currency;
 
     private String address;
+    private Double latitude;
+    private Double longitude;
     private String cityName;
     private String venueName;
 
-    private OrganizerSummaryDto organizer;
+    private OrganizerDetailDto organizer;
     private List<String> danceStyles;
 }

@@ -2,7 +2,6 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
-import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
@@ -11,6 +10,7 @@ import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.*;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.*;
+import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
@@ -32,11 +32,8 @@ public class EventsServiceImpl implements EventsService {
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsMapper eventsMapper;
     private final OrganizersRepository organizersRepository;
-    private final CitiesRepository citiesRepository;
-    private final VenuesRepository venuesRepository;
     private final EventSeriesRepository eventSeriesRepository;
-    private final DanceStylesRepository danceStylesRepository;
-    private final GeocodingService geocodingService;
+    private final EventResolverService eventResolverService;
 
     @Override
     public List<Events> findAll() {
@@ -151,19 +148,17 @@ public class EventsServiceImpl implements EventsService {
         }
         Events event = eventsMapper.toEventEntity(dto);
         event.setOrganizer(organizer);
-        event.setCity(resolveCity(dto.getCityId()));
-        event.setVenue(resolveVenue(dto.getVenueId()));
-        event.setSeries(resolveSeries(dto.getSeriesId()));
-        event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
+        event.setCity(eventResolverService.resolveCity(dto.getCityId()));
+        event.setVenue(eventResolverService.resolveVenue(dto.getVenueId(), event.getCity().getId()));
+        event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
+        event.setDanceStyles(eventResolverService.resolveDanceStyles(dto.getDanceStyleIds()));
         event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
                 slug -> eventsRepository.findBySlug(slug).isPresent()));
         event.setStatus(EventStatus.PENDING);
         /** Si el cliente no mando lat/lng (ej. no arrastro el pin en el mapa),
          * las calculamos a partir de la direccion. */
         if (event.getLatitude() == null || event.getLongitude() == null) {
-            GeocodingService.GeoPoint point = geocodingService.geoCode(event.getAddress(), event.getCity().getName())
-                    .orElseThrow(() -> new AddressNotFoundException(
-                            "Address not found: " + event.getAddress() + ". Correct the address or insert the coordinates manually."));
+            GeocodingService.GeoPoint point = eventResolverService.resolveCoordinates(event.getAddress(), event.getCity().getName());
             event.setLatitude(point.latitude());
             event.setLongitude(point.longitude());
         }
@@ -174,6 +169,7 @@ public class EventsServiceImpl implements EventsService {
     public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
+        Organizers organizer = event.getOrganizer();
         eventsMapper.updateEventEntityFromDto(dto, event);
         if (event.getEndAt() != null && !event.getStartAt().isBefore(event.getEndAt())) {
             throw new InvalidEventTimingException(
@@ -181,16 +177,16 @@ public class EventsServiceImpl implements EventsService {
             );
         }
         if (dto.getCityId() != null) {
-           event.setCity(resolveCity(dto.getCityId()));
+           event.setCity(eventResolverService.resolveCity(dto.getCityId()));
         }
         if (dto.getVenueId() != null) {
-            event.setVenue(resolveVenue(dto.getVenueId()));
+            event.setVenue(eventResolverService.resolveVenue(dto.getVenueId(), event.getCity().getId()));
         }
         if (dto.getSeriesId() != null) {
-            event.setSeries(resolveSeries(dto.getSeriesId()));
+            event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
         }
         if (dto.getDanceStyleIds() != null) {
-            event.setDanceStyles(resolveDanceStyles(dto.getDanceStyleIds()));
+            event.setDanceStyles(eventResolverService.resolveDanceStyles(dto.getDanceStyleIds()));
         }
         if (dto.getTitle() != null) {
             event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
@@ -203,9 +199,7 @@ public class EventsServiceImpl implements EventsService {
         boolean addressChanged = dto.getAddress() != null;
         boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
         if (addressChanged && !coordsProvidedByClient) {
-            GeocodingService.GeoPoint point = geocodingService.geoCode(dto.getAddress(), event.getCity().getName())
-                    .orElseThrow(() -> new AddressNotFoundException(
-                            "Address not found: " + dto.getAddress() + ". Correct the address or insert the coordinates manually."));
+            GeocodingService.GeoPoint point = eventResolverService.resolveCoordinates(dto.getAddress(), event.getCity().getName());
             event.setLatitude(point.latitude());
             event.setLongitude(point.longitude());
         }
@@ -227,32 +221,31 @@ public class EventsServiceImpl implements EventsService {
         eventsRepository.delete(event);
     }
 
+    @Override
+    public Events removeVenue(UUID eventId, UUID requesterId) {
+        Events event = findById(eventId);
+        assertOwnership(event, requesterId);
+        event.setVenue(null);
+        return eventsRepository.save(event);
+    }
+
     private void assertOwnership(Events event, UUID requesterId) {
         if (!event.getOrganizer().getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event");
         }
     }
 
-    private Cities resolveCity(Long cityId) {
-        return citiesRepository.findById(cityId)
-                .orElseThrow(() -> new EntityNotFoundException("City not found with id " + cityId));
-    }
-
-    private Venues resolveVenue(UUID venueId) {
-        if (venueId == null) return null;
-        return venuesRepository.findById(venueId)
-                .orElseThrow(() -> new EntityNotFoundException("Venue not found with id " + venueId));
-    }
-
-    private EventSeries resolveSeries(UUID seriesId) {
+    private EventSeries resolveSeries(UUID seriesId, Organizers organizer) {
         if (seriesId == null) return null;
-        return eventSeriesRepository.findById(seriesId)
-                .orElseThrow(() -> new EntityNotFoundException("Event series not found with id " + seriesId));
-    }
+        EventSeries series = eventSeriesRepository.findById(seriesId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Event series not found with id " + seriesId));
 
-    private Set<DanceStyles> resolveDanceStyles(Set<Long> danceStyleIds) {
-        if (danceStyleIds == null || danceStyleIds.isEmpty()) return null;
-        return new HashSet<>(danceStylesRepository.findAllById(danceStyleIds));
+        if (!series.getOrganizer().getId().equals(organizer.getId())) {
+            throw new AccessDeniedException("Event series does not belong to this organizer");
+        }
+
+        return series;
     }
 
 }

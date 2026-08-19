@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.models.dtos;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Getter
@@ -19,5 +20,6 @@ public class VenueDetailDto {
     private Double latitude;
     private Double longitude;
     private String description;
-
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }
