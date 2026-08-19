@@ -14,7 +14,8 @@ Convención de estado por bloque:
 
 ## Bloque 1 — CRUD de contenido del organizador (bloqueante)
 
-El CRUD de Events ya está disponible; los CRUD de Venues y Event Series siguen pendientes.
+El CRUD de Events ya está disponible; Venues también. Event Series tiene la capa de
+servicio lista, falta el controller.
 
 ### Events (`/api/events`, auth + ownership organizer)
 - [x] POST `/api/events` — crear evento (DTO `EventCreateDto`)
@@ -44,10 +45,23 @@ Sin tests automatizados todavía — falta `VenuesServiceImplTest` y `VenuesCont
 por cerrado del todo.
 
 ### Event Series (`/api/event-series`)
-- [ ] POST `/api/event-series` — crear serie recurrente (rrule)
-- [ ] PATCH `/api/event-series/{id}` — editar
-- [ ] DELETE `/api/event-series/{id}`
+- [x] Schema `event_series` actualizado (venue, city, address/lat/lng, is_free/price/currency,
+      flyer/instagram/whatsapp, start_time/end_time) + tabla puente `event_series_dance_styles`
+- [x] Entity `EventSeries` mapeada al schema nuevo
+- [x] DTOs (`EventSeriesCreateDto`, `EventSeriesUpdateDto`, `EventSeriesDetailDto`,
+      `EventSeriesSummaryDto`) + `EventSeriesMapper`
+- [x] `EventSeriesRepository` + `EventSeriesService`/`Impl` (create/update/delete con ownership
+      y geocoding, vía `EventResolverService` compartido con Events)
+- [~] POST `/api/event-series` — crear serie recurrente (rrule) — falta el controller
+- [~] PATCH `/api/event-series/{id}` — editar — falta el controller
+- [~] DELETE `/api/event-series/{id}` — falta el controller
 - [ ] Definir cómo se generan las instancias de `Events` a partir de la rrule (job o al crear)
+
+Refactor de paso: `resolveCity`/`resolveVenue`/`resolveDanceStyles`/geocoding-si-falta-lat-lng
+estaban duplicados entre `EventsServiceImpl` y `EventSeriesServiceImpl` — se extrajeron a
+`EventResolverService`/`Impl`, usado por ambos.
+
+Sin tests automatizados todavía.
 
 ---
 
