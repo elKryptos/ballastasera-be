@@ -24,7 +24,7 @@ public class EventSeriesDetailDto {
     private LocalTime startTime;
     private LocalTime endTime;
 
-    private boolean free;
+    private boolean isFree;
     private BigDecimal price;
     private String currency;
 
