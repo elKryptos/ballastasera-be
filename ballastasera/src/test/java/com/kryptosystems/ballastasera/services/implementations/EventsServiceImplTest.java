@@ -11,14 +11,11 @@ import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
-import com.kryptosystems.ballastasera.repositories.CitiesRepository;
-import com.kryptosystems.ballastasera.repositories.DanceStylesRepository;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
-import com.kryptosystems.ballastasera.repositories.VenuesRepository;
-import com.kryptosystems.ballastasera.services.manager.GeocodingService;
+import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -63,19 +60,10 @@ class EventsServiceImplTest {
     private OrganizersRepository organizersRepository;
 
     @Mock
-    private CitiesRepository citiesRepository;
-
-    @Mock
-    private VenuesRepository venuesRepository;
-
-    @Mock
     private EventSeriesRepository eventSeriesRepository;
 
     @Mock
-    private DanceStylesRepository danceStylesRepository;
-
-    @Mock
-    private GeocodingService geocodingService;
+    private EventResolverService eventResolverService;
 
     @InjectMocks
     private EventsServiceImpl eventsService;
@@ -88,7 +76,7 @@ class EventsServiceImplTest {
 
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
         when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
-        when(citiesRepository.findById(1L)).thenReturn(Optional.of(new Cities()));
+        when(eventResolverService.resolveCity(1L)).thenReturn(new Cities());
         when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
         when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
 
@@ -148,8 +136,8 @@ class EventsServiceImplTest {
 
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
         when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
-        when(citiesRepository.findById(1L)).thenReturn(Optional.of(city));
-        when(venuesRepository.findById(VENUE_ID)).thenReturn(Optional.of(venue));
+        when(eventResolverService.resolveCity(1L)).thenReturn(city);
+        when(eventResolverService.resolveVenue(VENUE_ID, 1L)).thenReturn(venue);
         when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
         when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
 
@@ -175,8 +163,9 @@ class EventsServiceImplTest {
 
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
         when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
-        when(citiesRepository.findById(1L)).thenReturn(Optional.of(city));
-        when(venuesRepository.findById(VENUE_ID)).thenReturn(Optional.of(venue));
+        when(eventResolverService.resolveCity(1L)).thenReturn(city);
+        when(eventResolverService.resolveVenue(VENUE_ID, 1L))
+                .thenThrow(new VenueCityMismatchException("Venue belongs to another city"));
 
         assertThrows(
                 VenueCityMismatchException.class,
@@ -199,7 +188,7 @@ class EventsServiceImplTest {
 
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
         when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
-        when(citiesRepository.findById(1L)).thenReturn(Optional.of(new Cities()));
+        when(eventResolverService.resolveCity(1L)).thenReturn(new Cities());
         when(eventSeriesRepository.findById(SERIES_ID)).thenReturn(Optional.of(series));
 
         assertThrows(
@@ -241,7 +230,8 @@ class EventsServiceImplTest {
         venue.setCity(otherCity);
 
         when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(venuesRepository.findById(VENUE_ID)).thenReturn(Optional.of(venue));
+        when(eventResolverService.resolveVenue(VENUE_ID, 1L))
+                .thenThrow(new VenueCityMismatchException("Venue belongs to another city"));
 
         assertThrows(
                 VenueCityMismatchException.class,
