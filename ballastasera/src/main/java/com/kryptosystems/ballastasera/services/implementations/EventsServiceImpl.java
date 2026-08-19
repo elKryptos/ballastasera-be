@@ -231,7 +231,10 @@ public class EventsServiceImpl implements EventsService {
 
     @Override
     public List<Events>  findPublishedByOrganizerId(UUID organizerId) {
-        return eventsRepository.findByOrganizerIdOrderByStartAtDesc(organizerId, EventStatus.PUBLISHED);
+        return eventsRepository.findByOrganizerIdAndStatusOrderByStartAtDesc(
+                organizerId,
+                EventStatus.PUBLISHED
+        );
     }
 
     private void assertOwnership(Events event, UUID requesterId) {

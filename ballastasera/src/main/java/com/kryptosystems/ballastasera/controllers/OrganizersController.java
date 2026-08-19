@@ -98,9 +98,13 @@ public class OrganizersController {
      */
     @GetMapping("/{id}/events")
     public ResponseEntity<List<EventCardDto>> getOrganizerEvents(@PathVariable UUID id) {
-        var events = eventService.findByOrganizerId(id).stream()
+        organizersService.findVerifiedById(id);
+
+        List<EventCardDto> events = eventService.findPublishedByOrganizerId(id)
+                .stream()
                 .map(eventsMapper::toEventCardDto)
                 .toList();
+
         return ResponseEntity.ok(events);
     }
 
@@ -109,6 +113,7 @@ public class OrganizersController {
      */
     @GetMapping("/{id}/venues")
     public ResponseEntity<List<VenuesSummaryDto>> getOrganizerVenues(@PathVariable UUID id) {
+        organizersService.findVerifiedById(id);
         var venues = venueService.findByOrganizerId(id).stream()
                 .map(venuesMapper::toVenueSummary)
                 .toList();
@@ -120,6 +125,8 @@ public class OrganizersController {
      */
     @GetMapping("/{id}/event-series")
     public ResponseEntity<List<EventSeriesSummaryDto>> getOrganizerEventSeries(@PathVariable UUID id) {
+
+        organizersService.findVerifiedById(id);
         var series = eventSeriesService.findByOrganizerId(id).stream()
                 .map(eventSeriesMapper::toEventSeriesSummaryDto)
                 .toList();
@@ -131,6 +138,4 @@ public class OrganizersController {
         organizersService.delete(id, principal.getId());
         return ResponseEntity.noContent().build();
     }
-
-
 }
