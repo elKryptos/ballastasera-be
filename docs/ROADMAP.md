@@ -57,7 +57,21 @@ por cerrado del todo.
 - [x] DELETE `/api/event-series/{id}/venue` — desvincular venue de la serie
 - [x] GET `/api/event-series/{id}` — detalle público
 - [x] GET `/api/organizers/{id}/event-series` — listado público por organizador
-- [ ] Definir cómo se generan las instancias de `Events` a partir de la rrule (job o al crear)
+- [ ] Definir cómo se generan las instancias de `Events` a partir de la rrule. Dos opciones
+      evaluadas, sin decidir todavía:
+      - **A (recomendada)**: generar N ocurrencias al crear la serie (ej. próximas 8 semanas) +
+        job diario (`@Scheduled`) que agrega la siguiente ocurrencia para mantener una ventana
+        rodante hacia adelante. El organizer ve eventos apenas crea la serie.
+      - **B**: solo el job, nada al crear — más simple de escribir pero la serie queda vacía
+        (sin ninguna ocurrencia visible) hasta que corre el job por primera vez.
+      No hace falta librería de recurrencia (tipo rrule.js/ical4j): el schema solo soporta
+      `FREQ=WEEKLY;BYDAY=...`, así que alcanza con parsear el `BYDAY` (2-3 códigos de día
+      separados por coma) y calcular las próximas fechas que caen en esos días.
+- [ ] **Deuda conocida**: `EventSeriesCreateDto`/`EventSeriesUpdateDto` no validan que `startTime`
+      sea anterior a `endTime` (`Events` sí lo hace vía `@ValidEventTiming` + un chequeo extra en
+      `EventsServiceImpl.update()`). Hoy se puede crear/editar una serie con `endTime` antes que
+      `startTime` sin ningún error. Pendiente de fixear — mismo patrón que `Events`
+      (`InvalidEventTimingException`, ya tiene handler en `BackendErrorResponse`).
 
 Refactor de paso: `resolveCity`/`resolveVenue`/`resolveDanceStyles`/geocoding-si-falta-lat-lng
 estaban duplicados entre `EventsServiceImpl` y `EventSeriesServiceImpl` — se extrajeron a
@@ -132,4 +146,10 @@ Depende de Bloque 3 (Follow) para tener sentido completo.
 
 - ¿Un organizador puede tener varios venues/series, o 1:1? (ya hay M:N en el modelo, confirmar UX)
 - ¿Quién puede editar un evento de un `EventSeries`: solo la instancia o toda la serie de una vez?
+  Propuesta: edición individual vía `PATCH /api/events/{id}` (ya soportado); editar la serie
+  (`PATCH /api/event-series/{id}`) solo afecta ocurrencias futuras aún no generadas, nunca
+  retroactivo (mismo criterio que Google Calendar/similares — evita re-sincronizar en cascada).
+- ¿Las ocurrencias de `Events` generadas desde una serie nacen en `PENDING` (requieren aprobación
+  una por una, tedioso para algo semanal) o heredan el estado ya aprobado, dado que el organizer
+  que las genera ya está verificado?
 - Media: ¿subida directa desde backend o URL prefirmada (presigned) al storage?
