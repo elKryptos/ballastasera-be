@@ -229,6 +229,11 @@ public class EventsServiceImpl implements EventsService {
         return eventsRepository.save(event);
     }
 
+    @Override
+    public List<Events>  findPublishedByOrganizerId(UUID organizerId) {
+        return eventsRepository.findByOrganizerIdOrderByStartAtDesc(organizerId, EventStatus.PUBLISHED);
+    }
+
     private void assertOwnership(Events event, UUID requesterId) {
         if (!event.getOrganizer().getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event");

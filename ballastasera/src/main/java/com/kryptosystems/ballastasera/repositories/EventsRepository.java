@@ -64,4 +64,6 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
             WHERE e.id = :id
             """)
     Optional<Events> findByIdWithDetails(@Param("id") UUID id);
+
+    List<Events> findByOrganizerIdOrderByStartAtDesc(UUID organizerId, EventStatus status);
 }
