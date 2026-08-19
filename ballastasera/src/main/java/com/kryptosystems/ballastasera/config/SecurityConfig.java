@@ -41,6 +41,7 @@ public class SecurityConfig {
                                 "/api/dance-styles/{id}",
                                 "/api/venues",
                                 "/api/venues/{id}",
+                                "/api/event-series/{id}",
                                 "/api/organizers",
                                 "/api/organizers/{slug}",
                                 "/api/organizers/{id}/events",
