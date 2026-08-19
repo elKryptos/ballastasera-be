@@ -14,8 +14,7 @@ Convención de estado por bloque:
 
 ## Bloque 1 — CRUD de contenido del organizador (bloqueante)
 
-El CRUD de Events ya está disponible; Venues también. Event Series tiene la capa de
-servicio lista, falta el controller.
+El CRUD de Events, Venues y Event Series ya está disponible.
 
 ### Events (`/api/events`, auth + ownership organizer)
 - [x] POST `/api/events` — crear evento (DTO `EventCreateDto`)
@@ -52,9 +51,12 @@ por cerrado del todo.
       `EventSeriesSummaryDto`) + `EventSeriesMapper`
 - [x] `EventSeriesRepository` + `EventSeriesService`/`Impl` (create/update/delete con ownership
       y geocoding, vía `EventResolverService` compartido con Events)
-- [~] POST `/api/event-series` — crear serie recurrente (rrule) — falta el controller
-- [~] PATCH `/api/event-series/{id}` — editar — falta el controller
-- [~] DELETE `/api/event-series/{id}` — falta el controller
+- [x] POST `/api/event-series` — crear serie recurrente (rrule)
+- [x] PATCH `/api/event-series/{id}` — editar serie propia
+- [x] DELETE `/api/event-series/{id}` — borrar serie propia
+- [x] DELETE `/api/event-series/{id}/venue` — desvincular venue de la serie
+- [x] GET `/api/event-series/{id}` — detalle público
+- [x] GET `/api/organizers/{id}/event-series` — listado público por organizador
 - [ ] Definir cómo se generan las instancias de `Events` a partir de la rrule (job o al crear)
 
 Refactor de paso: `resolveCity`/`resolveVenue`/`resolveDanceStyles`/geocoding-si-falta-lat-lng
