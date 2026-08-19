@@ -39,9 +39,9 @@ public class AdminController {
         return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizersService.verify(id)));
     }
 
-    /** Recupera datos detallados de un venue si ya existe */
+    /** Borra un venue. Solo ADMIN — el service valida que no tenga eventos activos. */
     @DeleteMapping("/venues/{id}")
-    public ResponseEntity<Void> getVenue(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteVenue(@PathVariable UUID id) {
         venuesService.delete(id);
         return ResponseEntity.noContent().build();
     }
