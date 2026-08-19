@@ -54,9 +54,22 @@ public class OrganizersServiceImpl implements OrganizersService {
         return organizersRepository.save(organizer);
     }
 
-    @Override
+    // implementazione insicura
+    /*@Override
     public void deleteById(UUID id) {
         organizersRepository.deleteById(id);
+    }*/
+
+    @Override
+    public Organizers findVerifiedBySlug(String slug){
+        return organizersRepository.findBySlugAndIsVerifiedTrue(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with slug " + slug));
+    }
+
+    @Override
+    public Organizers findVerifiedById(UUID id) {
+        return organizersRepository.findByIdAndIsVerifiedTrue(id)
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + id));
     }
 
     @Override
@@ -101,19 +114,54 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
+    public Organizers update(
+            UUID id,
+            UUID requesterId,
+            OrganizerUpdateDto dto
+    ) {
         Organizers organizer = findById(id);
-        if (!organizer.getUser().getId().equals(requesterId)) {
-            throw new AccessDeniedException("Not the owner of this organizer");
+        assertOwnership(organizer, requesterId);
+
+        if (dto.getName() != null) {
+            organizer.setName(dto.getName());
         }
-        organizer.setName(dto.getName());
-        organizer.setDescription(dto.getDescription());
-        organizer.setLogoUrl(dto.getLogoUrl());
-        organizer.setWebsite(dto.getWebsite());
-        organizer.setPhone(dto.getPhone());
-        organizer.setContactEmail(dto.getContactEmail());
-        organizer.setInstagram(dto.getInstagram());
-        organizer.setFacebook(dto.getFacebook());
+        if (dto.getDescription() != null) {
+            organizer.setDescription(dto.getDescription());
+        }
+        if (dto.getLogoUrl() != null) {
+            organizer.setLogoUrl(dto.getLogoUrl());
+        }
+        if (dto.getWebsite() != null) {
+            organizer.setWebsite(dto.getWebsite());
+        }
+        if (dto.getPhone() != null) {
+            organizer.setPhone(dto.getPhone());
+        }
+        if (dto.getContactEmail() != null) {
+            organizer.setContactEmail(dto.getContactEmail());
+        }
+        if (dto.getInstagram() != null) {
+            organizer.setInstagram(dto.getInstagram());
+        }
+        if (dto.getFacebook() != null) {
+            organizer.setFacebook(dto.getFacebook());
+        }
+
         return organizersRepository.save(organizer);
+    }
+
+    @Override
+    public void delete(UUID id, UUID requesterId){
+        Organizers organizer = this.findById(id);
+        assertOwnership(organizer, requesterId);
+        organizersRepository.delete(organizer);
+
+
+    }
+
+    private void assertOwnership(Organizers organizer, UUID requesterId){
+        if(!organizer.getUser().getId().equals(requesterId)){
+            throw new AccessDeniedException("You are not owner of this organizer");
+        }
     }
 }

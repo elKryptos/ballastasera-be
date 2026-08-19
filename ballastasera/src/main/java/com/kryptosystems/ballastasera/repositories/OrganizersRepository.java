@@ -11,7 +11,15 @@ import java.util.UUID;
 
 public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
     Optional<Organizers> findBySlug(String slug);
+
+    Optional<Organizers> findBySlugAndIsVerifiedTrue(String slug);
+
+    Optional<Organizers> findByIdAndIsVerifiedTrue(UUID id);
+
     List<Organizers> findByUserId(UUID userId);
+
     Page<Organizers> findByIsVerifiedFalse(Pageable pageable);
+
     Page<Organizers> findByIsVerifiedTrue(Pageable pageable);
+
 }
