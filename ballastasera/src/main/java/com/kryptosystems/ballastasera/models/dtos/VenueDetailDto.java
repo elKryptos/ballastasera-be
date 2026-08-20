@@ -10,16 +10,16 @@ import java.util.UUID;
 @Setter
 public class VenueDetailDto {
     private UUID id;
+    private UUID organizerId;
+    private String organizerName;
+    private Long cityId;
+    private String cityName;
     private String name;
     private String address;
     private String postalCode;
-    private String description;
-    private Long cityId;
-    private String cityName;
     private Double latitude;
     private Double longitude;
-    private UUID organizerId;
-    private String organizerName;
+    private String description;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

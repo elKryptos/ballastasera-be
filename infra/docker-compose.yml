@@ -25,8 +25,8 @@ services:
     volumes:
       - postgresql_data:/var/lib/postgresql # dati persistenti (mount PostgreSQL 18+)
       # Percorsi reali dei file SQL nella cartella docs/.
-      #- ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      #- ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
+      - ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
 
     healthcheck:
       test:

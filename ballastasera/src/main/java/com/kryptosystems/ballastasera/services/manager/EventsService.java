@@ -45,4 +45,6 @@ public interface EventsService {
 
     /** Remueve el venue del evento si presente. Debe ser el organizador y owner del evento. */
     Events removeVenue(UUID eventId, UUID requesterId);
+
+    List<Events> findPublishedByOrganizerId(UUID organizerId);
 }

@@ -1,6 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -9,7 +9,8 @@ import lombok.Setter;
 @Setter
 public class OrganizerUpdateDto {
 
-    @NotBlank
+    @Size(max = 120)
+    @Pattern(regexp = "(?s).*\\S.*", message = "name must not be blank")
     private String name;
 
     @Size(max = 2000)

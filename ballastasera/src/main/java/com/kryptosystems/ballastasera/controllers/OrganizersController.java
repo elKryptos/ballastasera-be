@@ -47,15 +47,15 @@ public class OrganizersController {
     }
 
     /** Público, nadie necesita loguearse. Sirve para la página de perfil del organizador
-     * que ve cualquier visitante (como el detalle de un evento).   */
+     * que esté verificado que ve cualquier visitante (como el detalle de un evento). */
     @GetMapping("/{slug}")
     public ResponseEntity<OrganizerDetailDto> getBySlug(@PathVariable String slug) {
-        var organizer = organizersService.findBySlug(slug);
+        var organizer = organizersService.findVerifiedBySlug(slug);
         return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizer));
     }
 
     /** Requiere estar autenticado. El mismo usuario. Para que el dueño vea su(s) propio(s)
-     * perfil(es) de organizador, típicamente al entrar a su panel/dashboard.    */
+     * perfil(es) de organizador, típicamente al entrar a su panel/dashboard. */
     @GetMapping("/me")
     public ResponseEntity<List<OrganizerDetailDto>> getMyOrganizers(@AuthenticationPrincipal UserPrincipal principal) {
         var organizers = organizersService.findByUserId(principal.getId());
@@ -74,7 +74,7 @@ public class OrganizersController {
     }
 
     /** Público, directorio general (como listar eventos), solo muestra los ya verificados
-     * para no exponer perfiles pendientes de aprobación.  */
+     * para no exponer perfiles pendientes de aprobación. */
     @GetMapping("")
     public ResponseEntity<Page<OrganizerSummaryDto>> getOrganizersList(@RequestParam(defaultValue = "0") int page,
                                                                        @RequestParam(defaultValue = "20") int size) {
@@ -86,15 +86,20 @@ public class OrganizersController {
     /** Público. Lista los eventos publicados por un organizador, para su página de perfil. */
     @GetMapping("/{id}/events")
     public ResponseEntity<List<EventCardDto>> getOrganizerEvents(@PathVariable UUID id) {
-        var events = eventService.findByOrganizerId(id).stream()
+        organizersService.findVerifiedById(id);
+
+        List<EventCardDto> events = eventService.findPublishedByOrganizerId(id)
+                .stream()
                 .map(eventsMapper::toEventCardDto)
                 .toList();
+
         return ResponseEntity.ok(events);
     }
 
     /** Público. Lista los venues publicados por un organizador. */
     @GetMapping("/{id}/venues")
     public ResponseEntity<List<VenuesSummaryDto>> getOrganizerVenues(@PathVariable UUID id) {
+        organizersService.findVerifiedById(id);
         var venues = venueService.findByOrganizerId(id).stream()
                 .map(venuesMapper::toVenueSummary)
                 .toList();
@@ -104,9 +109,17 @@ public class OrganizersController {
     /** Público. Lista los event-series publicados por un organizador. */
     @GetMapping("/{id}/event-series")
     public ResponseEntity<List<EventSeriesSummaryDto>> getOrganizerEventSeries(@PathVariable UUID id) {
+
+        organizersService.findVerifiedById(id);
         var series = eventSeriesService.findByOrganizerId(id).stream()
                 .map(eventSeriesMapper::toEventSeriesSummaryDto)
                 .toList();
         return ResponseEntity.ok(series);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteOrganizer(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        organizersService.delete(id, principal.getId());
+        return ResponseEntity.noContent().build();
     }
 }
