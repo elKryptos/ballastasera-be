@@ -40,8 +40,7 @@ public class OrganizersController {
      * que un admin lo apruebe; solo entonces se pueden publicar eventos. */
     @PostMapping()
     public ResponseEntity<OrganizerDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
-                                                     @Valid @RequestBody OrganizerCreateDto body
-    ) {
+                                                     @Valid @RequestBody OrganizerCreateDto body) {
         var organizer = organizersService.createForUser(principal.getId(), body);
         return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetail(organizer));
     }
@@ -86,20 +85,18 @@ public class OrganizersController {
     /** Público. Lista los eventos publicados por un organizador, para su página de perfil. */
     @GetMapping("/{id}/events")
     public ResponseEntity<List<EventCardDto>> getOrganizerEvents(@PathVariable UUID id) {
-        organizersService.findVerifiedById(id);
-
+        organizersService.verifyExistsById(id);
         List<EventCardDto> events = eventService.findPublishedByOrganizerId(id)
                 .stream()
                 .map(eventsMapper::toEventCardDto)
                 .toList();
-
         return ResponseEntity.ok(events);
     }
 
     /** Público. Lista los venues publicados por un organizador. */
     @GetMapping("/{id}/venues")
     public ResponseEntity<List<VenuesSummaryDto>> getOrganizerVenues(@PathVariable UUID id) {
-        organizersService.findVerifiedById(id);
+        organizersService.verifyExistsById(id);
         var venues = venueService.findByOrganizerId(id).stream()
                 .map(venuesMapper::toVenueSummary)
                 .toList();
@@ -109,8 +106,7 @@ public class OrganizersController {
     /** Público. Lista los event-series publicados por un organizador. */
     @GetMapping("/{id}/event-series")
     public ResponseEntity<List<EventSeriesSummaryDto>> getOrganizerEventSeries(@PathVariable UUID id) {
-
-        organizersService.findVerifiedById(id);
+        organizersService.verifyExistsById(id);
         var series = eventSeriesService.findByOrganizerId(id).stream()
                 .map(eventSeriesMapper::toEventSeriesSummaryDto)
                 .toList();

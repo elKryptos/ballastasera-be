@@ -14,7 +14,7 @@ public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
 
     Optional<Organizers> findBySlugAndIsVerifiedTrue(String slug);
 
-    Optional<Organizers> findByIdAndIsVerifiedTrue(UUID id);
+    boolean existsByIdAndIsVerifiedTrue(UUID id);
 
     List<Organizers> findByUserId(UUID userId);
 

@@ -35,5 +35,5 @@ public interface OrganizersService {
 
     Organizers findVerifiedBySlug(String slug);
 
-    Organizers findVerifiedById(UUID id);
+    void verifyExistsById(UUID id);
 }

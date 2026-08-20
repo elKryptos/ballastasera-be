@@ -67,9 +67,10 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    public Organizers findVerifiedById(UUID id) {
-        return organizersRepository.findByIdAndIsVerifiedTrue(id)
-                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + id));
+    public void verifyExistsById(UUID id) {
+        if (!organizersRepository.existsByIdAndIsVerifiedTrue(id)) {
+            throw new EntityNotFoundException("Organizer not found with id " + id);
+        }
     }
 
     @Override
@@ -114,14 +115,9 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    public Organizers update(
-            UUID id,
-            UUID requesterId,
-            OrganizerUpdateDto dto
-    ) {
+    public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
-
         if (dto.getName() != null) {
             organizer.setName(dto.getName());
         }
@@ -146,7 +142,6 @@ public class OrganizersServiceImpl implements OrganizersService {
         if (dto.getFacebook() != null) {
             organizer.setFacebook(dto.getFacebook());
         }
-
         return organizersRepository.save(organizer);
     }
 
@@ -155,8 +150,6 @@ public class OrganizersServiceImpl implements OrganizersService {
         Organizers organizer = this.findById(id);
         assertOwnership(organizer, requesterId);
         organizersRepository.delete(organizer);
-
-
     }
 
     private void assertOwnership(Organizers organizer, UUID requesterId){
