@@ -20,4 +20,5 @@ public class OrganizerDetailDto {
     private String instagram;
     private String facebook;
     private boolean verified;
+    private boolean claimed;
 }

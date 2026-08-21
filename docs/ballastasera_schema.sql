@@ -66,7 +66,6 @@ CREATE TABLE users (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-
 -- ============================================================================
 --  ORGANIZERS — profilo pubblico di chi pubblica eventi
 --  (una persona, un locale, una discoteca, una scuola, un'associazione)
@@ -74,7 +73,7 @@ CREATE TABLE users (
 -- ============================================================================
 CREATE TABLE organizers (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id       UUID REFERENCES users(id) ON DELETE CASCADE,  -- nullable: admin puo crear sin dueño
     name          TEXT NOT NULL,                  -- nome pubblico (es. 'Tropical Milano')
     slug          TEXT NOT NULL UNIQUE,           -- per URL /organizzatore/tropical-milano
     type          organizer_type NOT NULL DEFAULT 'PERSON',
@@ -86,11 +85,13 @@ CREATE TABLE organizers (
     instagram     TEXT,
     facebook      TEXT,
     is_verified   BOOLEAN NOT NULL DEFAULT FALSE, -- badge "verificato" gestito da admin
+    claimed       BOOLEAN NOT NULL DEFAULT FALSE, -- true cuando un usuario real reclamo el perfil
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_organizers_user ON organizers(user_id);
 CREATE INDEX idx_organizers_type ON organizers(type);
+CREATE INDEX idx_organizers_claimed ON organizers(claimed);
 
 
 -- ============================================================================
@@ -320,3 +321,14 @@ INSERT INTO dance_styles (name, slug) VALUES
 --  --  WHERE ST_DWithin(geom, ST_MakePoint(9.19, 45.46)::geography, 5000)
 --  --  ORDER BY geom <-> ST_MakePoint(9.19, 45.46)::geography;
 -- ============================================================================
+
+
+ALTER TABLE organizers
+ALTER COLUMN user_id DROP NOT NULL,
+ADD COLUMN claimed BOOLEAN NOT NULL DEFAULT FALSE;
+
+UPDATE organizers
+SET claimed = TRUE
+WHERE user_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_organizers_claimed ON organizers(claimed);

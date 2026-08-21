@@ -24,8 +24,8 @@ public class Organizers {
     @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private Users user;
 
     @Column(name = "name", nullable = false)
@@ -62,6 +62,9 @@ public class Organizers {
 
     @Column(name = "is_verified", nullable = false)
     private boolean isVerified = false;
+
+    @Column(name = "claimed", nullable = false)
+    private boolean claimed = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
