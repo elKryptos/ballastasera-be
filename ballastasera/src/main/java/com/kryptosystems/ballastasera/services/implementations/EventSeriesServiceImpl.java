@@ -9,6 +9,7 @@ import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
+import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -75,16 +76,27 @@ public class EventSeriesServiceImpl implements EventSeriesService {
 
     @Override
     public EventSeries create(UUID requesterId, EventSeriesCreateDto dto) {
-        Organizers organizers = organizersRepository.findById(dto.getOrganizerId())
+        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
-        if (!organizers.getUser().getId().equals(requesterId)) {
+        if (organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this organizer");
         }
-        if (!organizers.isVerified()) {
+        if (!organizer.isVerified()) {
             throw new AccessDeniedException("Organizer not verified yet");
         }
+        return buildAndSaveSeries(organizer, dto);
+    }
+
+    @Override
+    public EventSeries createAsAdmin(EventSeriesCreateDto dto) {
+        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
+        return buildAndSaveSeries(organizer, dto);
+    }
+
+    private EventSeries buildAndSaveSeries(Organizers organizer, EventSeriesCreateDto dto) {
         EventSeries series = eventSeriesMapper.toEventSeriesEntity(dto);
-        series.setOrganizer(organizers);
+        series.setOrganizer(organizer);
         series.setCity(eventResolverService.resolveCity(dto.getCityId()));
         series.setVenue(eventResolverService.resolveVenue(dto.getVenueId(), series.getCity().getId()));
         series.setDanceStyles(eventResolverService.resolveDanceStyles(dto.getDanceStyleIds()));
@@ -136,7 +148,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     private void assertOwnership(EventSeries series, UUID requesterId) {
-        if (!series.getOrganizer().getUser().getId().equals(requesterId)) {
+        if (series.getOrganizer().getUser() == null || !series.getOrganizer().getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event series");
         }
     }

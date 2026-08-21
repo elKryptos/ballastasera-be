@@ -15,6 +15,7 @@ public interface VenuesService {
     Venues save(Venues venue);
     void deleteById(UUID id);
     Venues create(UUID requesterId, VenueCreateDto dto);
+    Venues createAsAdmin(UUID adminUserId, VenueCreateDto dto);
     Venues update(UUID id, UUID requesterId, VenueUpdateDto dto);
     void delete(UUID id);
     List<Venues> search(Long cityId, String query);

@@ -122,7 +122,7 @@ public class EventsServiceImpl implements EventsService {
         return buildDetailDto(event);
     }
 
-    /** Mapea + completa los campos que el mapper ignora a proposito (liveNow,
+    /** Mapea + completa los campos que el mapper ignora a propósito (liveNow,
      * counts, fallback de instagramUrl). Recibe el Events ya cargado para no
      * forzar un roundtrip extra a la DB cuando el caller ya lo tiene en memoria. */
     private EventDetailDto buildDetailDto(Events event) {
@@ -140,12 +140,23 @@ public class EventsServiceImpl implements EventsService {
     public Events create(UUID requesterId, EventCreateDto dto) {
         Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
-        if (!organizer.getUser().getId().equals(requesterId)) {
+        if (organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this organizer");
         }
         if (!organizer.isVerified()) {
             throw new AccessDeniedException("Organizer not verified yet");
         }
+        return buildAndSaveEvent(organizer, dto);
+    }
+
+    @Override
+    public Events createAsAdmin(EventCreateDto dto) {
+        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
+        return buildAndSaveEvent(organizer, dto);
+    }
+
+    private Events buildAndSaveEvent(Organizers organizer, EventCreateDto dto) {
         Events event = eventsMapper.toEventEntity(dto);
         event.setOrganizer(organizer);
         event.setCity(eventResolverService.resolveCity(dto.getCityId()));
@@ -156,7 +167,7 @@ public class EventsServiceImpl implements EventsService {
                 slug -> eventsRepository.findBySlug(slug).isPresent()));
         event.setStatus(EventStatus.PENDING);
         /** Si el cliente no mando lat/lng (ej. no arrastro el pin en el mapa),
-         * las calculamos a partir de la direccion. */
+         * las calculamos a partir de la dirección. */
         if (event.getLatitude() == null || event.getLongitude() == null) {
             GeocodingService.GeoPoint point = eventResolverService.resolveCoordinates(event.getAddress(), event.getCity().getName());
             event.setLatitude(point.latitude());
@@ -238,7 +249,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     private void assertOwnership(Events event, UUID requesterId) {
-        if (!event.getOrganizer().getUser().getId().equals(requesterId)) {
+        if (event.getOrganizer().getUser() == null || !event.getOrganizer().getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event");
         }
     }
@@ -246,13 +257,10 @@ public class EventsServiceImpl implements EventsService {
     private EventSeries resolveSeries(UUID seriesId, Organizers organizer) {
         if (seriesId == null) return null;
         EventSeries series = eventSeriesRepository.findById(seriesId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Event series not found with id " + seriesId));
-
+                .orElseThrow(() -> new EntityNotFoundException("Event series not found with id " + seriesId));
         if (!series.getOrganizer().getId().equals(organizer.getId())) {
             throw new AccessDeniedException("Event series does not belong to this organizer");
         }
-
         return series;
     }
 

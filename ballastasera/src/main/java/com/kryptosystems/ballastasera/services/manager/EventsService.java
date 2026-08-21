@@ -34,6 +34,10 @@ public interface EventsService {
      * no le pertenece a requesterId o si aun no esta verificado. Nace en PENDING. */
     Events create(UUID requesterId, EventCreateDto dto);
 
+    /** Admin crea el evento para cualquier organizer (reclamado o no), sin chequeo
+     * de ownership ni de verificación. Nace en PENDING igual que create(). */
+    Events createAsAdmin(EventCreateDto dto);
+
     /** Edita un evento propio. No permite cambiar de organizer ni de status. */
     Events update(UUID id, UUID requesterId, EventUpdateDto dto);
 

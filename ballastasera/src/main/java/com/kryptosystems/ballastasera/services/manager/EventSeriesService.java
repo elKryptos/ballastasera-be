@@ -15,6 +15,7 @@ public interface EventSeriesService {
     EventSeriesDetailDto getEventSeriesDetail(UUID id);
     EventSeriesDetailDto toEventSeriesDetailDto(EventSeries series);
     EventSeries create(UUID requesterId, EventSeriesCreateDto eventCreateDto);
+    EventSeries createAsAdmin(EventSeriesCreateDto dto);
     EventSeries update(UUID id, UUID requesterId, EventSeriesUpdateDto eventUpdateDto);
     void delete(UUID id, UUID requesterId);
     EventSeries removeVenue(UUID seriesId, UUID requesterId);

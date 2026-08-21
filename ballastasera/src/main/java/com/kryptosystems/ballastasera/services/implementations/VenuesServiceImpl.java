@@ -8,6 +8,7 @@ import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
+import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.repositories.CitiesRepository;
@@ -15,6 +16,7 @@ import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.repositories.VenuesRepository;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
+import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class VenuesServiceImpl implements VenuesService {
     private final EventsRepository eventsRepository;
     private final GeocodingService geocodingService;
     private final VenuesMapper venuesMapper;
+    private final UsersService usersService;
 
     @Override
     public List<Venues> findAll() {
@@ -76,6 +79,18 @@ public class VenuesServiceImpl implements VenuesService {
         if (!organizer.isVerified()) {
             throw new AccessDeniedException("Organizer not verified yet");
         }
+        return buildAndSaveVenue(organizer, organizer.getUser(), dto);
+    }
+
+    @Override
+    public Venues createAsAdmin(UUID adminUserId, VenueCreateDto dto) {
+        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
+        Users createdBy = organizer.getUser() != null ? organizer.getUser() : usersService.findById(adminUserId);
+        return buildAndSaveVenue(organizer, createdBy, dto);
+    }
+
+    private Venues buildAndSaveVenue(Organizers organizer, Users user, VenueCreateDto dto) {
         Cities city = citiesRepository.findById(dto.getCityId())
                 .orElseThrow(() -> new EntityNotFoundException("City not found with id " + dto.getCityId()));
 
@@ -86,7 +101,7 @@ public class VenuesServiceImpl implements VenuesService {
 
         Venues venue = venuesMapper.toVenueEntity(dto);
         venue.setOrganizer(organizer);
-        venue.setCreatedBy(organizer.getUser());
+        venue.setCreatedBy(user);
         venue.setCity(city);
 
         if (venue.getLatitude() == null || venue.getLongitude() == null) {
@@ -141,7 +156,8 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     private void assertOwnership(Venues venue, UUID requesterId) {
-        if (!venue.getOrganizer().getUser().getId().equals(requesterId)) {
+        if (venue.getOrganizer() == null || venue.getOrganizer().getUser() == null
+                || !venue.getOrganizer().getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this venue");
         }
     }
