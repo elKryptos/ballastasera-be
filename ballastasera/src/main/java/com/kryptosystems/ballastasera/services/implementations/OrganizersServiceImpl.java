@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EmailService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
@@ -26,6 +27,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     private final OrganizersRepository organizersRepository;
     private final UsersService usersService;
     private final EmailService emailService;
+    private final OrganizerMapper organizerMapper;
 
     @Override
     public List<Organizers> findAll() {
@@ -54,11 +56,31 @@ public class OrganizersServiceImpl implements OrganizersService {
         return organizersRepository.save(organizer);
     }
 
-    // implementazione insicura
-    /*@Override
-    public void deleteById(UUID id) {
-        organizersRepository.deleteById(id);
-    }*/
+    @Override
+    public Organizers createForUser(UUID userId, OrganizerCreateDto dto) {
+        Users user = usersService.findById(userId);
+        Organizers organizer = organizerMapper.toOrganizerEntity(dto);
+        organizer.setUser(user);
+        organizer.setSlug(SlugUtils.uniqueSlug(dto.getName(),
+                slug -> organizersRepository.findBySlug(slug).isPresent()));
+        organizer.setVerified(false);
+        return organizersRepository.save(organizer);
+    }
+
+    @Override
+    public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
+        Organizers organizer = findById(id);
+        assertOwnership(organizer, requesterId);
+        organizerMapper.updateOrganizerFromDto(dto, organizer);
+        return organizersRepository.save(organizer);
+    }
+
+    @Override
+    public void delete(UUID id, UUID requesterId){
+        Organizers organizer = this.findById(id);
+        assertOwnership(organizer, requesterId);
+        organizersRepository.delete(organizer);
+    }
 
     @Override
     public Organizers findVerifiedBySlug(String slug){
@@ -71,27 +93,6 @@ public class OrganizersServiceImpl implements OrganizersService {
         if (!organizersRepository.existsByIdAndIsVerifiedTrue(id)) {
             throw new EntityNotFoundException("Organizer not found with id " + id);
         }
-    }
-
-    @Override
-    public Organizers createForUser(UUID userId, OrganizerCreateDto dto) {
-        Users user = usersService.findById(userId);
-
-        Organizers organizer = new Organizers();
-        organizer.setUser(user);
-        organizer.setName(dto.getName());
-        organizer.setSlug(SlugUtils.uniqueSlug(dto.getName(),
-                slug -> organizersRepository.findBySlug(slug).isPresent()));
-        organizer.setType(dto.getType());
-        organizer.setDescription(dto.getDescription());
-        organizer.setLogoUrl(dto.getLogoUrl());
-        organizer.setWebsite(dto.getWebsite());
-        organizer.setPhone(dto.getPhone());
-        organizer.setContactEmail(dto.getContactEmail());
-        organizer.setInstagram(dto.getInstagram());
-        organizer.setFacebook(dto.getFacebook());
-        organizer.setVerified(false);
-        return organizersRepository.save(organizer);
     }
 
     @Override
@@ -112,44 +113,6 @@ public class OrganizersServiceImpl implements OrganizersService {
     @Override
     public Page<Organizers> findVerified(Pageable pageable) {
         return organizersRepository.findByIsVerifiedTrue(pageable);
-    }
-
-    @Override
-    public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
-        Organizers organizer = findById(id);
-        assertOwnership(organizer, requesterId);
-        if (dto.getName() != null) {
-            organizer.setName(dto.getName());
-        }
-        if (dto.getDescription() != null) {
-            organizer.setDescription(dto.getDescription());
-        }
-        if (dto.getLogoUrl() != null) {
-            organizer.setLogoUrl(dto.getLogoUrl());
-        }
-        if (dto.getWebsite() != null) {
-            organizer.setWebsite(dto.getWebsite());
-        }
-        if (dto.getPhone() != null) {
-            organizer.setPhone(dto.getPhone());
-        }
-        if (dto.getContactEmail() != null) {
-            organizer.setContactEmail(dto.getContactEmail());
-        }
-        if (dto.getInstagram() != null) {
-            organizer.setInstagram(dto.getInstagram());
-        }
-        if (dto.getFacebook() != null) {
-            organizer.setFacebook(dto.getFacebook());
-        }
-        return organizersRepository.save(organizer);
-    }
-
-    @Override
-    public void delete(UUID id, UUID requesterId){
-        Organizers organizer = this.findById(id);
-        assertOwnership(organizer, requesterId);
-        organizersRepository.delete(organizer);
     }
 
     private void assertOwnership(Organizers organizer, UUID requesterId){

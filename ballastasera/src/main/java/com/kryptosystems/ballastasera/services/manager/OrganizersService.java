@@ -15,20 +15,19 @@ public interface OrganizersService {
     Organizers findBySlug(String slug);
     List<Organizers> findByUserId(UUID userId);
     Organizers save(Organizers organizer);
-    // metodo insicuro
-    //void deleteById(UUID id);
-    void delete(UUID id, UUID requesterId);
 
     /** Crea el perfil, isVerified=false por defecto: queda pendiente de aprobacion. */
     Organizers createForUser(UUID userId, OrganizerCreateDto dto);
+
+    /** Actualiza datos del organizador que posee un usuario. */
+    Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto);
+
+    void delete(UUID id, UUID requesterId);
 
     Page<Organizers> findPendingVerification(Pageable pageable);
 
     /** Aprueba: isVerified=true, sube el rol del dueno y le manda el email de notificacion. */
     Organizers verify(UUID id);
-
-    /** Actualiza datos del organizador que posee un usuario. */
-    Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto);
 
     /** Regresa los organizadores que ya han sido verificados. */
     Page<Organizers> findVerified(Pageable pageable);
