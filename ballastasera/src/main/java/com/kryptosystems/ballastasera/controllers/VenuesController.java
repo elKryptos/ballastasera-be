@@ -30,16 +30,16 @@ public class VenuesController {
     public ResponseEntity<List<VenuesSummaryDto>> getVenues(@RequestParam Long cityId,
                                                            @RequestParam(required = false) String search) {
         return ResponseEntity.ok(venuesService.search(cityId, search).stream()
-                .map(venuesMapper::toVenueSummary)
+                .map(venuesMapper::toVenueSummaryDto)
                 .toList());
     }
 
     /** Requiere estar autenticado. El organizerId tiene que estar verificado y el venue creado es reusable por todos los organizers. */
     @PostMapping()
-    public ResponseEntity<VenuesSummaryDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
+    public ResponseEntity<VenueDetailDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
                                                         @Valid @RequestBody VenueCreateDto body) {
         var venue = venuesService.create(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(venuesMapper.toVenueSummary(venue));
+        return ResponseEntity.status(HttpStatus.CREATED).body(venuesMapper.toVenueDetailDto(venue));
     }
 
     /** Requiere estar autenticado y ser dueño del venue.... cambiar a que solo ADMIN puede hacer modificaciones */
@@ -48,7 +48,7 @@ public class VenuesController {
                                                       @PathVariable UUID id,
                                                       @Valid @RequestBody VenueUpdateDto body) {
         var venue = venuesService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(venuesMapper.toVenueDetail(venue));
+        return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venue));
     }
 
 }

@@ -12,9 +12,9 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OrganizerMapper {
 
-    OrganizerSummaryDto toOrganizerSummary(Organizers organizer);
+    OrganizerSummaryDto toOrganizerSummaryDto(Organizers organizer);
 
-    OrganizerDetailDto toOrganizerDetail(Organizers organizer);
+    OrganizerDetailDto toOrganizerDetailDto(Organizers organizer);
 
     Organizers toOrganizerEntity(OrganizerCreateDto organizerCreateDto);
 

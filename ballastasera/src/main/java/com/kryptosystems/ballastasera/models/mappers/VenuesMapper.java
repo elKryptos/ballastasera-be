@@ -14,13 +14,13 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 public interface VenuesMapper {
 
     @Mapping(target = "cityName", source = "city.name")
-    VenuesSummaryDto toVenueSummary(Venues venues);
+    VenuesSummaryDto toVenueSummaryDto(Venues venues);
 
     @Mapping(target = "cityId", source = "city.id")
     @Mapping(target = "cityName", source = "city.name")
     @Mapping(target = "organizerId", source = "organizer.id")
     @Mapping(target = "organizerName", source = "organizer.name")
-    VenueDetailDto toVenueDetail(Venues venues);
+    VenueDetailDto toVenueDetailDto(Venues venues);
 
     @Mapping(target = "organizer", ignore = true)
     @Mapping(target = "city", ignore = true)

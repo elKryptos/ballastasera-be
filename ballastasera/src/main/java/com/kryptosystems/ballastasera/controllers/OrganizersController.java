@@ -42,7 +42,7 @@ public class OrganizersController {
     public ResponseEntity<OrganizerDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
                                                      @Valid @RequestBody OrganizerCreateDto body) {
         var organizer = organizersService.createForUser(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetail(organizer));
+        return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetailDto(organizer));
     }
 
     /** Público, nadie necesita loguearse. Sirve para la página de perfil del organizador
@@ -50,7 +50,7 @@ public class OrganizersController {
     @GetMapping("/{slug}")
     public ResponseEntity<OrganizerDetailDto> getBySlug(@PathVariable String slug) {
         var organizer = organizersService.findVerifiedBySlug(slug);
-        return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizer));
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
     }
 
     /** Requiere estar autenticado. El mismo usuario. Para que el dueño vea su(s) propio(s)
@@ -58,7 +58,7 @@ public class OrganizersController {
     @GetMapping("/me")
     public ResponseEntity<List<OrganizerDetailDto>> getMyOrganizers(@AuthenticationPrincipal UserPrincipal principal) {
         var organizers = organizersService.findByUserId(principal.getId());
-        return ResponseEntity.ok(organizers.stream().map(organizerMapper::toOrganizerDetail).toList());
+        return ResponseEntity.ok(organizers.stream().map(organizerMapper::toOrganizerDetailDto).toList());
     }
 
     /** Requiere estar autenticado. Editar el propio perfil de organizador. No estoy actulizando
@@ -69,7 +69,7 @@ public class OrganizersController {
                                                      @PathVariable UUID id,
                                                      @Valid @RequestBody OrganizerUpdateDto body) {
         var organizer = organizersService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(organizerMapper.toOrganizerDetail(organizer));
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
     }
 
     /** Público, directorio general (como listar eventos), solo muestra los ya verificados
@@ -78,7 +78,7 @@ public class OrganizersController {
     public ResponseEntity<Page<OrganizerSummaryDto>> getOrganizersList(@RequestParam(defaultValue = "0") int page,
                                                                        @RequestParam(defaultValue = "20") int size) {
         var organizers = organizersService.findVerified(PageRequest.of(page, size))
-                .map(organizerMapper::toOrganizerSummary);
+                .map(organizerMapper::toOrganizerSummaryDto);
         return ResponseEntity.ok(organizers);
     }
 
@@ -98,7 +98,7 @@ public class OrganizersController {
     public ResponseEntity<List<VenuesSummaryDto>> getOrganizerVenues(@PathVariable UUID id) {
         organizersService.verifyExistsById(id);
         var venues = venueService.findByOrganizerId(id).stream()
-                .map(venuesMapper::toVenueSummary)
+                .map(venuesMapper::toVenueSummaryDto)
                 .toList();
         return ResponseEntity.ok(venues);
     }
