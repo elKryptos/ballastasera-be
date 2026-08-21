@@ -35,4 +35,10 @@ public interface OrganizersService {
     Organizers findVerifiedBySlug(String slug);
 
     void verifyExistsById(UUID id);
+
+    /** Admin crea el perfil sin dueño, a partir de datos externos (ej. Instagram). Nace verified=true y claimed=false. */
+    Organizers createUnclaimed(OrganizerCreateDto dto);
+
+    /** Admin asigna el organizer a un usuario real: user=userId, claimed=true, promueve el rol y notifica por email. */
+    Organizers claim(UUID organizerId, UUID userId);
 }

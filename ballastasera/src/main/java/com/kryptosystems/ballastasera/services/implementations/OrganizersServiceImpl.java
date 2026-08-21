@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
@@ -96,6 +97,31 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    public Organizers createUnclaimed(OrganizerCreateDto dto) {
+        Organizers organizer = organizerMapper.toOrganizerEntity(dto);
+        organizer.setSlug(SlugUtils.uniqueSlug(dto.getName(),
+                slug -> organizersRepository.findBySlug(slug).isPresent()));
+        organizer.setVerified(true);
+        organizer.setClaimed(false);
+        return organizersRepository.save(organizer);
+    }
+
+    @Override
+    public Organizers claim(UUID organizerId, UUID userId) {
+        Organizers organizer = findById(organizerId);
+        if (organizer.isClaimed()) {
+            throw new OrganizerAlreadyClaimedException("Organizer " + organizerId + " is already claimed");
+        }
+        Users user = usersService.findById(userId);
+        organizer.setUser(user);
+        organizer.setClaimed(true);
+        Organizers saved = organizersRepository.save(organizer);
+        usersService.promoteToOrganizer(userId);
+        emailService.sendOrganizerClaimedEmail(user.getEmail(), organizer.getName());
+        return saved;
+    }
+
+    @Override
     public Page<Organizers> findPendingVerification(Pageable pageable){
         return organizersRepository.findByIsVerifiedFalse(pageable);
     }
@@ -105,6 +131,9 @@ public class OrganizersServiceImpl implements OrganizersService {
         Organizers organizer = findById(id);
         organizer.setVerified(true);
         Organizers saved = organizersRepository.save(organizer);
+        if (organizer.getUser() == null) {
+            return saved;
+        }
         usersService.promoteToOrganizer(organizer.getUser().getId());
         emailService.sendOrganizerApprovedEmail(organizer.getUser().getEmail(), organizer.getName());
         return saved;
@@ -116,7 +145,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     private void assertOwnership(Organizers organizer, UUID requesterId){
-        if(!organizer.getUser().getId().equals(requesterId)){
+        if (organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("You are not owner of this organizer");
         }
     }

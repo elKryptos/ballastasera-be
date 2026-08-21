@@ -35,8 +35,24 @@ public class EmailServiceImpl implements EmailService {
         CreateEmailOptions params = CreateEmailOptions.builder()
                 .from(fromEmail)
                 .to(toEmail)
-                .subject("Il tuo profilo organizzatore è stato approvato")
+                .subject("Il tuo profilo organizzatore è stato approvato.")
                 .html(buildEmailContent(organizerName))
+                .build();
+        try {
+            CreateEmailResponse data = resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di approvazione a {}", toEmail, e);
+        }
+    }
+
+    @Override
+    @Async
+    public void sendOrganizerClaimedEmail(String toEmail, String organizerName) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject("Il profilo organizzatore ti è stato assegnato.")
+                .html(buildClaimedEmail(organizerName))
                 .build();
         try {
             CreateEmailResponse data = resend.emails().send(params);
@@ -48,6 +64,13 @@ public class EmailServiceImpl implements EmailService {
     private String buildEmailContent(String organizerName) {
         return "<h1>Profilo verificato</h1>" +
                 "<p>Il tuo profilo organizzatore <strong>" + organizerName + "</strong> è stato verificato.</p>" +
+                "<p>Ora puoi pubblicare eventi da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
+                "<p>A presto sulla pista!</p>";
+    }
+
+    private String buildClaimedEmail(String organizerName) {
+        return "<h1>Profilo assegnato</h1>" +
+                "<p>Il profilo organizzatore <strong>" + organizerName + "</strong> ti è stato assegnato.</p>" +
                 "<p>Ora puoi pubblicare eventi da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
                 "<p>A presto sulla pista!</p>";
     }
