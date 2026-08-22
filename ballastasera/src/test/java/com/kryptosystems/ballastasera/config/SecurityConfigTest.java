@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.config;
 
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.repositories.RevokedTokensRepository;
 import com.kryptosystems.ballastasera.security.CustomOidcUserService;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.JwtService;
@@ -67,83 +68,86 @@ class SecurityConfigTest {
     @MockitoBean
     private ClientRegistrationRepository clientRegistrationRepository;
 
+    @MockitoBean
+    private RevokedTokensRepository revokedTokensRepository;
+
     @Test
     void anonymousCannotGetOwnOrganizers() throws Exception {
-        mockMvc.perform(get("/api/organizers/me"))
+        mockMvc.perform(get("/rest/organizers/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
 
     @Test
     void anonymousCannotCheckFavorite() throws Exception {
-        mockMvc.perform(get("/api/events/{id}/favorite", EVENT_ID))
+        mockMvc.perform(get("/rest/events/{id}/favorite", EVENT_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
 
     @Test
     void anonymousCannotCreateEvents() throws Exception {
-        mockMvc.perform(post("/api/events"))
+        mockMvc.perform(post("/rest/events"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
 
     @Test
     void anonymousCannotUpdateEvents() throws Exception {
-        mockMvc.perform(patch("/api/events/{id}", EVENT_ID))
+        mockMvc.perform(patch("/rest/events/{id}", EVENT_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
 
     @Test
     void anonymousCannotUpdateEventStatus() throws Exception {
-        mockMvc.perform(patch("/api/events/{id}/status", EVENT_ID))
+        mockMvc.perform(patch("/rest/events/{id}/status", EVENT_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
 
     @Test
     void anonymousCannotDeleteEvents() throws Exception {
-        mockMvc.perform(delete("/api/events/{id}", EVENT_ID))
+        mockMvc.perform(delete("/rest/events/{id}", EVENT_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Location"));
     }
 
     @Test
     void authenticatedUserCanGetOwnOrganizers() throws Exception {
-        mockMvc.perform(get("/api/organizers/me")
+        mockMvc.perform(get("/rest/organizers/me")
                         .with(authentication(userAuthentication())))
                 .andExpect(status().isOk());
     }
 
     @Test
     void authenticatedUserCanCheckFavorite() throws Exception {
-        mockMvc.perform(get("/api/events/{id}/favorite", EVENT_ID)
+        mockMvc.perform(get("/rest/events/{id}/favorite", EVENT_ID)
                         .with(authentication(userAuthentication())))
                 .andExpect(status().isOk());
     }
 
     @Test
     void eventDetailRemainsPublic() throws Exception {
-        mockMvc.perform(get("/api/events/{id}", EVENT_ID))
+        mockMvc.perform(get("/rest/events/{id}", EVENT_ID))
                 .andExpect(status().isOk());
     }
 
     @Test
     void citiesRemainPublic() throws Exception {
-        mockMvc.perform(get("/api/cities"))
+        mockMvc.perform(get("/rest/cities"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/cities/{id}", 1L))
+        mockMvc.perform(get("/rest/cities/{id}", 1L))
                 .andExpect(status().isOk());
     }
 
     @Test
     void danceStylesRemainPublic() throws Exception {
-        mockMvc.perform(get("/api/dance-styles"))
+        mockMvc.perform(get("/rest/dance-styles"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/dance-styles/{id}", 1L))
+        mockMvc.perform(get("/rest/dance-styles/{id}", 1L))
                 .andExpect(status().isOk());
     }
 
@@ -164,56 +168,56 @@ class SecurityConfigTest {
     @RestController
     static class TestController {
 
-        @GetMapping("/api/organizers/me")
+        @GetMapping("/rest/organizers/me")
         String getOwnOrganizers() {
             return "ok";
         }
 
-        @GetMapping("/api/events/{id}/favorite")
+        @GetMapping("/rest/events/{id}/favorite")
         boolean checkFavorite(@PathVariable UUID id) {
             return false;
         }
 
-        @PostMapping("/api/events")
+        @PostMapping("/rest/events")
         String createEvent() {
             return "ok";
         }
 
-        @PatchMapping("/api/events/{id}")
+        @PatchMapping("/rest/events/{id}")
         String updateEvent(@PathVariable UUID id) {
             return "ok";
         }
 
-        @PatchMapping("/api/events/{id}/status")
+        @PatchMapping("/rest/events/{id}/status")
         String updateEventStatus(@PathVariable UUID id) {
             return "ok";
         }
 
-        @DeleteMapping("/api/events/{id}")
+        @DeleteMapping("/rest/events/{id}")
         void deleteEvent(@PathVariable UUID id) {
         }
 
-        @GetMapping("/api/events/{id}")
+        @GetMapping("/rest/events/{id}")
         String getEvent(@PathVariable UUID id) {
             return "ok";
         }
 
-        @GetMapping("/api/cities")
+        @GetMapping("/rest/cities")
         String getCities() {
             return "ok";
         }
 
-        @GetMapping("/api/cities/{id}")
+        @GetMapping("/rest/cities/{id}")
         String getCity(@PathVariable Long id) {
             return "ok";
         }
 
-        @GetMapping("/api/dance-styles")
+        @GetMapping("/rest/dance-styles")
         String getDanceStyles() {
             return "ok";
         }
 
-        @GetMapping("/api/dance-styles/{id}")
+        @GetMapping("/rest/dance-styles/{id}")
         String getDanceStyle(@PathVariable Long id) {
             return "ok";
         }

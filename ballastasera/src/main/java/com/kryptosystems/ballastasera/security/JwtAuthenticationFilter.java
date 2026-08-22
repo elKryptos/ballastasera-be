@@ -1,8 +1,10 @@
 package com.kryptosystems.ballastasera.security;
 
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.repositories.RevokedTokensRepository;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UsersService usersService;
+    private final RevokedTokensRepository revokedTokensRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -36,6 +39,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 Claims claims = jwtService.parseClaims(token);
+
+                if (revokedTokensRepository.existsByJti(jwtService.extractJti(claims))) {
+                    throw new JwtException("Token has been revoked");
+                }
+
                 UUID userId = jwtService.extractUserId(claims);
                 Users user = usersService.findById(userId);
 

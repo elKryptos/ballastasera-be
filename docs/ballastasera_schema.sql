@@ -269,6 +269,17 @@ CREATE INDEX idx_attendance_event ON event_attendance(event_id);
 
 
 -- ============================================================================
+--  REVOKED_TOKENS — JWT invalidados por logout antes de su expiracion natural
+-- ============================================================================
+CREATE TABLE revoked_tokens (
+    jti        UUID PRIMARY KEY,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_revoked_tokens_expires_at ON revoked_tokens(expires_at);
+
+
+-- ============================================================================
 --  VISTA di comodo: prossimi eventi pubblicati con i dati principali
 -- ============================================================================
 CREATE VIEW upcoming_events AS
