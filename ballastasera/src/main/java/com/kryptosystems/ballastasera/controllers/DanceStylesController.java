@@ -12,14 +12,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import static com.kryptosystems.ballastasera.utilities.RestConstants.DANCE_STYLES;
+
 @RestController
-@RequestMapping("/api/dance-styles")
+@RequestMapping(DANCE_STYLES)
 @RequiredArgsConstructor
 public class DanceStylesController {
+
+    private static final String GET_ALL_DANCE_STYLES = "";
+    private static final String GET_DANCE_STYLE = "/{id}";
+
     private final DanceStylesService danceStylesService;
     private final DanceStylesMapper danceStylesMapper;
 
-    @GetMapping
+    @GetMapping(GET_ALL_DANCE_STYLES)
     public ResponseEntity<List<DanceStyleDto>> getAllDanceStyles() {
         List<DanceStyleDto> danceStyle = danceStylesService.findAll()
                 .stream()
@@ -28,7 +34,7 @@ public class DanceStylesController {
         return ResponseEntity.ok(danceStyle);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping(GET_DANCE_STYLE)
     public ResponseEntity<DanceStyleDto> getDanceStyle(@PathVariable Long id) {
         DanceStyleDto danceStyle = danceStylesMapper.toDto(danceStylesService.findById(id));
         return ResponseEntity.ok(danceStyle);

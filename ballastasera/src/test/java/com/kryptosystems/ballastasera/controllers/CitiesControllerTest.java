@@ -43,7 +43,7 @@ class CitiesControllerTest {
         when(citiesService.findActive())
                 .thenReturn(List.of(city));
 
-        mockMvc.perform(get("/api/cities"))
+        mockMvc.perform(get("/rest/cities"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].name").value("Milano"))
@@ -60,7 +60,7 @@ class CitiesControllerTest {
         when(citiesService.findActiveById(1L))
                 .thenReturn(city);
 
-        mockMvc.perform(get("/api/cities/1"))
+        mockMvc.perform(get("/rest/cities/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Milano"))

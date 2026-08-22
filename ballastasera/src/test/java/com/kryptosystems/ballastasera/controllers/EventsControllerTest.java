@@ -86,7 +86,7 @@ class EventsControllerTest {
         when(eventsService.create(eq(USER_ID), any(EventCreateDto.class))).thenReturn(event);
         when(eventsService.toEventDetailDto(event)).thenReturn(response);
 
-        mockMvc.perform(post("/api/events")
+        mockMvc.perform(post("/rest/events")
                         .with(authentication(userAuthentication()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validCreateJson()))
@@ -104,7 +104,7 @@ class EventsControllerTest {
         when(eventsService.update(eq(EVENT_ID), eq(USER_ID), any(EventUpdateDto.class))).thenReturn(event);
         when(eventsService.toEventDetailDto(event)).thenReturn(response);
 
-        mockMvc.perform(patch("/api/events/{id}", EVENT_ID)
+        mockMvc.perform(patch("/rest/events/{id}", EVENT_ID)
                         .with(authentication(userAuthentication()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -127,7 +127,7 @@ class EventsControllerTest {
                 com.kryptosystems.ballastasera.enums.EventStatus.PUBLISHED)).thenReturn(event);
         when(eventsService.toEventDetailDto(event)).thenReturn(response);
 
-        mockMvc.perform(patch("/api/events/{id}/status", EVENT_ID)
+        mockMvc.perform(patch("/rest/events/{id}/status", EVENT_ID)
                         .with(authentication(userAuthentication()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"PUBLISHED\"}"))
@@ -143,7 +143,7 @@ class EventsControllerTest {
 
     @Test
     void deleteReturnsNoContent() throws Exception {
-        mockMvc.perform(delete("/api/events/{id}", EVENT_ID)
+        mockMvc.perform(delete("/rest/events/{id}", EVENT_ID)
                         .with(authentication(userAuthentication())))
                 .andExpect(status().isNoContent());
 
@@ -152,7 +152,7 @@ class EventsControllerTest {
 
     @Test
     void createRejectsMissingRequiredFields() throws Exception {
-        mockMvc.perform(post("/api/events")
+        mockMvc.perform(post("/rest/events")
                         .with(authentication(userAuthentication()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -163,7 +163,7 @@ class EventsControllerTest {
 
     @Test
     void updateStatusRejectsMissingStatus() throws Exception {
-        mockMvc.perform(patch("/api/events/{id}/status", EVENT_ID)
+        mockMvc.perform(patch("/rest/events/{id}/status", EVENT_ID)
                         .with(authentication(userAuthentication()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -181,7 +181,7 @@ class EventsControllerTest {
         when(eventsService.update(eq(EVENT_ID), eq(USER_ID), any(EventUpdateDto.class)))
                 .thenThrow(new AccessDeniedException("Not the owner of this event"));
 
-        mockMvc.perform(patch("/api/events/{id}", EVENT_ID)
+        mockMvc.perform(patch("/rest/events/{id}", EVENT_ID)
                         .with(authentication(userAuthentication()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Updated Salsa Night\"}"))
@@ -195,7 +195,7 @@ class EventsControllerTest {
                 .when(eventsService)
                 .delete(EVENT_ID, USER_ID);
 
-        mockMvc.perform(delete("/api/events/{id}", EVENT_ID)
+        mockMvc.perform(delete("/rest/events/{id}", EVENT_ID)
                         .with(authentication(userAuthentication())))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));

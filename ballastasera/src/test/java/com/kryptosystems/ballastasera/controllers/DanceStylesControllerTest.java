@@ -43,7 +43,7 @@ class DanceStylesControllerTest {
         when(danceStylesService.findAll())
                 .thenReturn(List.of(danceStyle));
 
-        mockMvc.perform(get("/api/dance-styles"))
+        mockMvc.perform(get("/rest/dance-styles"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].name").value("Bachata"))
@@ -60,7 +60,7 @@ class DanceStylesControllerTest {
         when(danceStylesService.findById(1L))
                 .thenReturn(danceStyle);
 
-        mockMvc.perform(get("/api/dance-styles/1"))
+        mockMvc.perform(get("/rest/dance-styles/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Bachata"))

@@ -19,10 +19,21 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+import static com.kryptosystems.ballastasera.utilities.RestConstants.ADMIN;
+
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping(ADMIN)
 @RequiredArgsConstructor
 public class AdminController {
+
+    private static final String GET_ORGANIZER_PENDING = "/organizers/pending";
+    private static final String ORGANIZER_VERIFY = "/organizers/{id}/verify";
+    private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
+    private static final String CLAIM_ORGANIZER = "/organizers/{id}/claim";
+    private static final String CREATE_EVENT = "/events";
+    private static final String CREATE_EVENT_SERIES = "/event-series";
+    private static final String CREATE_VENUE = "/venues";
+    private static final String DELETE_VENUE = "/venues/{id}";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -32,7 +43,7 @@ public class AdminController {
     private final VenuesMapper venuesMapper;
 
     /** Lista de organizadores pendientes de verificacion por un admin. */
-    @GetMapping("/organizers/pending")
+    @GetMapping(GET_ORGANIZER_PENDING)
     public ResponseEntity<Page<OrganizerDetailDto>> getPending(@RequestParam(defaultValue = "0") int page,
                                                                @RequestParam(defaultValue = "20") int size) {
         Page<OrganizerDetailDto> result = organizersService
@@ -42,20 +53,20 @@ public class AdminController {
     }
 
     /** Aprueba: isVerified=true, sube el rol del usuario y envia el email de notificacion. */
-    @PatchMapping("/organizers/{id}/verify")
+    @PatchMapping(ORGANIZER_VERIFY)
     public ResponseEntity<OrganizerDetailDto> verify(@PathVariable UUID id) {
         return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizersService.verify(id)));
     }
 
     /** Admin crea un organizer a partir de datos externos (Instagram, etc.), sin dueño todavia. */
-    @PostMapping( "/organizers")
+    @PostMapping( CREATE_UNCLAIMED_ORGANIZER)
     public ResponseEntity<OrganizerDetailDto> createUnclaimedOrganizer(@Valid @RequestBody OrganizerCreateDto body) {
         var organizer = organizersService.createUnclaimed(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetailDto(organizer));
     }
 
     /** Admin asigna el organizer al usuario que lo reclamo. */
-    @PatchMapping("/organizers/{id}/claim")
+    @PatchMapping(CLAIM_ORGANIZER)
     public ResponseEntity<OrganizerDetailDto> claimOrganizer(@PathVariable UUID id,
                                                              @Valid @RequestBody OrganizerClaimDto body) {
         var organizer = organizersService.claim(id, body.getUserId());
@@ -63,29 +74,29 @@ public class AdminController {
     }
 
     /** Admin crea un evento para cualquier organizer (reclamado o no), sin chequeo de ownership. */
-    @PostMapping( "/events")
+    @PostMapping( CREATE_EVENT)
     public ResponseEntity<EventDetailDto> createEvent(@Valid @RequestBody EventCreateDto body) {
         var event = eventsService.createAsAdmin(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.toEventDetailDto(event));
     }
 
     /** Admin crea una serie de eventos para cualquier organizer, sin chequeo de ownership. */
-    @PostMapping( "/event-series")
+    @PostMapping( CREATE_EVENT_SERIES)
     public ResponseEntity<EventSeriesDetailDto> createEventSeries(@Valid @RequestBody EventSeriesCreateDto body) {
         var series = eventSeriesService.createAsAdmin(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventSeriesService.toEventSeriesDetailDto(series));
     }
 
     /** Admin crea un venue para cualquier organizer, sin chequeo de ownership. */
-    @PostMapping("/venues")
+    @PostMapping(CREATE_VENUE)
     public ResponseEntity<VenueDetailDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
                                                         @Valid @RequestBody VenueCreateDto body) {
         var venue = venuesService.createAsAdmin(principal.getId(), body);
         return ResponseEntity.status(HttpStatus.CREATED).body(venuesMapper.toVenueDetailDto(venue));
     }
 
-    /** Borra un venue. Solo ADMIN — el service valida que no tenga eventos activos. */
-    @DeleteMapping("/venues/{id}")
+    /** Borra un venue. Solo ADMIN — el service hace la validación que no tenga eventos activos. */
+    @DeleteMapping(DELETE_VENUE)
     public ResponseEntity<Void> deleteVenue(@PathVariable UUID id) {
         venuesService.delete(id);
         return ResponseEntity.noContent().build();

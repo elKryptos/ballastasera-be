@@ -12,14 +12,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import static com.kryptosystems.ballastasera.utilities.RestConstants.CITIES;
+
 @RestController
-@RequestMapping("/api/cities")
+@RequestMapping(CITIES)
 @RequiredArgsConstructor
 public class CitiesController {
+
+    private static final String GET_CITIES = "";
+    private static final String GET_CITY = "/{id}";
+
     private final CitiesService citiesService;
     private final CitiesMapper citiesMapper;
 
-    @GetMapping
+    @GetMapping(GET_CITIES)
     public ResponseEntity<List<CityDto>> getCities() {
         List<CityDto> cities = citiesService.findActive()
                 .stream()
@@ -29,7 +35,7 @@ public class CitiesController {
         return ResponseEntity.ok(cities);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping(GET_CITY)
     public ResponseEntity<CityDto> getCity(@PathVariable Long id) {
         CityDto city = citiesMapper.toDto(citiesService.findActiveById(id));
 

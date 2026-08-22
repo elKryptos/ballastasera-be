@@ -55,7 +55,7 @@ INSERT INTO users (id, google_id, email, display_name, avatar_url, instagram, sh
 --   aaaa = EN VIVO ahora            -> debe salir con liveNow=true
 --   bbbb = empieza mas tarde hoy    -> debe salir con liveNow=false
 --   cccc = dentro de unos dias      -> debe salir con liveNow=false
---   dddd = ya termino (2 dias atras)-> NO debe salir nunca en /api/events
+--   dddd = ya termino (2 dias atras)-> NO debe salir nunca en /rest/events
 --   eeee = horario "en vivo" pero PENDING (sin publicar) -> NO debe salir
 -- ----------------------------------------------------------------------------
 INSERT INTO events (

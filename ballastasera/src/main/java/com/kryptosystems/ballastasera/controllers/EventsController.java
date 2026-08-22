@@ -18,10 +18,26 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import static com.kryptosystems.ballastasera.utilities.RestConstants.EVENTS;
+
 @RestController
-@RequestMapping("/api/events")
+@RequestMapping(EVENTS)
 @RequiredArgsConstructor
 public class EventsController {
+
+    private static final String GET_MAP_EVENTS = "";
+    private static final String GET_EVENT_DETAIL = "/{id}";
+    private static final String CREATE = "";
+    private static final String UPDATE = "/{id}";
+    private static final String UPDATE_STATUS = "/{id}/status";
+    private static final String DELETE = "/{id}";
+    private static final String REMOVE_VENUE = "/{id}/venue";
+    private static final String GET_ATTENDEES = "/{id}/attendees";
+    private static final String SET_ATTENDANCE = "/{id}/attendance";
+    private static final String REMOVE_ATTENDANCE = "/{id}/attendance";
+    private static final String ADD_FAVORITE = "/{id}/favorite";
+    private static final String REMOVE_FAVORITE = "/{id}/favorite";
+    private static final String IS_FAVORITE = "/{id}/favorite";
 
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
@@ -30,7 +46,7 @@ public class EventsController {
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
      * dentro del bounding box visible. Nunca devuelve eventos pasados. */
-    @GetMapping
+    @GetMapping(GET_MAP_EVENTS)
     public ResponseEntity<List<EventCardDto>> getMapEvents(
             @RequestParam double minLat,
             @RequestParam double maxLat,
@@ -42,14 +58,14 @@ public class EventsController {
     }
 
     /** Publico */
-    @GetMapping("/{id}")
+    @GetMapping(GET_EVENT_DETAIL)
     public ResponseEntity<EventDetailDto> getEventDetail(@PathVariable UUID id) {
         return ResponseEntity.ok(eventsService.getEventDetail(id));
     }
 
     /** Requiere estar autenticado. El organizerId del body debe pertenecer al
      * usuario logueado y ese organizer debe estar verificado. Nace en PENDING. */
-    @PostMapping()
+    @PostMapping(CREATE)
     public ResponseEntity<EventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
                                                  @Valid @RequestBody EventCreateDto body) {
         var event = eventsService.create(principal.getId(), body);
@@ -57,7 +73,7 @@ public class EventsController {
     }
 
     /** Requiere estar autenticado y ser dueño del evento (via organizer.user.id). */
-    @PatchMapping("/{id}")
+    @PatchMapping(UPDATE)
     public ResponseEntity<EventDetailDto> update(@AuthenticationPrincipal UserPrincipal principal,
                                                  @PathVariable UUID id,
                                                  @Valid @RequestBody EventUpdateDto body) {
@@ -66,7 +82,7 @@ public class EventsController {
     }
 
     /** Requiere estar autenticado y ser dueño del evento. Publicar / despublicar / cancelar. */
-    @PatchMapping("/{id}/status")
+    @PatchMapping(UPDATE_STATUS)
     public ResponseEntity<EventDetailDto> updateStatus(@AuthenticationPrincipal UserPrincipal principal,
                                                        @PathVariable UUID id,
                                                        @Valid @RequestBody EventStatusUpdateDto body) {
@@ -74,14 +90,14 @@ public class EventsController {
         return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping(DELETE)
     public ResponseEntity<Void> delete(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         eventsService.delete(id, principal.getId());
         return ResponseEntity.noContent().build();
     }
 
     /** Requiere estar autenticado */
-    @DeleteMapping("/{id}/venue")
+    @DeleteMapping(REMOVE_VENUE)
     public ResponseEntity<EventDetailDto> removeVenue(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         var event = eventsService.removeVenue(id, principal.getId());
         return ResponseEntity.ok(eventsService.toEventDetailDto(event));
@@ -90,7 +106,7 @@ public class EventsController {
     /** Público. Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
      * de esta lista y siempre incluye a todos, con o sin opt-in. */
-    @GetMapping("/{id}/attendees")
+    @GetMapping(GET_ATTENDEES)
     public ResponseEntity<Page<AttendeeDto>> getAttendees(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "0") int page,
@@ -100,7 +116,7 @@ public class EventsController {
     }
 
     /** Requiere estar autenticato. Marca "GOING" o "INTERESTED". Idempotente: repetir con otro status lo actualiza. */
-    @PostMapping("/{id}/attendance")
+    @PostMapping(SET_ATTENDANCE)
     public ResponseEntity<Void> setAttendance(
             @PathVariable UUID id,
             @Valid @RequestBody AttendanceRequestDto body,
@@ -111,7 +127,7 @@ public class EventsController {
     }
 
     /** Requiere estar autenticado. Elimina la marca "GOING" o "INTERESTED". La lista de asistentes se actualiza con -1 */
-    @DeleteMapping("/{id}/attendance")
+    @DeleteMapping(REMOVE_ATTENDANCE)
     public ResponseEntity<Void> removeAttendance(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal
@@ -121,21 +137,21 @@ public class EventsController {
     }
 
     /** Requiere estar autenticado. Usuario marca evento como favorito */
-    @PostMapping("/{id}/favorite")
+    @PostMapping(ADD_FAVORITE)
     public ResponseEntity<Void> addFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         favoritesService.addFavorite(principal.getId(), id);
         return ResponseEntity.noContent().build();
     }
 
     /** Requiere estar autenticado */
-    @DeleteMapping("/{id}/favorite")
+    @DeleteMapping(REMOVE_FAVORITE)
     public ResponseEntity<Void> removeFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         favoritesService.removeFavorite(principal.getId(), id);
         return ResponseEntity.noContent().build();
     }
 
     /** Requiere estar autenticado */
-    @GetMapping("/{id}/favorite")
+    @GetMapping(IS_FAVORITE)
     public ResponseEntity<Boolean> isFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         return ResponseEntity.ok(favoritesService.existsByUserIdAndEventId(principal.getId(), id));
     }

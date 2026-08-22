@@ -17,16 +17,22 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import static com.kryptosystems.ballastasera.utilities.RestConstants.VENUES;
+
 @RestController
-@RequestMapping("/api/venues")
+@RequestMapping(VENUES)
 @RequiredArgsConstructor
 public class VenuesController {
+
+    private static final String GET_VENUES = "";
+    private static final String CREATE_VENUE = "";
+    private static final String UPDATE_VENUE = "/{id}";
 
     private final VenuesService venuesService;
     private final VenuesMapper venuesMapper;
 
     /** Público. Busca si el venue existe en la base de datos. Si está hace autocomplete (FE)*/
-    @GetMapping()
+    @GetMapping(GET_VENUES)
     public ResponseEntity<List<VenuesSummaryDto>> getVenues(@RequestParam Long cityId,
                                                            @RequestParam(required = false) String search) {
         return ResponseEntity.ok(venuesService.search(cityId, search).stream()
@@ -35,7 +41,7 @@ public class VenuesController {
     }
 
     /** Requiere estar autenticado. El organizerId tiene que estar verificado y el venue creado es reusable por todos los organizers. */
-    @PostMapping()
+    @PostMapping(CREATE_VENUE)
     public ResponseEntity<VenueDetailDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
                                                         @Valid @RequestBody VenueCreateDto body) {
         var venue = venuesService.create(principal.getId(), body);
@@ -43,7 +49,7 @@ public class VenuesController {
     }
 
     /** Requiere estar autenticado y ser dueño del venue.... cambiar a que solo ADMIN puede hacer modificaciones */
-    @PatchMapping("/{id}")
+    @PatchMapping(UPDATE_VENUE)
     public ResponseEntity<VenueDetailDto> updateVenue(@AuthenticationPrincipal UserPrincipal principal,
                                                       @PathVariable UUID id,
                                                       @Valid @RequestBody VenueUpdateDto body) {

@@ -13,19 +13,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import static com.kryptosystems.ballastasera.utilities.RestConstants.USERS;
+
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping(USERS)
 @RequiredArgsConstructor
 public class UsersController {
 
+    private static final String MY_FAVORITES = "/me/favorites";
+    private static final String MY_ATTENDANCE = "/me/attendance";
+
     private final UserActivityService userActivityService;
 
-    @GetMapping("/me/favorites")
+    @GetMapping(MY_FAVORITES)
     public ResponseEntity<List<EventCardDto>> getMyFavorites(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(userActivityService.getMyFavorites(principal.getId()));
     }
 
-    @GetMapping("/me/attendance")
+    @GetMapping(MY_ATTENDANCE)
     public ResponseEntity<List<AttendanceCardDto>> getMyAttendance(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(userActivityService.getMyAttendance(principal.getId()));
     }

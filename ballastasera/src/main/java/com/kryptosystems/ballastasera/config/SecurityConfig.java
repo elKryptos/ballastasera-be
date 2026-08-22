@@ -29,27 +29,27 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
-                        // Must be declared before the public /api/organizers/{slug} route.
-                        .requestMatchers(HttpMethod.GET, "/api/organizers/me").authenticated()
+                        // Must be declared before the public /rest/organizers/{slug} route.
+                        .requestMatchers(HttpMethod.GET, "/rest/organizers/me").authenticated()
                         .requestMatchers(HttpMethod.GET,
-                                "/api/health",
-                                "/api/events",
-                                "/api/events/{id}",
-                                "/api/events/{id}/attendees",
-                                "/api/cities",
-                                "/api/cities/{id}",
-                                "/api/dance-styles",
-                                "/api/dance-styles/{id}",
-                                "/api/venues",
-                                "/api/venues/{id}",
-                                "/api/event-series/{id}",
-                                "/api/organizers",
-                                "/api/organizers/{slug}",
-                                "/api/organizers/{id}/events",
-                                "/api/organizers/{id}/venues",
-                                "/api/organizers/{id}/event-series"
+                                "/rest/health",
+                                "/rest/events",
+                                "/rest/events/{id}",
+                                "/rest/events/{id}/attendees",
+                                "/rest/cities",
+                                "/rest/cities/{id}",
+                                "/rest/dance-styles",
+                                "/rest/dance-styles/{id}",
+                                "/rest/venues",
+                                "/rest/venues/{id}",
+                                "/rest/event-series/{id}",
+                                "/rest/organizers",
+                                "/rest/organizers/{slug}",
+                                "/rest/organizers/{id}/events",
+                                "/rest/organizers/{id}/venues",
+                                "/rest/organizers/{id}/event-series"
                         ).permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/rest/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
