@@ -171,4 +171,30 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
 
+    @ExceptionHandler(InvalidMediaTypeException.class)
+    public ResponseEntity<ErrorDetails> handleInvalidMediaType(InvalidMediaTypeException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Unsupported media type",
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE
+        );
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(errorDetails);
+    }
+
+    @ExceptionHandler(MediaStorageException.class)
+    public ResponseEntity<ErrorDetails> handleMediaStorage(MediaStorageException ex, HttpServletRequest request) {
+        log.error(ex.getMessage(), ex);
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Media storage temporarily unavailable",
+                HttpStatus.SERVICE_UNAVAILABLE             // 503
+        );
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(errorDetails);
+    }
+
 }
