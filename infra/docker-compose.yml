@@ -18,9 +18,9 @@ services:
     # Le variabili DB_* sono condivise con Spring Boot tramite ballastasera/.env.
     # Il fallback changeme è accettabile solo per lo sviluppo locale.
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-ballastasera}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-      POSTGRES_DB: ${DB_NAME:-ballastasera}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "${DB_PORT:-5432}:5432" # host:container - connettiti a localhost:5432
     volumes:
@@ -33,7 +33,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${DB_USERNAME:-ballastasera} -d ${DB_NAME:-ballastasera}",
+          "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}",
         ]
       interval: 5s
       timeout: 5s
@@ -47,9 +47,9 @@ services:
       - "9000:9000" # S3 API
       - "9001:9001" # Dashboard Web
     environment:
-      RUSTFS_ROOT_USER: ${RUSTFS_USER:-admin}
-      RUSTFS_ROOT_PASSWORD: ${RUSTFS_PASSWORD:-password123}
-      RUSTFS_CONSOLE_ENABLE: ${RUSTFS_CONSOLE:-true}
+      RUSTFS_ROOT_USER: ${RUSTFS_USER}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_PASSWORD}
+      RUSTFS_CONSOLE_ENABLE: ${RUSTFS_CONSOLE}
     volumes:
       - rustfs_data:/data
     restart: unless-stopped
