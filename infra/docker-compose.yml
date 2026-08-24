@@ -61,6 +61,30 @@ services:
       timeout: 5s
       retries: 5
       
+  # --- CACHE & DATA STRUCTURES (Redis 8.6.6 GA) ---
+  redis: 
+    image: redis:8.6.6-alpine
+    container_name: redis
+    # In 8.6 è consigliato disabilitare THP per evitare picchi di latenza
+    command: >
+      redis-server 
+      --save 3600 1 
+      --save 900 100
+      --loglevel notice 
+      --activedefrag yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+      
 # --- REVERSE PROXY ---
   nginx:
     image: nginx:alpine
@@ -90,3 +114,4 @@ networks:
 volumes:
   postgresql_data:
   rustfs_data:
+  redis_data:
