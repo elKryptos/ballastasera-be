@@ -42,7 +42,7 @@ services:
 # --- OBJECT STORAGE ---
   rustfs:
     image: rustfs/rustfs:latest
-    container_name: rustfs_server
+    container_name: rustfs
     ports:
       - "9000:9000" # S3 API
       - "9001:9001" # Dashboard Web
