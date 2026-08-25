@@ -46,6 +46,7 @@ public class S3ObjectStorageService implements ObjectStorageService {
                             .contentType(CONTENT_TYPES.get(extension))
                             .build(),
                     RequestBody.fromBytes(content));
+            
         } catch (S3Exception e) {
             throw new MediaStorageException("Failed to store event flyer", e);
         }

@@ -41,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+        //remover en prod
         if (logRequests) {
             LOG.info("{} {}", request.getMethod(), request.getRequestURI());
         }

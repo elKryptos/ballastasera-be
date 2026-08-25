@@ -1,7 +1,7 @@
 # ============================================================================
-#  BallaStasera - PostgreSQL + PostGIS + RustFS in Docker
+#  BallaStasera - PostgreSQL + PostGIS database in Docker
 #  Avvia dalla radice del repository:
-#  docker compose --env-file infra/.env -f infra/docker-compose.yml up -d
+#  docker compose --env-file ballastasera/.env -f infra/docker-compose.yml up -d
 #
 #  I file SQL vengono caricati automaticamente solo al primo avvio,
 #  quando il volume dati è vuoto.
@@ -10,6 +10,7 @@
 name: ballastasera
 
 services:
+# --- DATABASE ---
   postgres:
     image: postgis/postgis:18-3.6 # PostgreSQL 18 con PostGIS incluso
     container_name: postgresql
@@ -17,91 +18,100 @@ services:
     # Le variabili DB_* sono condivise con Spring Boot tramite ballastasera/.env.
     # Il fallback changeme è accettabile solo per lo sviluppo locale.
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-ballastasera}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-      POSTGRES_DB: ${DB_NAME:-ballastasera}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "${DB_PORT:-5432}:5432" # host:container - connettiti a localhost:5432
     volumes:
       - postgresql_data:/var/lib/postgresql # dati persistenti (mount PostgreSQL 18+)
       # Percorsi reali dei file SQL nella cartella docs/.
-      - ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
+      #- ../docs/ballastasera_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      #- ../docs/02_postgis.sql:/docker-entrypoint-initdb.d/02_postgis.sql:ro
 
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${DB_USERNAME:-ballastasera} -d ${DB_NAME:-ballastasera}",
+          "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}",
         ]
       interval: 5s
       timeout: 5s
       retries: 10
 
+# --- OBJECT STORAGE ---
   rustfs:
     image: rustfs/rustfs:latest
     container_name: rustfs
-    restart: unless-stopped
-    command: ["/data"]
-    environment:
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?RUSTFS_ACCESS_KEY is required}
-      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?RUSTFS_SECRET_KEY is required}
-      RUSTFS_ADDRESS: ":9000"
-      RUSTFS_CONSOLE_ADDRESS: ":9001"
-      RUSTFS_CONSOLE_ENABLE: "true"
-      RUSTFS_OBS_LOGGER_LEVEL: error
     ports:
-      - "${RUSTFS_API_PORT:-9000}:9000"
-      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+      - "9000:9000" # S3 API
+      - "9001:9001" # Dashboard Web
+    environment:
+      RUSTFS_ROOT_USER: ${RUSTFS_USER}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_PASSWORD}
+      RUSTFS_CONSOLE_ENABLE: ${RUSTFS_CONSOLE}
     volumes:
       - rustfs_data:/data
-
-  rustfs-init:
-    image: amazon/aws-cli:2.27.49
-    container_name: rustfs-init
-    depends_on:
-      - rustfs
-    restart: "no"
-    environment:
-      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:?RUSTFS_ACCESS_KEY is required}
-      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:?RUSTFS_SECRET_KEY is required}
-      AWS_DEFAULT_REGION: ${RUSTFS_REGION:-us-east-1}
-      MEDIA_BUCKET: ${RUSTFS_BUCKET:-ballastasera-media}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        until aws s3api list-buckets --endpoint-url http://rustfs:9000 >/dev/null 2>&1; do
-          echo "Waiting for RustFS..."
-          sleep 2
-        done
-
-        aws s3api head-bucket \
-          --bucket "$${MEDIA_BUCKET}" \
-          --endpoint-url http://rustfs:9000 >/dev/null 2>&1 \
-        || aws s3api create-bucket \
-          --bucket "$${MEDIA_BUCKET}" \
-          --endpoint-url http://rustfs:9000
-
-        policy="$$(printf '{"Version":"2012-10-17","Statement":[{"Sid":"PublicReadMedia","Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":"arn:aws:s3:::%s/*"}]}' "$${MEDIA_BUCKET}")"
-
-        aws s3api put-bucket-policy \
-          --bucket "$${MEDIA_BUCKET}" \
-          --policy "$${policy}" \
-          --endpoint-url http://rustfs:9000
-
-        echo "RustFS bucket '$${MEDIA_BUCKET}' is ready"
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: ballastasera-nginx
     restart: unless-stopped
-    depends_on:
-      - rustfs
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- CACHE & DATA STRUCTURES (Redis 8.6.6 GA) ---
+  redis:
+    image: redis:8.6.6-alpine
+    container_name: redis
+    # In 8.6 è consigliato disabilitare THP per evitare picchi di latenza
+    command: >
+      redis-server 
+      --save 3600 1 
+      --save 900 100
+      --loglevel notice 
+      --activedefrag yes
     ports:
-      - "${MEDIA_PROXY_PORT:-8081}:80"
+      - "6379:6379"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+# --- REVERSE PROXY ---
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    # Permite a NGINX resolver "host.docker.internal" en cualquier OS
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # NGINX parte solo cuando los demas partes y estan sin errores
+    depends_on:
+      rustfs:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
+# --- INFRASTRUCTURE ---
+networks:
+  app-network:
+      driver: bridge
 
 volumes:
   postgresql_data:
   rustfs_data:
+  redis_data:
