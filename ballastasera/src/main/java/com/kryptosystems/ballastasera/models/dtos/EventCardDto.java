@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,6 +21,7 @@ public class EventCardDto {
     private String slug;
     private String title;
     private String flyerUrl;
+    private FlyerStatus flyerStatus;
     private OffsetDateTime startAt;
     private OffsetDateTime endAt;
     private boolean liveNow;

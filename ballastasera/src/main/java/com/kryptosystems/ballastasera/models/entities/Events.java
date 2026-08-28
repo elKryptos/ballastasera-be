@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.models.entities;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -50,6 +51,11 @@ public class Events {
 
     @Column(name = "flyer_url")
     private String flyerUrl;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "flyer_status", nullable = false, columnDefinition = "flyer_status")
+    private FlyerStatus flyerStatus = FlyerStatus.NONE;
 
     @Column(name = "instagram_url")
     private String instagramUrl;
