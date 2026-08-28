@@ -1,12 +1,14 @@
 package com.kryptosystems.ballastasera.services.manager;
 
-import org.springframework.web.multipart.MultipartFile;
-
 import java.util.UUID;
 
 public interface ObjectStorageService {
 
-    String uploadEventFlyer(UUID eventId, MultipartFile file);
+    void uploadEventFlyerRaw(UUID eventId, byte[] content);
 
-    void delete(String key);
+    String uploadEventFlyerFinal(UUID eventId, byte[] webpContent);
+
+    void deleteEventFlyerRaw(UUID eventId);
+
+    void deleteEventFlyerFinal(UUID eventId);
 }

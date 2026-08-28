@@ -73,7 +73,7 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: ${RUSTFS_USER:?RUSTFS_USER is required}
       AWS_SECRET_ACCESS_KEY: ${RUSTFS_PASSWORD:?RUSTFS_PASSWORD is required}
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: eu-central-1
       MEDIA_BUCKET: ${RUSTFS_BUCKET:-ballastasera-media}
     entrypoint: ["/bin/sh", "-c"]
     command:
