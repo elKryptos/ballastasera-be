@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
-class S3ObjectStorageServiceTest {
+class S3ObjectStorageServiceImplTest {
 
     private static final byte[] JPEG_BYTES = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0};
 
@@ -34,14 +34,14 @@ class S3ObjectStorageServiceTest {
     private S3Client s3Client;
 
     private StorageProperties properties;
-    private S3ObjectStorageService service;
+    private S3ObjectStorageServiceImpl service;
 
     @BeforeEach
     void setUp() {
         properties = new StorageProperties();
         properties.setBucket("ballastasera-media");
         properties.setPublicBaseUrl("http://localhost:8081/media");
-        service = new S3ObjectStorageService(s3Client, properties);
+        service = new S3ObjectStorageServiceImpl(s3Client, properties);
     }
 
     @Test

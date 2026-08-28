@@ -19,7 +19,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class S3ObjectStorageService implements ObjectStorageService {
+public class S3ObjectStorageServiceImpl implements ObjectStorageService {
 
     private static final Map<String, String> CONTENT_TYPES = Map.of(
             "jpg", "image/jpeg",

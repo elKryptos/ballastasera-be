@@ -28,6 +28,7 @@ CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
 CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE attendance_status AS ENUM ('INTERESTED', 'GOING');
+CREATE TYPE flyer_status AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
 
 
 -- ============================================================================
@@ -200,6 +201,7 @@ CREATE TABLE events (
     slug          TEXT   NOT NULL UNIQUE,
     description   TEXT,
     flyer_url     TEXT,                            -- immagine/volantino (URL, upload gestito da backend)
+	flyer_status  flyer_status NOT NULL DEFAULT 'NONE',
 	instagram_url TEXT,
 	whatsapp_url  TEXT,
 
@@ -343,3 +345,5 @@ SET claimed = TRUE
 WHERE user_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_organizers_claimed ON organizers(claimed);
+
+ALTER TABLE events ADD COLUMN flyer_status flyer_status NOT NULL DEFAULT 'NONE';
