@@ -6,6 +6,7 @@ import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +44,11 @@ public interface EventsService {
 
     /** Publicar / despublicar / cancelar un evento propio. */
     Events updateStatus(UUID requesterId, UUID id, EventStatus status);
+
+    Events updateFlyer(UUID id, UUID requesterId, MultipartFile file);
+
+    /** Admin sube/reemplaza el flyer de cualquier evento, sin chequeo de ownership. */
+    Events updateFlyerAsAdmin(UUID id, MultipartFile file);
 
     /** Borra un evento propio (ownership check incluido). */
     void delete(UUID id, UUID requesterId);

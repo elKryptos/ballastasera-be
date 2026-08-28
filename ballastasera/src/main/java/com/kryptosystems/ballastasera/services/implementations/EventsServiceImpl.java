@@ -2,7 +2,9 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
+import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
@@ -10,16 +12,16 @@ import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.*;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.*;
-import com.kryptosystems.ballastasera.services.manager.EventResolverService;
-import com.kryptosystems.ballastasera.services.manager.EventsService;
-import com.kryptosystems.ballastasera.services.manager.GeocodingService;
+import com.kryptosystems.ballastasera.services.manager.*;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,6 +36,8 @@ public class EventsServiceImpl implements EventsService {
     private final OrganizersRepository organizersRepository;
     private final EventSeriesRepository eventSeriesRepository;
     private final EventResolverService eventResolverService;
+    private final ObjectStorageService objectStorageService;
+    private final EventFlyerProcessingService eventFlyerProcessingService;
 
     @Override
     public List<Events> findAll() {
@@ -226,9 +230,37 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    public Events updateFlyer(UUID id, UUID requesterId, MultipartFile file) {
+        Events event = findById(id);
+        assertOwnership(event, requesterId);
+        return applyFlyer(event, file);
+    }
+
+    @Override
+    public Events updateFlyerAsAdmin(UUID id, MultipartFile file) {
+        return applyFlyer(findById(id), file);
+    }
+
+    private Events applyFlyer(Events event, MultipartFile file) {
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Could not read uploaded file", e);
+        }
+        objectStorageService.uploadEventFlyerRaw(event.getId(), content);
+        event.setFlyerStatus(FlyerStatus.PROCESSING);
+        Events savedEvent = eventsRepository.save(event);
+        eventFlyerProcessingService.convertAndPublish(event.getId(), content);
+        return savedEvent;
+    }
+
+    @Override
     public void delete(UUID id, UUID requesterId) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
+        objectStorageService.deleteEventFlyerRaw(id);
+        objectStorageService.deleteEventFlyerFinal(id);
         eventsRepository.delete(event);
     }
 
