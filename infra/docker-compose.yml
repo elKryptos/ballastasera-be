@@ -62,40 +62,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Crea el bucket de media y su politica de lectura publica (idempotente)
-  rustfs-init:
-    image: amazon/aws-cli:2.27.49
-    container_name: rustfs-init
-    depends_on:
-      rustfs:
-        condition: service_healthy
-    restart: "no"
-    environment:
-      AWS_ACCESS_KEY_ID: ${RUSTFS_USER:?RUSTFS_USER is required}
-      AWS_SECRET_ACCESS_KEY: ${RUSTFS_PASSWORD:?RUSTFS_PASSWORD is required}
-      AWS_DEFAULT_REGION: eu-central-1
-      MEDIA_BUCKET: ${RUSTFS_BUCKET:-ballastasera-media}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        aws s3api head-bucket \
-          --bucket "$${MEDIA_BUCKET}" \
-          --endpoint-url http://rustfs:9000 >/dev/null 2>&1 \
-        || aws s3api create-bucket \
-          --bucket "$${MEDIA_BUCKET}" \
-          --endpoint-url http://rustfs:9000
-
-        policy="$$(printf '{"Version":"2012-10-17","Statement":[{"Sid":"PublicReadMedia","Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":"arn:aws:s3:::%s/*"}]}' "$${MEDIA_BUCKET}")"
-
-        aws s3api put-bucket-policy \
-          --bucket "$${MEDIA_BUCKET}" \
-          --policy "$${policy}" \
-          --endpoint-url http://rustfs:9000
-
-        echo "RustFS bucket '$${MEDIA_BUCKET}' is ready"
-    networks:
-      - app-network
-
   # --- CACHE & DATA STRUCTURES (Redis 8.6.6 GA) ---
   redis:
     image: redis:8.6.6-alpine
