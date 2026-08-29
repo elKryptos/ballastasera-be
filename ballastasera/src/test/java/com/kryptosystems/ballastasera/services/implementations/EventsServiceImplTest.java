@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
@@ -16,12 +17,16 @@ import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
+import com.kryptosystems.ballastasera.services.manager.EventFlyerProcessingService;
+import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -32,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +70,12 @@ class EventsServiceImplTest {
 
     @Mock
     private EventResolverService eventResolverService;
+
+    @Mock
+    private ObjectStorageService objectStorageService;
+
+    @Mock
+    private EventFlyerProcessingService eventFlyerProcessingService;
 
     @InjectMocks
     private EventsServiceImpl eventsService;
@@ -304,6 +316,74 @@ class EventsServiceImplTest {
         );
 
         verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void updateFlyerStoresRawFileAndStartsProcessing() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        byte[] content = new byte[]{1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", content);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.updateFlyer(EVENT_ID, REQUESTER_ID, file);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.PROCESSING, event.getFlyerStatus());
+        verify(objectStorageService).uploadEventFlyerRaw(eq(EVENT_ID), any(byte[].class));
+        verify(eventsRepository).save(event);
+        verify(eventFlyerProcessingService).convertAndPublish(eq(EVENT_ID), any(byte[].class));
+    }
+
+    @Test
+    void updateFlyerRejectsOperationForAnotherUser() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", new byte[]{1});
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> eventsService.updateFlyer(EVENT_ID, OTHER_USER_ID, file)
+        );
+
+        verify(objectStorageService, never()).uploadEventFlyerRaw(any(UUID.class), any(byte[].class));
+        verify(eventsRepository, never()).save(any(Events.class));
+        verify(eventFlyerProcessingService, never()).convertAndPublish(any(UUID.class), any(byte[].class));
+    }
+
+    @Test
+    void updateFlyerAsAdminStoresRawFileAndStartsProcessing() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+        byte[] content = new byte[]{1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", content);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.updateFlyerAsAdmin(EVENT_ID, file);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.PROCESSING, event.getFlyerStatus());
+        verify(objectStorageService).uploadEventFlyerRaw(eq(EVENT_ID), any(byte[].class));
+        verify(eventsRepository).save(event);
+        verify(eventFlyerProcessingService).convertAndPublish(eq(EVENT_ID), any(byte[].class));
+    }
+
+    @Test
+    void updateFlyerAsAdminRejectsMissingEvent() {
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", new byte[]{1});
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(
+                EntityNotFoundException.class,
+                () -> eventsService.updateFlyerAsAdmin(EVENT_ID, file)
+        );
+
+        verify(objectStorageService, never()).uploadEventFlyerRaw(any(UUID.class), any(byte[].class));
+        verify(eventsRepository, never()).save(any(Events.class));
+        verify(eventFlyerProcessingService, never()).convertAndPublish(any(UUID.class), any(byte[].class));
     }
 
     @Test
