@@ -36,7 +36,7 @@ services:
           "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}",
         ]
       interval: 5s
-      timeout: 5s
+      timeout: 5s hoao sa
       retries: 10
 
 # --- OBJECT STORAGE ---

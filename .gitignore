@@ -42,10 +42,14 @@ infra/.env
 Thumbs.db
 
 ### Rodrigo skills ###
-.agents
+/.agents/
 .claude
 skills-lock.json
 opencode.json
+/.opencode/
+/.superpowers/
 
 ### Personal roadmap (Rodrigo) ###
-/BACKEND_DEVELOPMENT_ROADMAP.md
+/ballastasera/BACKEND_DEVELOPMENT_ROADMAP.md
+/ballastasera/BALLASTASERA_PROJECT_RECAP.md
+/ballastasera/GUIA_SPRING_BOOT_Y_ARQUITECTURA*.pdf
