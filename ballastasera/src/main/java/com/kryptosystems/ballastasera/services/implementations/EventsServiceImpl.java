@@ -241,6 +241,26 @@ public class EventsServiceImpl implements EventsService {
         return applyFlyer(findById(id), file);
     }
 
+    @Override
+    public Events deleteFlyer(UUID id, UUID requesterId) {
+        Events event = findById(id);
+        assertOwnership(event, requesterId);
+        return removeFlyer(event);
+    }
+
+    @Override
+    public Events deleteFlyerAsAdmin(UUID id) {
+        return removeFlyer(findById(id));
+    }
+
+    private Events removeFlyer(Events event) {
+        objectStorageService.deleteEventFlyerRaw(event.getId());
+        objectStorageService.deleteEventFlyerFinal(event.getId());
+        event.setFlyerUrl(null);
+        event.setFlyerStatus(FlyerStatus.NONE);
+        return eventsRepository.save(event);
+    }
+
     private Events applyFlyer(Events event, MultipartFile file) {
         byte[] content;
         try {

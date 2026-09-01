@@ -148,6 +148,34 @@ class EventsControllerTest {
     }
 
     @Test
+    void deleteFlyerReturnsUpdatedEvent() throws Exception {
+        Events event = event();
+        EventDetailDto response = detail("Salsa Night");
+
+        when(eventsService.deleteFlyer(EVENT_ID, USER_ID)).thenReturn(event);
+        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+
+        mockMvc.perform(delete("/rest/events/{id}/flyer", EVENT_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Salsa Night"));
+
+        verify(eventsService).deleteFlyer(EVENT_ID, USER_ID);
+    }
+
+    @Test
+    void deleteFlyerReturnsNotFoundWhenEventDoesNotExist() throws Exception {
+        doThrow(new EntityNotFoundException("Event not found with id " + EVENT_ID))
+                .when(eventsService)
+                .deleteFlyer(EVENT_ID, USER_ID);
+
+        mockMvc.perform(delete("/rest/events/{id}/flyer", EVENT_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));
+    }
+
+    @Test
     void updateStatusReturnsUpdatedEvent() throws Exception {
         Events event = event();
         EventDetailDto response = detail("Salsa Night");

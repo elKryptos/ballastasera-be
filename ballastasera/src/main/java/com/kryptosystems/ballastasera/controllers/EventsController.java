@@ -41,6 +41,7 @@ public class EventsController {
     private static final String REMOVE_FAVORITE = "/{id}/favorite";
     private static final String IS_FAVORITE = "/{id}/favorite";
     private static final String UPDATE_FLYER = "/{id}/flyer";
+    private static final String DELETE_FLYER = "/{id}/flyer";
 
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
@@ -165,6 +166,14 @@ public class EventsController {
                                                       @PathVariable UUID id,
                                                       @RequestParam("file") MultipartFile file) {
         var event = eventsService.updateFlyer(id, principal.getId(), file);
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    }
+
+    /** Requiere estar autenticado y ser dueño del evento. */
+    @DeleteMapping(DELETE_FLYER)
+    public ResponseEntity<EventDetailDto> deleteFlyer(@AuthenticationPrincipal UserPrincipal principal,
+                                                       @PathVariable UUID id) {
+        var event = eventsService.deleteFlyer(id, principal.getId());
         return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 

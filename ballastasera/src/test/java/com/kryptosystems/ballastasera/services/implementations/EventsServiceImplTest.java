@@ -387,6 +387,73 @@ class EventsServiceImplTest {
     }
 
     @Test
+    void deleteFlyerRemovesStoredFilesAndResetsStatusForOwner() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        event.setFlyerStatus(FlyerStatus.READY);
+        event.setFlyerUrl("https://cdn.example.com/flyer.webp");
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.deleteFlyer(EVENT_ID, REQUESTER_ID);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.NONE, event.getFlyerStatus());
+        assertEquals(null, event.getFlyerUrl());
+        verify(objectStorageService).deleteEventFlyerRaw(EVENT_ID);
+        verify(objectStorageService).deleteEventFlyerFinal(EVENT_ID);
+        verify(eventsRepository).save(event);
+    }
+
+    @Test
+    void deleteFlyerRejectsOperationForAnotherUser() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> eventsService.deleteFlyer(EVENT_ID, OTHER_USER_ID)
+        );
+
+        verify(objectStorageService, never()).deleteEventFlyerRaw(any(UUID.class));
+        verify(objectStorageService, never()).deleteEventFlyerFinal(any(UUID.class));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void deleteFlyerAsAdminRemovesStoredFilesAndResetsStatus() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+        event.setFlyerStatus(FlyerStatus.READY);
+        event.setFlyerUrl("https://cdn.example.com/flyer.webp");
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.deleteFlyerAsAdmin(EVENT_ID);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.NONE, event.getFlyerStatus());
+        verify(objectStorageService).deleteEventFlyerRaw(EVENT_ID);
+        verify(objectStorageService).deleteEventFlyerFinal(EVENT_ID);
+        verify(eventsRepository).save(event);
+    }
+
+    @Test
+    void deleteFlyerAsAdminRejectsMissingEvent() {
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(
+                EntityNotFoundException.class,
+                () -> eventsService.deleteFlyerAsAdmin(EVENT_ID)
+        );
+
+        verify(objectStorageService, never()).deleteEventFlyerRaw(any(UUID.class));
+        verify(objectStorageService, never()).deleteEventFlyerFinal(any(UUID.class));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
     void deleteRemovesEventForOwner() {
         Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
 

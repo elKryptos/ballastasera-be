@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -108,6 +109,33 @@ class AdminControllerTest {
                             request.setMethod("PATCH");
                             return request;
                         }))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));
+    }
+
+    @Test
+    void deleteEventFlyerReturnsUpdatedEvent() throws Exception {
+        Events event = new Events();
+        event.setId(EVENT_ID);
+        EventDetailDto response = new EventDetailDto();
+        response.setTitle("Salsa Night");
+
+        when(eventsService.deleteFlyerAsAdmin(EVENT_ID)).thenReturn(event);
+        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+
+        mockMvc.perform(delete("/rest/admin/events/{id}/flyer", EVENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Salsa Night"));
+
+        verify(eventsService).deleteFlyerAsAdmin(EVENT_ID);
+    }
+
+    @Test
+    void deleteEventFlyerReturnsNotFoundWhenEventDoesNotExist() throws Exception {
+        when(eventsService.deleteFlyerAsAdmin(EVENT_ID))
+                .thenThrow(new EntityNotFoundException("Event not found with id " + EVENT_ID));
+
+        mockMvc.perform(delete("/rest/admin/events/{id}/flyer", EVENT_ID))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));
     }

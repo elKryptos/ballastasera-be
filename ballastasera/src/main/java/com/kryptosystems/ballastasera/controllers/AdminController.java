@@ -37,6 +37,7 @@ public class AdminController {
     private static final String CREATE_VENUE = "/venues";
     private static final String DELETE_VENUE = "/venues/{id}";
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
+    private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -88,6 +89,13 @@ public class AdminController {
     public ResponseEntity<EventDetailDto> updateEventFlyer(@PathVariable UUID id,
                                                            @RequestParam("file") MultipartFile file) {
         var event = eventsService.updateFlyerAsAdmin(id, file);
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    }
+
+    /** Admin elimina el flyer de un evento sin chequeo de ownership. */
+    @DeleteMapping(DELETE_EVENT_FLYER)
+    public ResponseEntity<EventDetailDto> deleteEventFlyer(@PathVariable UUID id) {
+        var event = eventsService.deleteFlyerAsAdmin(id);
         return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 
