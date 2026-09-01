@@ -11,9 +11,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +40,7 @@ public class EventsController {
     private static final String ADD_FAVORITE = "/{id}/favorite";
     private static final String REMOVE_FAVORITE = "/{id}/favorite";
     private static final String IS_FAVORITE = "/{id}/favorite";
+    private static final String UPDATE_FLYER = "/{id}/flyer";
 
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
@@ -154,6 +157,15 @@ public class EventsController {
     @GetMapping(IS_FAVORITE)
     public ResponseEntity<Boolean> isFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         return ResponseEntity.ok(favoritesService.existsByUserIdAndEventId(principal.getId(), id));
+    }
+
+    /** Requiere autenticacion y ownership. La conversion a WebP se ejecuta de forma asincrona. */
+    @PatchMapping(value = UPDATE_FLYER, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventDetailDto> updateFlyer(@AuthenticationPrincipal UserPrincipal principal,
+                                                      @PathVariable UUID id,
+                                                      @RequestParam("file") MultipartFile file) {
+        var event = eventsService.updateFlyer(id, principal.getId(), file);
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 
 }

@@ -21,20 +21,20 @@ IDs fijos para pegar directo en Postman (no hace falta hacer `SELECT` antes):
 
 ## 2. Endpoints públicos (sin token)
 
-### `GET /api/events`
+### `GET /rest/events`
 
 ```
-GET http://localhost:8080/api/events?minLat=45.40&maxLat=45.53&minLng=9.10&maxLng=9.28
+GET http://localhost:8081/rest/events?minLat=45.40&maxLat=45.53&minLng=9.10&maxLng=9.28
 ```
 
 **Esperado**: 3 eventos en la respuesta — `aaaa` (`liveNow: true`), `bbbb` y `cccc`
 (`liveNow: false`). **`dddd` y `eeee` NO deben aparecer** — si aparecen, algo está mal en el
 filtro de la query (`status`/fecha).
 
-### `GET /api/events/{id}`
+### `GET /rest/events/{id}`
 
 ```
-GET http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa   ok
+GET http://localhost:8081/rest/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa   ok
 ```
 
 **Esperado**: `liveNow: true`, `goingCount: 3`, `interestedCount: 0`, `organizer.instagram:
@@ -42,7 +42,7 @@ GET http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa   ok
 respuesta debe caer al del organizador (`tropicalmilano`) — es el fallback que hablamos.
 
 ```
-GET http://localhost:8080/api/events/dddddddd-dddd-dddd-dddd-dddddddddddd   ok
+GET http://localhost:8081/rest/events/dddddddd-dddd-dddd-dddd-dddddddddddd   ok
 ```
 
 **Esperado**: esto sí debe funcionar (detalle por id no filtra por fecha, solo el listado del
@@ -50,15 +50,15 @@ mapa lo hace) — sirve para confirmar que un evento pasado sigue siendo consult
 tiene el link directo, solo no aparece "flotando" en el mapa.
 
 ```
-GET http://localhost:8080/api/events/00000000-0000-0000-0000-000000000000   ok
+GET http://localhost:8081/rest/events/00000000-0000-0000-0000-000000000000   ok
 ```
 
 **Esperado**: `404` con `{"error": "Event not found with id ..."}`.
 
-### `GET /api/events/{id}/attendees`
+### `GET /rest/events/{id}/attendees`
 
 ```
-GET http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendees   ok
+GET http://localhost:8081/rest/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendees   ok
 ```
 
 **Esperado**: 2 items — **Ana** (`ana.baila`) y **Marco** (`marco_salsero`). **Lucia NO debe
@@ -66,7 +66,7 @@ aparecer** aunque el `goingCount` del detalle sea 3 — ella no activó `show_pr
 Lucia aparece acá, la privacidad está rota.
 
 ```
-GET http://localhost:8080/api/events/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/attendees
+GET http://localhost:8081/rest/events/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/attendees
 ```
 
 **Esperado**: página vacía (`content: []`) — Ana marcó `INTERESTED` en este evento, no `GOING`,
@@ -78,7 +78,7 @@ así que no debe contar como asistente.
 
 El login sigue siendo por Google — no hay endpoint de login "de prueba". Para conseguir un token:
 
-1. Abre en el navegador: `http://localhost:8080/oauth2/authorization/google`
+1. Abre en el navegador: `http://localhost:8081/oauth2/authorization/google`
 2. Completa el login con tu cuenta de Google
 3. Te redirige a `app.frontend.oauth2-redirect-uri` con `?token=...` en la URL — copia ese valor
 4. En Postman, pestaña **Authorization** → tipo **Bearer Token** → pega el token
@@ -86,10 +86,10 @@ El login sigue siendo por Google — no hay endpoint de login "de prueba". Para 
 Ese primer login crea tu usuario real en `users` (vía `CustomOidcUserService`) — es distinto de
 los usuarios ficticios del seed, que nunca inician sesión, solo existen para poblar listas.
 
-### `PATCH /auth/me`
+### `PATCH /rest/auth/me`
 
 ```
-PATCH http://localhost:8080/auth/me
+PATCH http://localhost:8081/rest/auth/me
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -99,27 +99,27 @@ Content-Type: application/json
 **Esperado**: `200` con tu perfil actualizado, `instagram: "mi.usuario"` (sin el `@`, se
 normaliza en el backend).
 
-### `POST /api/events/{id}/attendance`
+### `POST /rest/events/{id}/attendance`
 
 ```
-POST http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendance
+POST http://localhost:8081/rest/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendance
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
 { "status": "GOING" }
 ```
 
-**Esperado**: `204 No Content`. Después de esto, `GET /api/events/aaaa.../attendees` debe
+**Esperado**: `204 No Content`. Después de esto, `GET /rest/events/aaaa.../attendees` debe
 mostrarte a ti también (si activaste `showProfilePublic`) y `goingCount` en el detalle debe subir
 a 4.
 
 Repite el `POST` con `{"status": "INTERESTED"}` — debe actualizar tu registro existente (upsert),
 no crear uno duplicado; y ahora deberías desaparecer de `/attendees` porque ya no estás `GOING`.
 
-### `DELETE /api/events/{id}/attendance`
+### `DELETE /rest/events/{id}/attendance`
 
 ```
-DELETE http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendance
+DELETE http://localhost:8081/rest/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendance
 Authorization: Bearer <tu token>
 ```
 
@@ -128,7 +128,7 @@ Authorization: Bearer <tu token>
 ### Probar que sin token, todo lo anterior falla
 
 ```
-POST http://localhost:8080/api/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendance
+POST http://localhost:8081/rest/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attendance
 Content-Type: application/json
 
 { "status": "GOING" }
@@ -157,10 +157,10 @@ RETURNING id;
 
 `Authorization: Bearer <tu token>` en las cuatro requests siguientes.
 
-### `POST /api/events`
+### `POST /rest/events`
 
 ```
-POST http://localhost:8080/api/events
+POST http://localhost:8081/rest/events
 Content-Type: application/json
 
 {
@@ -184,10 +184,10 @@ Content-Type: application/json
 el DTO de respuesta actual no expone `status`. Guardate el `id` devuelto para los siguientes pasos.
 Si `organizerId` no te pertenece o no está `is_verified`, debe dar `403`.
 
-### `PATCH /api/events/{id}`
+### `PATCH /rest/events/{id}`
 
 ```
-PATCH http://localhost:8080/api/events/<id_del_evento_creado>
+PATCH http://localhost:8081/rest/events/<id_del_evento_creado>
 Content-Type: application/json
 
 {
@@ -202,10 +202,10 @@ Content-Type: application/json
 opcionales; solo se validan los campos que envíes. Los campos que no mandes quedan sin tocar gracias
 al `nullValuePropertyMappingStrategy = IGNORE` del mapper.
 
-### `PATCH /api/events/{id}/status`
+### `PATCH /rest/events/{id}/status`
 
 ```
-PATCH http://localhost:8080/api/events/<id_del_evento_creado>/status
+PATCH http://localhost:8081/rest/events/<id_del_evento_creado>/status
 Content-Type: application/json
 
 { "status": "PUBLISHED" }
@@ -215,10 +215,50 @@ Content-Type: application/json
 respuesta actual no expone `status`. Valores válidos: `DRAFT`, `PENDING`, `PUBLISHED`, `CANCELLED`.
 Con otro usuario (no dueño) debe dar `403`.
 
-### `DELETE /api/events/{id}`
+### `PATCH /rest/events/{id}/flyer` (dueño autenticado)
+
+El archivo se envía como multipart en el campo `file`. La conversión a WebP se ejecuta de forma
+asincrónica.
 
 ```
-DELETE http://localhost:8080/api/events/<id_del_evento_creado>
+PATCH http://localhost:8081/rest/events/<id_del_evento_creado>/flyer
+Authorization: Bearer <tu token>
+Content-Type: multipart/form-data
+
+file: flyer.jpg
+```
+
+**Esperado**: `200` con `flyerStatus: "PROCESSING"`. El backend guarda el archivo original,
+convierte el flyer a WebP y publica el resultado. Repetí el detalle hasta que el estado sea
+`READY`:
+
+```
+GET http://localhost:8081/rest/events/<id_del_evento_creado>
+```
+
+Cuando esté listo, `flyerUrl` debe apuntar a `http://localhost/media/events/<id_del_evento_creado>`.
+Esa URL se sirve a través de nginx, que reenvía `/media/` a RustFS.
+
+### `PATCH /rest/admin/events/{id}/flyer` (solo ADMIN)
+
+El admin puede subir o reemplazar el flyer de cualquier evento, sin chequeo de ownership.
+
+```
+PATCH http://localhost:8081/rest/admin/events/<id_del_evento>/flyer
+Authorization: Bearer <token_de_admin>
+Content-Type: multipart/form-data
+
+file: flyer.jpg
+```
+
+**Esperado**: `200` con `flyerStatus: "PROCESSING"`. Consultá el detalle hasta obtener
+`flyerStatus: "READY"`; entonces `flyerUrl` debe ser
+`http://localhost/media/events/<id_del_evento>`.
+
+### `DELETE /rest/events/{id}`
+
+```
+DELETE http://localhost:8081/rest/events/<id_del_evento_creado>
 ```
 
 **Esperado**: `204 No Content`. Un `GET` posterior al mismo `id` debe dar `404`.
@@ -233,41 +273,41 @@ El seed trae un venue reutilizable ya creado:
 |---|---|
 | Venue "Sala Havana" (Milano, sin eventos activos) | `33333333-3333-3333-3333-333333333333` |
 
-### `GET /api/venues` (público, listado/autocomplete)
+### `GET /rest/venues` (público, listado/autocomplete)
 
 ```
-GET http://localhost:8080/api/venues?cityId=1
+GET http://localhost:8081/rest/venues?cityId=1
 ```
 
 **Esperado**: `200` con un array que incluye "Sala Havana".
 
 ```
-GET http://localhost:8080/api/venues?cityId=1&search=havana
+GET http://localhost:8081/rest/venues?cityId=1&search=havana
 ```
 
 **Esperado**: mismo resultado filtrado — confirma que `search` no distingue mayúsculas/minúsculas.
 
-### `GET /api/venues/{id}` (público, detalle)
+### `GET /rest/venues/{id}` (público, detalle)
 
 ```
-GET http://localhost:8080/api/venues/33333333-3333-3333-3333-333333333333
+GET http://localhost:8081/rest/venues/33333333-3333-3333-3333-333333333333
 ```
 
 **Esperado**: `200` con `VenueDetailDto` completo — `organizerName: "Tropical Milano"`,
 `cityName: "Milano"`, `address`, `description`, `createdAt`/`updatedAt`.
 
 ```
-GET http://localhost:8080/api/venues/00000000-0000-0000-0000-000000000000
+GET http://localhost:8081/rest/venues/00000000-0000-0000-0000-000000000000
 ```
 
 **Esperado**: `404` con `{"message": "Venue not found with id ..."}`.
 
-### `POST /api/venues` (dueño autenticado, organizer verificado)
+### `POST /rest/venues` (dueño autenticado, organizer verificado)
 
 Usa el mismo `<tu_organizer_id>` verificado de la sección 4.
 
 ```
-POST http://localhost:8080/api/venues
+POST http://localhost:8081/rest/venues
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -288,10 +328,10 @@ los pasos siguientes. Repetir el mismo `name` + `cityId` debe dar `409` (`Duplic
 Si omitís `latitude`/`longitude`, el backend geocodifica la `address` contra Nominatim — puede
 tardar ~1s y depende de que la dirección sea real.
 
-### `PATCH /api/venues/{id}` (dueño autenticado)
+### `PATCH /rest/venues/{id}` (dueño autenticado)
 
 ```
-PATCH http://localhost:8080/api/venues/<venue_id_creado>
+PATCH http://localhost:8081/rest/venues/<venue_id_creado>
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -303,7 +343,7 @@ al `nullValuePropertyMappingStrategy = IGNORE`). Con otro usuario (no dueño del
 dar `403`.
 
 ```
-PATCH http://localhost:8080/api/venues/33333333-3333-3333-3333-333333333333
+PATCH http://localhost:8081/rest/venues/33333333-3333-3333-3333-333333333333
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -313,7 +353,7 @@ Content-Type: application/json
 **Esperado**: `403` (no sos el dueño de este venue del seed) — si en cambio das `409`, revisá
 el orden ownership-vs-duplicado en `VenuesServiceImpl.update`.
 
-### `DELETE /api/admin/venues/{id}` (solo ADMIN)
+### `DELETE /rest/admin/venues/{id}` (solo ADMIN)
 
 El borrado **no** es del dueño — es admin-only. Para probarlo, promové tu usuario real a
 `ADMIN` (no hace falta volver a loguearte, el rol se lee de la DB en cada request):
@@ -323,7 +363,7 @@ UPDATE users SET role = 'ADMIN' WHERE id = '<tu_user_id>';
 ```
 
 ```
-DELETE http://localhost:8080/api/admin/venues/<venue_id_creado>
+DELETE http://localhost:8081/rest/admin/venues/<venue_id_creado>
 Authorization: Bearer <tu token>
 ```
 
@@ -331,7 +371,7 @@ Authorization: Bearer <tu token>
 mismo `id` debe dar `404`.
 
 ```
-DELETE http://localhost:8080/api/admin/venues/33333333-3333-3333-3333-333333333333
+DELETE http://localhost:8081/rest/admin/venues/33333333-3333-3333-3333-333333333333
 Authorization: Bearer <tu token>
 ```
 
@@ -344,7 +384,7 @@ UPDATE users SET role = 'ORGANIZER' WHERE id = '<tu_user_id>';
 ```
 
 ```
-DELETE http://localhost:8080/api/admin/venues/33333333-3333-3333-3333-333333333333
+DELETE http://localhost:8081/rest/admin/venues/33333333-3333-3333-3333-333333333333
 Authorization: Bearer <tu token>
 ```
 
@@ -358,10 +398,10 @@ usuario autenticado que no sea admin, aunque sea el dueño del venue.
 Mismo organizer verificado de las secciones 4 y 5 (`<tu_organizer_id>`). No hay ninguna serie
 en el seed, hay que crearla primero para poder probar el resto.
 
-### `POST /api/event-series` (dueño autenticado, organizer verificado)
+### `POST /rest/event-series` (dueño autenticado, organizer verificado)
 
 ```
-POST http://localhost:8080/api/event-series
+POST http://localhost:8081/rest/event-series
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -389,33 +429,33 @@ para los pasos siguientes. Si `organizerId` no te pertenece o no está `is_verif
 `403`. Si `venueId` pertenece a otra ciudad que la de `cityId`, debe dar `400`
 (`VenueCityMismatchException`).
 
-### `GET /api/event-series/{id}` (público)
+### `GET /rest/event-series/{id}` (público)
 
 ```
-GET http://localhost:8080/api/event-series/<series_id_creado>
+GET http://localhost:8081/rest/event-series/<series_id_creado>
 ```
 
 **Esperado**: `200` con `EventSeriesDetailDto` — `venueName: "Sala Havana"`, `cityName: "Milano"`,
 `danceStyles` con los dos estilos elegidos, `free: false`, `price: 8.00`.
 
 ```
-GET http://localhost:8080/api/event-series/00000000-0000-0000-0000-000000000000
+GET http://localhost:8081/rest/event-series/00000000-0000-0000-0000-000000000000
 ```
 
 **Esperado**: `404` con `{"message": "Event series not found with id ..."}`.
 
-### `GET /api/organizers/{id}/event-series` (público, listado)
+### `GET /rest/organizers/{id}/event-series` (público, listado)
 
 ```
-GET http://localhost:8080/api/organizers/11111111-1111-1111-1111-111111111111/event-series
+GET http://localhost:8081/rest/organizers/11111111-1111-1111-1111-111111111111/event-series
 ```
 
 **Esperado**: `200` con un array que incluye "Jueves de Salsa" (`EventSeriesSummaryDto`).
 
-### `PATCH /api/event-series/{id}` (dueño autenticado)
+### `PATCH /rest/event-series/{id}` (dueño autenticado)
 
 ```
-PATCH http://localhost:8080/api/event-series/<series_id_creado>
+PATCH http://localhost:8081/rest/event-series/<series_id_creado>
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -427,7 +467,7 @@ intacto gracias al `nullValuePropertyMappingStrategy = IGNORE`). Con otro usuari
 dar `403`.
 
 ```
-PATCH http://localhost:8080/api/event-series/<series_id_creado>
+PATCH http://localhost:8081/rest/event-series/<series_id_creado>
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
@@ -437,20 +477,20 @@ Content-Type: application/json
 **Esperado**: `200` sin cambios de negocio (mismo venue/ciudad) — sirve para confirmar que mandar
 `cityId` sin `venueId` (o viceversa) no rompe nada, ahora que el bug de `update()` está corregido.
 
-### `DELETE /api/event-series/{id}/venue` (dueño autenticado)
+### `DELETE /rest/event-series/{id}/venue` (dueño autenticado)
 
 ```
-DELETE http://localhost:8080/api/event-series/<series_id_creado>/venue
+DELETE http://localhost:8081/rest/event-series/<series_id_creado>/venue
 Authorization: Bearer <tu token>
 ```
 
 **Esperado**: `200` con `EventSeriesDetailDto` y `venueName: null` — la serie sigue existiendo,
-solo pierde el vínculo al venue (igual que `DELETE /api/events/{id}/venue`).
+solo pierde el vínculo al venue (igual que `DELETE /rest/events/{id}/venue`).
 
-### `DELETE /api/event-series/{id}` (dueño autenticado)
+### `DELETE /rest/event-series/{id}` (dueño autenticado)
 
 ```
-DELETE http://localhost:8080/api/event-series/<series_id_creado>
+DELETE http://localhost:8081/rest/event-series/<series_id_creado>
 Authorization: Bearer <tu token>
 ```
 
