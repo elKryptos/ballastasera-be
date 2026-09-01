@@ -92,8 +92,13 @@ services:
     container_name: nginx_proxy
     ports:
       - "80:80"
+    environment:
+      # Puerto local del backend Spring Boot (ejecutado fuera de Docker).
+      # Ajustalo en tu infra/.env si en tu maquina el 8080 esta ocupado; no
+      # toques default.conf.template, se genera con envsubst al arrancar.
+      BACKEND_PORT: ${BACKEND_PORT:-8080}
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     # Permite a NGINX resolver "host.docker.internal" en cualquier OS
     extra_hosts:
       - "host.docker.internal:host-gateway"
