@@ -38,24 +38,23 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
     @Override
     public void uploadEventFlyerRaw(UUID eventId, byte[] content) {
         String extension = ImageTypeValidator.detectExtension(content);
-        putObject(rawBucket, "events/" + eventId, content, CONTENT_TYPES.get(extension));
+        putObject(rawBucket, eventId.toString(), content, CONTENT_TYPES.get(extension));
     }
 
     @Override
     public String uploadEventFlyerFinal(UUID eventId, byte[] webpContent) {
-        String key = "events/" + eventId;
-        putObject(finalBucket, key, webpContent, "image/webp");
-        return publicBaseUrl + "/" + key;
+        putObject(finalBucket, eventId.toString(), webpContent, "image/webp");
+        return publicBaseUrl + "/" + eventId;
     }
 
     @Override
     public void deleteEventFlyerRaw(UUID eventId) {
-        delete(rawBucket, "events/" + eventId);
+        delete(rawBucket, eventId.toString());
     }
 
     @Override
     public void deleteEventFlyerFinal(UUID eventId) {
-        delete(finalBucket, "events/" + eventId);
+        delete(finalBucket, eventId.toString());
     }
 
     private void putObject(String targetBucket, String key, byte[] content, String contentType) {
