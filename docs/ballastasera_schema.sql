@@ -199,6 +199,7 @@ CREATE TABLE events (
 
     title         TEXT   NOT NULL,
     slug          TEXT   NOT NULL UNIQUE,
+    type          event_type NOT NULL DEFAULT 'EVENT',
     description   TEXT,
     flyer_url     TEXT,                            -- immagine/volantino (URL, upload gestito da backend)
 	flyer_status  flyer_status NOT NULL DEFAULT 'NONE',
@@ -232,6 +233,7 @@ CREATE INDEX idx_events_venue      ON events(venue_id);
 CREATE INDEX idx_events_coords     ON events(latitude, longitude);
 -- indice utile per la vista "prossimi eventi pubblicati di una città"
 CREATE INDEX idx_events_city_time  ON events(city_id, start_at) WHERE status = 'PUBLISHED';
+CREATE INDEX idx_events_type       ON events(type);
 
 
 -- ============================================================================
