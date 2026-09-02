@@ -33,11 +33,11 @@ public class AdminController {
     private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
     private static final String CLAIM_ORGANIZER = "/organizers/{id}/claim";
     private static final String CREATE_EVENT = "/events";
+    private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
+    private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String CREATE_EVENT_SERIES = "/event-series";
     private static final String CREATE_VENUE = "/venues";
     private static final String DELETE_VENUE = "/venues/{id}";
-    private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
-    private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
