@@ -21,6 +21,7 @@ import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventFlyerProcessingService;
 import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
