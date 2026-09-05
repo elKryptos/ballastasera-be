@@ -17,9 +17,12 @@ import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
@@ -294,6 +297,50 @@ public class EventsServiceImpl implements EventsService {
             throw new AccessDeniedException("Event series does not belong to this organizer");
         }
         return series;
+    }
+
+    @Override
+    public Page<EventCardDto> findPublicByCity(Long cityId, Pageable pageable) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        Page<UUID> idPage = eventsRepository.findPublicEventIdsByCity(cityId, now, pageable);
+        List<UUID> ids = idPage.getContent();
+
+        if(ids.isEmpty()){
+            return new PageImpl<>(List.of(), pageable, idPage.getTotalElements());
+        }
+
+        Map<UUID, Events> eventsById = eventsRepository
+                .findAllWithDetailsByIdIn(ids)
+                .stream().collect(Collectors.toMap(Events::getId, event -> event));
+
+        Map<UUID, Long> goingCounts = eventAttendanceRepository
+                .countByEventIdInAndStatus(ids, AttendanceStatus.GOING)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> ((Number) row[1]).longValue()
+                ));
+
+        List<EventCardDto> cards = ids.stream()
+                .map(eventsById::get)
+                .filter(Objects::nonNull)
+                .map(event -> {
+                    EventCardDto dto = eventsMapper.toEventCardDto(event);
+                    dto.setLiveNow(EventTimingUtils.isLiveNow(event, now));
+                    dto.setGoingCount(
+                            goingCounts.getOrDefault(event.getId(), 0L)
+                    );
+                    return dto;
+                })
+                .toList();
+
+        return new PageImpl<>(
+                cards,
+                idPage.getPageable(),
+                idPage.getTotalElements()
+        );
+
     }
 
 }

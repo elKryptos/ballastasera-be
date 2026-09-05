@@ -10,4 +10,5 @@ public interface CitiesRepository extends JpaRepository<Cities, Long> {
     Optional<Cities> findBySlug(String slug);
     Optional<Cities> findByIdAndIsActiveTrue(Long id);
     List<Cities>  findAllByIsActiveTrueOrderByNameAsc();
+    Optional<Cities> findBySlugAndIsActiveTrue(String slug);
 }

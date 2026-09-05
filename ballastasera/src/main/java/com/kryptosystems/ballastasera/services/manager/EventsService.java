@@ -6,6 +6,8 @@ import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -57,4 +59,6 @@ public interface EventsService {
     Events removeVenue(UUID eventId, UUID requesterId);
 
     List<Events> findPublishedByOrganizerId(UUID organizerId);
+
+    Page<EventCardDto> findPublicByCity(Long cityId, Pageable pageable);
 }

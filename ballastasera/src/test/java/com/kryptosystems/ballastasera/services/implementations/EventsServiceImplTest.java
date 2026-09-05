@@ -1,8 +1,10 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.entities.EventSeries;
@@ -16,22 +18,30 @@ import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
+import com.kryptosystems.ballastasera.services.manager.EventFlyerProcessingService;
+import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +74,12 @@ class EventsServiceImplTest {
 
     @Mock
     private EventResolverService eventResolverService;
+
+    @Mock
+    private ObjectStorageService objectStorageService;
+
+    @Mock
+    private EventFlyerProcessingService eventFlyerProcessingService;
 
     @InjectMocks
     private EventsServiceImpl eventsService;
@@ -331,6 +347,96 @@ class EventsServiceImplTest {
         verify(eventsRepository, never()).delete(any(Events.class));
     }
 
+    @Test
+    void findPublicByCityPreservesRepositoryOrderAndPageMetadata() {
+        UUID firstId = EVENT_ID;
+        UUID secondId = UUID.fromString("20000000-0000-0000-0000-000000000002");
+        PageRequest pageable = PageRequest.of(1, 2);
+        PageImpl<UUID> idPage = new PageImpl<>(
+                List.of(firstId, secondId),
+                pageable,
+                5
+        );
+
+        Events first = eventWithId(firstId, OffsetDateTime.now().plusDays(1),
+                OffsetDateTime.now().plusDays(1).plusHours(3));
+        Events second = eventWithId(secondId, OffsetDateTime.now().plusDays(2),
+                OffsetDateTime.now().plusDays(2).plusHours(3));
+        EventCardDto firstCard = new EventCardDto();
+        EventCardDto secondCard = new EventCardDto();
+
+        when(eventsRepository.findPublicEventIdsByCity(
+                eq(1L), any(OffsetDateTime.class), eq(pageable)))
+                .thenReturn(idPage);
+        when(eventsRepository.findAllWithDetailsByIdIn(List.of(firstId, secondId)))
+                .thenReturn(List.of(second, first));
+        when(eventAttendanceRepository.countByEventIdInAndStatus(
+                List.of(firstId, secondId), AttendanceStatus.GOING))
+                .thenReturn(List.<Object[]>of(new Object[]{firstId, 3L}));
+        when(eventsMapper.toEventCardDto(first)).thenReturn(firstCard);
+        when(eventsMapper.toEventCardDto(second)).thenReturn(secondCard);
+
+        var result = eventsService.findPublicByCity(1L, pageable);
+
+        assertEquals(List.of(firstCard, secondCard), result.getContent());
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getSize());
+        assertEquals(5, result.getTotalElements());
+        assertEquals(3, result.getTotalPages());
+        assertEquals(3L, result.getContent().get(0).getGoingCount());
+        verify(eventAttendanceRepository).countByEventIdInAndStatus(
+                List.of(firstId, secondId), AttendanceStatus.GOING);
+        verify(eventAttendanceRepository, never())
+                .countByEventIdAndStatus(any(UUID.class), any(AttendanceStatus.class));
+    }
+
+    @Test
+    void findPublicByCityCalculatesLiveNowUsingEventTimingRules() {
+        OffsetDateTime base = OffsetDateTime.now();
+        UUID futureId = UUID.fromString("20000000-0000-0000-0000-000000000003");
+        UUID liveId = UUID.fromString("20000000-0000-0000-0000-000000000004");
+        UUID fallbackId = UUID.fromString("20000000-0000-0000-0000-000000000005");
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        Events future = eventWithId(futureId, base.plusHours(2), base.plusHours(5));
+        Events live = eventWithId(liveId, base.minusHours(1), base.plusHours(1));
+        Events fallback = eventWithId(fallbackId, base.minusHours(2), null);
+
+        when(eventsRepository.findPublicEventIdsByCity(
+                eq(1L), any(OffsetDateTime.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(
+                        List.of(futureId, liveId, fallbackId), pageable, 3));
+        when(eventsRepository.findAllWithDetailsByIdIn(
+                List.of(futureId, liveId, fallbackId)))
+                .thenReturn(List.of(future, live, fallback));
+        when(eventAttendanceRepository.countByEventIdInAndStatus(
+                List.of(futureId, liveId, fallbackId), AttendanceStatus.GOING))
+                .thenReturn(List.<Object[]>of());
+        when(eventsMapper.toEventCardDto(any(Events.class)))
+                .thenAnswer(invocation -> new EventCardDto());
+
+        var result = eventsService.findPublicByCity(1L, pageable);
+
+        assertFalse(result.getContent().get(0).isLiveNow());
+        assertTrue(result.getContent().get(1).isLiveNow());
+        assertTrue(result.getContent().get(2).isLiveNow());
+    }
+
+    @Test
+    void findPublicByCitySkipsBatchQueriesForEmptyPage() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(eventsRepository.findPublicEventIdsByCity(
+                eq(1L), any(OffsetDateTime.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        var result = eventsService.findPublicByCity(1L, pageable);
+
+        assertTrue(result.isEmpty());
+        verify(eventsRepository, never()).findAllWithDetailsByIdIn(any());
+        verify(eventAttendanceRepository, never())
+                .countByEventIdInAndStatus(any(), any(AttendanceStatus.class));
+    }
+
     private EventCreateDto createDto(UUID organizerId) {
         OffsetDateTime startAt = OffsetDateTime.now().plusDays(2);
         EventCreateDto dto = new EventCreateDto();
@@ -360,6 +466,14 @@ class EventsServiceImplTest {
         event.setOrganizer(organizer);
         event.setStartAt(OffsetDateTime.now().plusDays(2));
         event.setEndAt(OffsetDateTime.now().plusDays(2).plusHours(3));
+        return event;
+    }
+
+    private Events eventWithId(UUID id, OffsetDateTime startAt, OffsetDateTime endAt) {
+        Events event = mappedEvent();
+        event.setId(id);
+        event.setStartAt(startAt);
+        event.setEndAt(endAt);
         return event;
     }
 

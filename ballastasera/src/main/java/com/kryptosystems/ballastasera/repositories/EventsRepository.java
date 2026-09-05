@@ -2,6 +2,8 @@ package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -69,4 +71,21 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
             UUID organizerId,
             EventStatus status
     );
+
+    @Query(value = """
+        SELECT e.id FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+        ORDER BY e.start_at ASC, e.id ASC
+        """, countQuery = """
+        SELECT COUNT(*) FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+        """, nativeQuery = true)
+    Page<UUID> findPublicEventIdsByCity(
+            @Param("cityId") Long cityId,
+            @Param("now") OffsetDateTime now,
+            Pageable pageable);
 }

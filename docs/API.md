@@ -102,6 +102,33 @@ Devuelve una ciudad activa por su identificador.
 
 ---
 
+### `GET /rest/cities/{slug}/events` — público
+
+Devuelve una página de eventos visibles de una ciudad activa. Solo incluye
+eventos `PUBLISHED` cuyo fin efectivo todavía no haya pasado. Cuando `endAt` es
+`null`, se asume una duración de cuatro horas desde `startAt`.
+
+Los resultados se ordenan por `startAt ASC` y después `id ASC`. Los eventos en
+curso también aparecen en la respuesta.
+
+**Query params**
+
+| Param | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| `page` | `int` | no | Página basada en cero. Default `0`. |
+| `size` | `int` | no | Elementos por página. Default `20`, máximo `100`. |
+
+**Respuesta** — `Page<EventCardDto>`:
+
+La respuesta contiene `content` con tarjetas de eventos y metadata de
+paginación (`number`, `size`, `numberOfElements`, `totalElements`, `totalPages`,
+`empty`). Una ciudad activa sin eventos devuelve `200` con `content: []`.
+
+`404` si la ciudad no existe o está inactiva. `400` si `page` o `size` son
+inválidos. No requiere autenticación.
+
+---
+
 ### `GET /api/dance-styles` — público
 
 Lista los estilos de baile disponibles para filtros y clasificación de eventos. La respuesta se ordena
