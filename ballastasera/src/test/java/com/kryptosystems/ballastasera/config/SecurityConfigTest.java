@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.config;
 
+import com.kryptosystems.ballastasera.enums.UserRole;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.RevokedTokensRepository;
 import com.kryptosystems.ballastasera.security.CustomOidcUserService;
@@ -114,6 +115,27 @@ class SecurityConfigTest {
     }
 
     @Test
+    void anonymousCannotUpdateAdminFlyer() throws Exception {
+        mockMvc.perform(patch("/rest/admin/events/{id}/flyer", EVENT_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void regularUserCannotUpdateAdminFlyer() throws Exception {
+        mockMvc.perform(patch("/rest/admin/events/{id}/flyer", EVENT_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanUpdateAdminFlyer() throws Exception {
+        mockMvc.perform(patch("/rest/admin/events/{id}/flyer", EVENT_ID)
+                        .with(authentication(adminAuthentication())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void authenticatedUserCanGetOwnOrganizers() throws Exception {
         mockMvc.perform(get("/rest/organizers/me")
                         .with(authentication(userAuthentication())))
@@ -171,6 +193,21 @@ class SecurityConfigTest {
         );
     }
 
+    private UsernamePasswordAuthenticationToken adminAuthentication() {
+        Users user = new Users();
+        user.setId(UUID.fromString("00000000-0000-0000-0000-000000000003"));
+        user.setEmail("admin@example.com");
+        user.setRole(UserRole.ADMIN);
+
+        UserPrincipal principal = new UserPrincipal(user);
+
+        return new UsernamePasswordAuthenticationToken(
+                principal,
+                null,
+                principal.getAuthorities()
+        );
+    }
+
     @RestController
     static class TestController {
 
@@ -201,6 +238,11 @@ class SecurityConfigTest {
 
         @DeleteMapping("/rest/events/{id}")
         void deleteEvent(@PathVariable UUID id) {
+        }
+
+        @PatchMapping("/rest/admin/events/{id}/flyer")
+        String updateAdminFlyer(@PathVariable UUID id) {
+            return "ok";
         }
 
         @GetMapping("/rest/events/{id}")

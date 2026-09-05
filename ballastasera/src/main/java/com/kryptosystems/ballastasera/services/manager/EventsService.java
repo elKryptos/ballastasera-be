@@ -52,6 +52,12 @@ public interface EventsService {
     /** Admin sube/reemplaza el flyer de cualquier evento, sin chequeo de ownership. */
     Events updateFlyerAsAdmin(UUID id, MultipartFile file);
 
+    /** Elimina el flyer de un evento propio (raw + final) y vuelve el status a NONE. */
+    Events deleteFlyer(UUID id, UUID requesterId);
+
+    /** Admin elimina el flyer de cualquier evento, sin chequeo de ownership. */
+    Events deleteFlyerAsAdmin(UUID id);
+
     /** Borra un evento propio (ownership check incluido). */
     void delete(UUID id, UUID requesterId);
 

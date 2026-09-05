@@ -20,20 +20,11 @@ public class S3Config {
     @Value("${storage.region}")
     private String region;
 
-    @Value("${storage.bucket}")
-    private String bucket;
-
     @Value("${storage.access-key}")
     private String accessKey;
 
     @Value("${storage.secret-key}")
     private String secretKey;
-
-    @Value("${storage.public-base-url}")
-    private String publicBaseUrl;
-
-    @Value("${storage.raw-bucket}")
-    private String rawBucket;
 
     @Bean
     public S3Client s3Client() {

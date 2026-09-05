@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.models.entities;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.enums.EventType;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -39,6 +40,11 @@ public class Events {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "city_id", nullable = false)
     private Cities city;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "type", nullable = false, columnDefinition = "event_type")
+    private EventType eventType = EventType.EVENT;
 
     @Column(name = "title", nullable = false)
     private String title;

@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
@@ -28,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -319,6 +321,141 @@ class EventsServiceImplTest {
                 () -> eventsService.updateStatus(OTHER_USER_ID, EVENT_ID, EventStatus.PUBLISHED)
         );
 
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void updateFlyerStoresRawFileAndStartsProcessing() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        byte[] content = new byte[]{1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", content);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.updateFlyer(EVENT_ID, REQUESTER_ID, file);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.PROCESSING, event.getFlyerStatus());
+        verify(objectStorageService).uploadEventFlyerRaw(eq(EVENT_ID), any(byte[].class));
+        verify(eventsRepository).save(event);
+        verify(eventFlyerProcessingService).convertAndPublish(eq(EVENT_ID), any(byte[].class));
+    }
+
+    @Test
+    void updateFlyerRejectsOperationForAnotherUser() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", new byte[]{1});
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> eventsService.updateFlyer(EVENT_ID, OTHER_USER_ID, file)
+        );
+
+        verify(objectStorageService, never()).uploadEventFlyerRaw(any(UUID.class), any(byte[].class));
+        verify(eventsRepository, never()).save(any(Events.class));
+        verify(eventFlyerProcessingService, never()).convertAndPublish(any(UUID.class), any(byte[].class));
+    }
+
+    @Test
+    void updateFlyerAsAdminStoresRawFileAndStartsProcessing() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+        byte[] content = new byte[]{1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", content);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.updateFlyerAsAdmin(EVENT_ID, file);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.PROCESSING, event.getFlyerStatus());
+        verify(objectStorageService).uploadEventFlyerRaw(eq(EVENT_ID), any(byte[].class));
+        verify(eventsRepository).save(event);
+        verify(eventFlyerProcessingService).convertAndPublish(eq(EVENT_ID), any(byte[].class));
+    }
+
+    @Test
+    void updateFlyerAsAdminRejectsMissingEvent() {
+        MockMultipartFile file = new MockMultipartFile("file", "flyer.jpg", "image/jpeg", new byte[]{1});
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(
+                EntityNotFoundException.class,
+                () -> eventsService.updateFlyerAsAdmin(EVENT_ID, file)
+        );
+
+        verify(objectStorageService, never()).uploadEventFlyerRaw(any(UUID.class), any(byte[].class));
+        verify(eventsRepository, never()).save(any(Events.class));
+        verify(eventFlyerProcessingService, never()).convertAndPublish(any(UUID.class), any(byte[].class));
+    }
+
+    @Test
+    void deleteFlyerRemovesStoredFilesAndResetsStatusForOwner() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        event.setFlyerStatus(FlyerStatus.READY);
+        event.setFlyerUrl("https://cdn.example.com/flyer.webp");
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.deleteFlyer(EVENT_ID, REQUESTER_ID);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.NONE, event.getFlyerStatus());
+        assertEquals(null, event.getFlyerUrl());
+        verify(objectStorageService).deleteEventFlyerRaw(EVENT_ID);
+        verify(objectStorageService).deleteEventFlyerFinal(EVENT_ID);
+        verify(eventsRepository).save(event);
+    }
+
+    @Test
+    void deleteFlyerRejectsOperationForAnotherUser() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> eventsService.deleteFlyer(EVENT_ID, OTHER_USER_ID)
+        );
+
+        verify(objectStorageService, never()).deleteEventFlyerRaw(any(UUID.class));
+        verify(objectStorageService, never()).deleteEventFlyerFinal(any(UUID.class));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void deleteFlyerAsAdminRemovesStoredFilesAndResetsStatus() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+        event.setFlyerStatus(FlyerStatus.READY);
+        event.setFlyerUrl("https://cdn.example.com/flyer.webp");
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.deleteFlyerAsAdmin(EVENT_ID);
+
+        assertSame(event, result);
+        assertEquals(FlyerStatus.NONE, event.getFlyerStatus());
+        verify(objectStorageService).deleteEventFlyerRaw(EVENT_ID);
+        verify(objectStorageService).deleteEventFlyerFinal(EVENT_ID);
+        verify(eventsRepository).save(event);
+    }
+
+    @Test
+    void deleteFlyerAsAdminRejectsMissingEvent() {
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(
+                EntityNotFoundException.class,
+                () -> eventsService.deleteFlyerAsAdmin(EVENT_ID)
+        );
+
+        verify(objectStorageService, never()).deleteEventFlyerRaw(any(UUID.class));
+        verify(objectStorageService, never()).deleteEventFlyerFinal(any(UUID.class));
         verify(eventsRepository, never()).save(any(Events.class));
     }
 

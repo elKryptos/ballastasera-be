@@ -55,7 +55,7 @@ class S3ObjectStorageServiceImplTest {
         verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
         PutObjectRequest request = requestCaptor.getValue();
         assertThat(request.bucket()).isEqualTo(RAW_BUCKET);
-        assertThat(request.key()).isEqualTo("events/" + eventId);
+        assertThat(request.key()).isEqualTo(eventId.toString());
         assertThat(request.contentType()).isEqualTo("image/jpeg");
     }
 
@@ -86,9 +86,9 @@ class S3ObjectStorageServiceImplTest {
         verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
         PutObjectRequest request = requestCaptor.getValue();
         assertThat(request.bucket()).isEqualTo(FINAL_BUCKET);
-        assertThat(request.key()).isEqualTo("events/" + eventId);
+        assertThat(request.key()).isEqualTo(eventId.toString());
         assertThat(request.contentType()).isEqualTo("image/webp");
-        assertThat(url).isEqualTo(PUBLIC_BASE_URL + "/events/" + eventId);
+        assertThat(url).isEqualTo(PUBLIC_BASE_URL + "/" + eventId);
     }
 
     @Test
@@ -109,7 +109,7 @@ class S3ObjectStorageServiceImplTest {
         ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
         verify(s3Client).deleteObject(captor.capture());
         assertThat(captor.getValue().bucket()).isEqualTo(RAW_BUCKET);
-        assertThat(captor.getValue().key()).isEqualTo("events/" + eventId);
+        assertThat(captor.getValue().key()).isEqualTo(eventId.toString());
     }
 
     @Test
@@ -130,7 +130,7 @@ class S3ObjectStorageServiceImplTest {
         ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
         verify(s3Client).deleteObject(captor.capture());
         assertThat(captor.getValue().bucket()).isEqualTo(FINAL_BUCKET);
-        assertThat(captor.getValue().key()).isEqualTo("events/" + eventId);
+        assertThat(captor.getValue().key()).isEqualTo(eventId.toString());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.EventType;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,6 +16,7 @@ public class EventDetailDto {
     private UUID id;
     private String slug;
     private String title;
+    private EventType eventType;
     private String description;
     private String flyerUrl;
     private FlyerStatus flyerStatus;

@@ -43,6 +43,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/rest/organizers/me").authenticated()
                         .requestMatchers(HttpMethod.GET,
                                 "/rest/health",
+                                "/v3/api-docs/**",// Swagger UI -> quitar en prod
+                                "/swagger-ui/**",// Swagger UI -> quitar en prod
                                 "/rest/events",
                                 "/rest/events/{id}",
                                  "/rest/events/{id}/attendees",

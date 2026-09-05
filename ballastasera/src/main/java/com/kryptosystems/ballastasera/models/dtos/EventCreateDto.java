@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.EventType;
 import com.kryptosystems.ballastasera.validations.EventTimeRange;
 import com.kryptosystems.ballastasera.validations.ValidEventTiming;
 import jakarta.validation.constraints.DecimalMin;
@@ -33,6 +34,7 @@ public class EventCreateDto implements EventTimeRange {
 
     @NotBlank
     private String title;
+    private EventType eventType = EventType.EVENT;
     private String description;
     private String flyerUrl;
     private String instagramUrl;

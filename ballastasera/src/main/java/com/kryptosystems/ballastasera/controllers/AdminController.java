@@ -13,9 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -31,6 +33,8 @@ public class AdminController {
     private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
     private static final String CLAIM_ORGANIZER = "/organizers/{id}/claim";
     private static final String CREATE_EVENT = "/events";
+    private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
+    private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String CREATE_EVENT_SERIES = "/event-series";
     private static final String CREATE_VENUE = "/venues";
     private static final String DELETE_VENUE = "/venues/{id}";
@@ -78,6 +82,21 @@ public class AdminController {
     public ResponseEntity<EventDetailDto> createEvent(@Valid @RequestBody EventCreateDto body) {
         var event = eventsService.createAsAdmin(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.toEventDetailDto(event));
+    }
+
+    /** Admin sube o reemplaza el flyer de un evento sin chequeo de ownership. */
+    @PatchMapping(value = UPDATE_EVENT_FLYER, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventDetailDto> updateEventFlyer(@PathVariable UUID id,
+                                                           @RequestParam("file") MultipartFile file) {
+        var event = eventsService.updateFlyerAsAdmin(id, file);
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    }
+
+    /** Admin elimina el flyer de un evento sin chequeo de ownership. */
+    @DeleteMapping(DELETE_EVENT_FLYER)
+    public ResponseEntity<EventDetailDto> deleteEventFlyer(@PathVariable UUID id) {
+        var event = eventsService.deleteFlyerAsAdmin(id);
+        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
 
     /** Admin crea una serie de eventos para cualquier organizer, sin chequeo de ownership. */

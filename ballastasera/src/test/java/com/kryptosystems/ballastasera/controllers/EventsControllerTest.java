@@ -26,6 +26,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.UUID;
 
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -116,6 +118,61 @@ class EventsControllerTest {
                 .andExpect(jsonPath("$.title").value("Updated Salsa Night"));
 
         verify(eventsService).update(eq(EVENT_ID), eq(USER_ID), any(EventUpdateDto.class));
+    }
+
+    @Test
+    void updateFlyerReturnsUpdatedEvent() throws Exception {
+        Events event = event();
+        EventDetailDto response = detail("Salsa Night");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "flyer.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[]{1, 2, 3}
+        );
+
+        when(eventsService.updateFlyer(eq(EVENT_ID), eq(USER_ID), eq(file))).thenReturn(event);
+        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+
+        mockMvc.perform(multipart("/rest/events/{id}/flyer", EVENT_ID)
+                        .file(file)
+                        .with(request -> {
+                            request.setMethod("PATCH");
+                            return request;
+                        })
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Salsa Night"));
+
+        verify(eventsService).updateFlyer(eq(EVENT_ID), eq(USER_ID), eq(file));
+    }
+
+    @Test
+    void deleteFlyerReturnsUpdatedEvent() throws Exception {
+        Events event = event();
+        EventDetailDto response = detail("Salsa Night");
+
+        when(eventsService.deleteFlyer(EVENT_ID, USER_ID)).thenReturn(event);
+        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+
+        mockMvc.perform(delete("/rest/events/{id}/flyer", EVENT_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Salsa Night"));
+
+        verify(eventsService).deleteFlyer(EVENT_ID, USER_ID);
+    }
+
+    @Test
+    void deleteFlyerReturnsNotFoundWhenEventDoesNotExist() throws Exception {
+        doThrow(new EntityNotFoundException("Event not found with id " + EVENT_ID))
+                .when(eventsService)
+                .deleteFlyer(EVENT_ID, USER_ID);
+
+        mockMvc.perform(delete("/rest/events/{id}/flyer", EVENT_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));
     }
 
     @Test
