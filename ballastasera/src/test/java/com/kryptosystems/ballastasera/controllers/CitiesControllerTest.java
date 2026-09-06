@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.verify;
@@ -81,7 +82,7 @@ class CitiesControllerTest {
     void getCityEventsUsesDefaultPagination() throws Exception {
         Cities city = city(1L, "milano");
         when(citiesService.findActiveBySlug("milano")).thenReturn(city);
-        when(eventsService.findPublicByCity(1L, PageRequest.of(0, 20)))
+        when(eventsService.findPublicByCity(1L, null, null, List.of(), PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         mockMvc.perform(get("/rest/cities/milano/events"))
@@ -94,7 +95,7 @@ class CitiesControllerTest {
                 .andExpect(jsonPath("$.empty").value(true));
 
         verify(citiesService).findActiveBySlug("milano");
-        verify(eventsService).findPublicByCity(1L, PageRequest.of(0, 20));
+        verify(eventsService).findPublicByCity(1L, null, null, List.of(), PageRequest.of(0, 20));
     }
 
     @Test
@@ -105,7 +106,7 @@ class CitiesControllerTest {
         PageRequest pageable = PageRequest.of(1, 2);
 
         when(citiesService.findActiveBySlug("roma")).thenReturn(city);
-        when(eventsService.findPublicByCity(7L, pageable))
+        when(eventsService.findPublicByCity(7L, null, null, List.of(), pageable))
                 .thenReturn(new PageImpl<>(List.of(card), pageable, 3));
 
         mockMvc.perform(get("/rest/cities/roma/events")
@@ -119,6 +120,50 @@ class CitiesControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(3))
                 .andExpect(jsonPath("$.totalPages").value(2))
                 .andExpect(jsonPath("$.empty").value(false));
+    }
+
+    @Test
+    void getCityEventsPassesDateAndStyleFiltersToService() throws Exception {
+        Cities city = city(7L, "roma");
+        OffsetDateTime from = OffsetDateTime.parse("2026-09-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-09-30T23:59:59Z");
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(citiesService.findActiveBySlug("roma")).thenReturn(city);
+        when(eventsService.findPublicByCity(
+                7L,
+                from,
+                to,
+                List.of("salsa", "bachata"),
+                pageable
+        )).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        mockMvc.perform(get("/rest/cities/roma/events")
+                        .param("from", "2026-09-01T00:00:00Z")
+                        .param("to", "2026-09-30T23:59:59Z")
+                        .param("danceStyle", "Salsa, bachata, salsa"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        verify(eventsService).findPublicByCity(
+                7L,
+                from,
+                to,
+                List.of("salsa", "bachata"),
+                pageable
+        );
+    }
+
+    @Test
+    void getCityEventsRejectsInvertedDateRange() throws Exception {
+        mockMvc.perform(get("/rest/cities/milano/events")
+                        .param("from", "2026-09-30T00:00:00Z")
+                        .param("to", "2026-09-01T00:00:00Z"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("from must be before or equal to to"));
+
+        verifyNoInteractions(citiesService, eventsService);
     }
 
     @Test

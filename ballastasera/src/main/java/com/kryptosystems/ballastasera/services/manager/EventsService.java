@@ -9,6 +9,7 @@ import com.kryptosystems.ballastasera.models.entities.Events;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.OffsetDateTime;
 
 import java.util.List;
 import java.util.UUID;
@@ -66,5 +67,13 @@ public interface EventsService {
 
     List<Events> findPublishedByOrganizerId(UUID organizerId);
 
-    Page<EventCardDto> findPublicByCity(Long cityId, Pageable pageable);
+    Page<EventCardDto> findPublicByCity(
+            Long cityId,
+            OffsetDateTime fromTime,
+            OffsetDateTime toTime,
+            List<String> danceStyleSlugs,
+            Pageable pageable
+    );
+
+
 }

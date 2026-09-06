@@ -29,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -45,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -504,7 +506,10 @@ class EventsServiceImplTest {
         EventCardDto secondCard = new EventCardDto();
 
         when(eventsRepository.findPublicEventIdsByCity(
-                eq(1L), any(OffsetDateTime.class), eq(pageable)))
+                eq(1L), any(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                eq(pageable)))
                 .thenReturn(idPage);
         when(eventsRepository.findAllWithDetailsByIdIn(List.of(firstId, secondId)))
                 .thenReturn(List.of(second, first));
@@ -514,7 +519,8 @@ class EventsServiceImplTest {
         when(eventsMapper.toEventCardDto(first)).thenReturn(firstCard);
         when(eventsMapper.toEventCardDto(second)).thenReturn(secondCard);
 
-        var result = eventsService.findPublicByCity(1L, pageable);
+        var result = eventsService.findPublicByCity(
+                1L, null, null, List.of(), pageable);
 
         assertEquals(List.of(firstCard, secondCard), result.getContent());
         assertEquals(1, result.getNumber());
@@ -541,7 +547,10 @@ class EventsServiceImplTest {
         Events fallback = eventWithId(fallbackId, base.minusHours(2), null);
 
         when(eventsRepository.findPublicEventIdsByCity(
-                eq(1L), any(OffsetDateTime.class), eq(pageable)))
+                eq(1L), any(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                eq(pageable)))
                 .thenReturn(new PageImpl<>(
                         List.of(futureId, liveId, fallbackId), pageable, 3));
         when(eventsRepository.findAllWithDetailsByIdIn(
@@ -553,7 +562,8 @@ class EventsServiceImplTest {
         when(eventsMapper.toEventCardDto(any(Events.class)))
                 .thenAnswer(invocation -> new EventCardDto());
 
-        var result = eventsService.findPublicByCity(1L, pageable);
+        var result = eventsService.findPublicByCity(
+                1L, null, null, List.of(), pageable);
 
         assertFalse(result.getContent().get(0).isLiveNow());
         assertTrue(result.getContent().get(1).isLiveNow());
@@ -561,13 +571,72 @@ class EventsServiceImplTest {
     }
 
     @Test
+    void findPublicByCityUsesDanceStyleQueryWhenStylesAreProvided() {
+        OffsetDateTime from = OffsetDateTime.parse("2026-09-01T00:00:00Z");
+        OffsetDateTime to = OffsetDateTime.parse("2026-09-30T23:59:59Z");
+        List<String> styles = List.of("salsa", "bachata");
+        PageRequest pageable = PageRequest.of(0, 20);
+        UUID eventId = UUID.fromString("20000000-0000-0000-0000-000000000006");
+        Events event = eventWithId(
+                eventId,
+                OffsetDateTime.now().plusDays(1),
+                OffsetDateTime.now().plusDays(1).plusHours(3)
+        );
+        EventCardDto card = new EventCardDto();
+
+        when(eventsRepository.findPublicEventIdsByCityAndDanceStyles(
+                eq(1L),
+                any(OffsetDateTime.class),
+                eq(from),
+                eq(to),
+                eq(styles),
+                eq(pageable)
+        )).thenReturn(new PageImpl<>(List.of(eventId), pageable, 1));
+        when(eventsRepository.findAllWithDetailsByIdIn(List.of(eventId)))
+                .thenReturn(List.of(event));
+        when(eventAttendanceRepository.countByEventIdInAndStatus(
+                List.of(eventId), AttendanceStatus.GOING
+        )).thenReturn(List.of());
+        when(eventsMapper.toEventCardDto(event)).thenReturn(card);
+
+        Page<EventCardDto> result = eventsService.findPublicByCity(
+                1L,
+                from,
+                to,
+                styles,
+                pageable
+        );
+
+        assertEquals(List.of(card), result.getContent());
+        verify(eventsRepository).findPublicEventIdsByCityAndDanceStyles(
+                eq(1L),
+                any(OffsetDateTime.class),
+                eq(from),
+                eq(to),
+                eq(styles),
+                eq(pageable)
+        );
+        verify(eventsRepository, never()).findPublicEventIdsByCity(
+                any(Long.class),
+                any(OffsetDateTime.class),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
     void findPublicByCitySkipsBatchQueriesForEmptyPage() {
         PageRequest pageable = PageRequest.of(0, 20);
         when(eventsRepository.findPublicEventIdsByCity(
-                eq(1L), any(OffsetDateTime.class), eq(pageable)))
+                eq(1L), any(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        var result = eventsService.findPublicByCity(1L, pageable);
+        var result = eventsService.findPublicByCity(
+                1L, null, null, List.of(), pageable);
 
         assertTrue(result.isEmpty());
         verify(eventsRepository, never()).findAllWithDetailsByIdIn(any());

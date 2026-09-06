@@ -77,15 +77,91 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
         WHERE e.city_id = :cityId
           AND e.status = 'PUBLISHED'
           AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
         ORDER BY e.start_at ASC, e.id ASC
-        """, countQuery = """
+        """,
+            countQuery = """
         SELECT COUNT(*) FROM events e
         WHERE e.city_id = :cityId
           AND e.status = 'PUBLISHED'
           AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
-        """, nativeQuery = true)
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+        """,
+            nativeQuery = true)
     Page<UUID> findPublicEventIdsByCity(
             @Param("cityId") Long cityId,
             @Param("now") OffsetDateTime now,
-            Pageable pageable);
+            @Param("fromTime") OffsetDateTime fromTime,
+            @Param("toTime") OffsetDateTime toTime,
+            Pageable pageable
+    );
+
+    @Query(value = """
+        SELECT e.id FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+          AND EXISTS (
+                SELECT 1
+                FROM event_dance_styles eds
+                JOIN dance_styles ds ON ds.id = eds.dance_style_id
+                WHERE eds.event_id = e.id
+                  AND ds.slug IN (:danceStyleSlugs)
+              )
+        ORDER BY e.start_at ASC, e.id ASC
+        """,
+            countQuery = """
+        SELECT COUNT(*) FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+          AND EXISTS (
+                SELECT 1
+                FROM event_dance_styles eds
+                JOIN dance_styles ds ON ds.id = eds.dance_style_id
+                WHERE eds.event_id = e.id
+                  AND ds.slug IN (:danceStyleSlugs)
+              )
+        """,
+            nativeQuery = true)
+    Page<UUID> findPublicEventIdsByCityAndDanceStyles(
+            @Param("cityId") Long cityId,
+            @Param("now") OffsetDateTime now,
+            @Param("fromTime") OffsetDateTime fromTime,
+            @Param("toTime") OffsetDateTime toTime,
+            @Param("danceStyleSlugs") List<String> danceStyleSlugs,
+            Pageable pageable
+    );
+
+
 }

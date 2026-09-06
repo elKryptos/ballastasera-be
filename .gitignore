@@ -47,8 +47,9 @@ Thumbs.db
 skills-lock.json
 opencode.json
 /.opencode/
-/.superpowers/
 AGENTS.md
+/specs
+/ballastasera/src/main/resources/db/seed_population.sql
 
 ### Personal roadmap (Rodrigo) ###
 /ballastasera/BACKEND_DEVELOPMENT_ROADMAP.md

@@ -320,22 +320,40 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public Page<EventCardDto> findPublicByCity(Long cityId, Pageable pageable) {
+    public Page<EventCardDto> findPublicByCity(
+            Long cityId,
+            OffsetDateTime fromTime,
+            OffsetDateTime toTime,
+            List<String> danceStyleSlugs,
+            Pageable pageable
+    ){
         OffsetDateTime now = OffsetDateTime.now();
+        List<String> styles = danceStyleSlugs == null ? List.of() : danceStyleSlugs;
+        Page<UUID> idPage;
 
-        Page<UUID> idPage = eventsRepository.findPublicEventIdsByCity(cityId, now, pageable);
+        if(styles.isEmpty()){
+            idPage = eventsRepository.findPublicEventIdsByCity(cityId, now, fromTime, toTime, pageable);
+
+        }else{
+            idPage = eventsRepository.findPublicEventIdsByCityAndDanceStyles(cityId, now, fromTime, toTime, styles, pageable);
+        }
         List<UUID> ids = idPage.getContent();
-
         if(ids.isEmpty()){
-            return new PageImpl<>(List.of(), pageable, idPage.getTotalElements());
+            return new PageImpl<>(Collections.emptyList(), idPage.getPageable(), idPage.getTotalElements());
         }
 
         Map<UUID, Events> eventsById = eventsRepository
                 .findAllWithDetailsByIdIn(ids)
-                .stream().collect(Collectors.toMap(Events::getId, event -> event));
-
+                .stream()
+                .collect(Collectors.toMap(
+                        Events::getId,
+                        event -> event
+                ));
         Map<UUID, Long> goingCounts = eventAttendanceRepository
-                .countByEventIdInAndStatus(ids, AttendanceStatus.GOING)
+                .countByEventIdInAndStatus(
+                        ids,
+                        AttendanceStatus.GOING
+                )
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (UUID) row[0],
@@ -347,10 +365,15 @@ public class EventsServiceImpl implements EventsService {
                 .filter(Objects::nonNull)
                 .map(event -> {
                     EventCardDto dto = eventsMapper.toEventCardDto(event);
-                    dto.setLiveNow(EventTimingUtils.isLiveNow(event, now));
+
+                    dto.setLiveNow(
+                            EventTimingUtils.isLiveNow(event, now)
+                    );
+
                     dto.setGoingCount(
                             goingCounts.getOrDefault(event.getId(), 0L)
                     );
+
                     return dto;
                 })
                 .toList();

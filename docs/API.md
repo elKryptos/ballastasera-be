@@ -15,8 +15,8 @@ Stack: Spring Boot, PostgreSQL, Spring Security (OAuth2 Google + JWT stateless),
 | Regla | Alcance |
 |---|---|
 | `permitAll` | `/oauth2/**`, `/login/**` |
-| `permitAll` (solo `GET`) | `/api/events`, `/api/events/{id}`, `/api/events/{id}/attendees`, `/api/cities/**`, `/api/organizers/**`, `/api/dance-styles/**` |
-| `authenticated` | todo lo demás (`POST`/`PATCH`/`DELETE` en `/api/**`, y `/auth/me`) |
+| `permitAll` (solo `GET`) | `/rest/events`, `/rest/events/{id}`, `/rest/events/{id}/attendees`, `/rest/cities/**`, `/rest/organizers/**`, `/rest/dance-styles/**` |
+| `authenticated` | todo lo demás (`POST`/`PATCH`/`DELETE` en `/rest/**`, y `/rest/auth/me`) |
 
 Consecuencia: **consultar el mapa y el detalle de un evento nunca requiere login**; publicar, marcar
 asistencia o editar el perfil sí.
@@ -71,7 +71,7 @@ filtrar o pintar en gris en el frontend.
 
 ## 4. Endpoints
 
-### `GET /api/cities` — público
+### `GET /rest/cities` — público
 
 Lista las ciudades activas disponibles para filtros y navegación del catálogo. La respuesta se ordena
 alfabéticamente por `name`.
@@ -94,7 +94,7 @@ alfabéticamente por `name`.
 ]
 ```
 
-### `GET /api/cities/{id}` — público
+### `GET /rest/cities/{id}` — público
 
 Devuelve una ciudad activa por su identificador.
 
@@ -117,6 +117,9 @@ curso también aparecen en la respuesta.
 |---|---|---|---|
 | `page` | `int` | no | Página basada en cero. Default `0`. |
 | `size` | `int` | no | Elementos por página. Default `20`, máximo `100`. |
+| `from` | `OffsetDateTime` | no | Inicio del rango de fechas. |
+| `to` | `OffsetDateTime` | no | Final del rango de fechas. |
+| `danceStyle` | `string` | no | Slugs separados por coma, con lógica OR. |
 
 **Respuesta** — `Page<EventCardDto>`:
 
@@ -129,7 +132,7 @@ inválidos. No requiere autenticación.
 
 ---
 
-### `GET /api/dance-styles` — público
+### `GET /rest/dance-styles` — público
 
 Lista los estilos de baile disponibles para filtros y clasificación de eventos. La respuesta se ordena
 alfabéticamente por `name`.
@@ -146,7 +149,7 @@ alfabéticamente por `name`.
 ]
 ```
 
-### `GET /api/dance-styles/{id}` — público
+### `GET /rest/dance-styles/{id}` — público
 
 Devuelve un estilo de baile por su identificador.
 
@@ -154,7 +157,7 @@ Devuelve un estilo de baile por su identificador.
 
 ---
 
-### `GET /api/events` — público
+### `GET /rest/events` — público
 
 Marcadores del mapa: eventos publicados, en vivo o por empezar, dentro del viewport visible. Nunca
 devuelve eventos pasados (se filtran en la query, no en el frontend).
@@ -201,7 +204,7 @@ de "van" se traen en un solo `GROUP BY` por lote, no una query por evento.
 
 ---
 
-### `GET /api/events/{id}` — público
+### `GET /rest/events/{id}` — público
 
 Detalle completo de un evento.
 
@@ -220,7 +223,7 @@ Las mutaciones requieren un usuario autenticado. El servicio comprueba que el or
 pertenezca al usuario autenticado (`event.organizer.user.id`). Un usuario anónimo recibe `401` y un
 usuario autenticado sin permisos recibe `403`.
 
-### `POST /api/events` — crear evento
+### `POST /rest/events` — crear evento
 
 El `organizerId` del body debe pertenecer al usuario autenticado y el organizer debe estar verificado.
 El evento se guarda inicialmente con estado `PENDING`.
@@ -233,7 +236,7 @@ organizer se rechaza con `403`.
 `400` para datos inválidos, `403` para ownership/verification/asociaciones ajenas y `404` para
 organizer, ciudad, venue o serie inexistentes.
 
-### `PATCH /api/events/{id}` — editar evento propio
+### `PATCH /rest/events/{id}` — editar evento propio
 
 Todos los campos del `EventUpdateDto` son opcionales. Solo el organizer propietario puede editar el
 evento; no se puede cambiar su organizer ni su status desde este endpoint. Las asociaciones `venueId`
@@ -242,21 +245,21 @@ y `seriesId` se vuelven a validar contra el organizer del evento.
 `200 OK` con `EventDetailDto`. `400` para datos o rangos temporales inválidos, `403` si el usuario no
 es propietario o intenta asociar un venue/serie ajeno y `404` si el evento o una asociación no existe.
 
-### `PATCH /api/events/{id}/status` — cambiar estado
+### `PATCH /rest/events/{id}/status` — cambiar estado
 
 Solo el organizer propietario puede cambiar el estado. Los valores válidos son `DRAFT`, `PENDING`,
 `PUBLISHED` y `CANCELLED`; actualmente no hay una matriz adicional de transiciones.
 
 `200 OK` con `EventDetailDto`. El DTO de respuesta actual no expone el campo `status`.
 
-### `DELETE /api/events/{id}` — eliminar evento propio
+### `DELETE /rest/events/{id}` — eliminar evento propio
 
 Solo el organizer propietario puede eliminar el evento. Devuelve `204 No Content`, `403` si el usuario
 no es propietario y `404` si el evento no existe.
 
 ---
 
-### `GET /api/events/{id}/attendees` — público
+### `GET /rest/events/{id}/attendees` — público
 
 Lista paginada de quienes marcaron **GOING** y activaron `show_profile_public`. Es el endpoint que
 alimenta las "caras con Instagram" del popup — separado del detalle a propósito, para no inflar la
@@ -270,7 +273,7 @@ card del mapa ni el detalle con datos de usuarios.
 
 ---
 
-### `POST /api/events/{id}/attendance` — requiere login
+### `POST /rest/events/{id}/attendance` — requiere login
 
 Marca "voy" o "me interesa". Es un **upsert**: si el usuario ya tenía un registro para ese evento, se
 actualiza el `status`; si no, se crea.
@@ -285,14 +288,14 @@ actualiza el `status`; si no, se crea.
 
 ---
 
-### `DELETE /api/events/{id}/attendance` — requiere login
+### `DELETE /rest/events/{id}/attendance` — requiere login
 
 Quita al usuario logueado de la lista de asistentes del evento (deja de ir / ya no le interesa).
 `204 No Content`.
 
 ---
 
-### `POST /api/organizers` — requiere login
+### `POST /rest/organizers` — requiere login
 
 El propio usuario se postula como organizador. Queda `isVerified=false` hasta que un admin lo
 apruebe; solo entonces puede publicar eventos.
@@ -304,7 +307,7 @@ apruebe; solo entonces puede publicar eventos.
 
 ---
 
-### `GET /api/organizers` — público
+### `GET /rest/organizers` — público
 
 Directorio de organizadores. Solo devuelve los **ya verificados** (`isVerified=true`) — los
 pendientes de aprobación no se exponen públicamente.
@@ -315,7 +318,7 @@ pendientes de aprobación no se exponen públicamente.
 
 ---
 
-### `GET /api/organizers/{slug}` — público
+### `GET /rest/organizers/{slug}` — público
 
 Perfil público de un organizador (la página que ve cualquier visitante, no requiere login).
 
@@ -323,7 +326,7 @@ Perfil público de un organizador (la página que ve cualquier visitante, no req
 
 ---
 
-### `GET /api/organizers/me` — requiere login
+### `GET /rest/organizers/me` — requiere login
 
 Devuelve el/los perfil(es) de organizador del usuario logueado (un usuario puede tener más de uno).
 Pensado para el panel/dashboard del propio organizador, no para consulta pública.
@@ -332,13 +335,13 @@ Pensado para el panel/dashboard del propio organizador, no para consulta públic
 
 ---
 
-### `PATCH /api/organizers/{id}` — requiere login (solo el dueño)
+### `PATCH /rest/organizers/{id}` — requiere login (solo el dueño)
 
 El organizador edita su propio perfil (nombre, descripción, logo, contacto, redes). El `slug` no
 cambia aunque cambie el `name`, para no romper links ya compartidos.
 
 **Autorización**: se valida que `organizer.user.id == principal.id`; si no coincide, `403`. No es un
-endpoint de admin — el admin usa `/api/admin/organizers/**` para verificar, no para editar el
+endpoint de admin — el admin usa `/rest/admin/organizers/**` para verificar, no para editar el
 contenido del perfil.
 
 **Body** — `OrganizerUpdateDto` (igual a `OrganizerCreateDto` sin `type`).
@@ -347,7 +350,7 @@ contenido del perfil.
 
 ---
 
-### `GET /api/admin/organizers/pending` — admin
+### `GET /rest/admin/organizers/pending` — admin
 
 Lista paginada de organizadores con `isVerified=false`, para que un admin los revise.
 
@@ -358,7 +361,7 @@ Lista paginada de organizadores con `isVerified=false`, para que un admin los re
 
 ---
 
-### `PATCH /api/admin/organizers/{id}/verify` — admin
+### `PATCH /rest/admin/organizers/{id}/verify` — admin
 
 Aprueba al organizador: `isVerified=true`, sube el rol del usuario dueño, y le manda el email de
 notificación de aprobación.
@@ -367,14 +370,14 @@ notificación de aprobación.
 
 ---
 
-### `GET /auth/me` — requiere login
+### `GET /rest/auth/me` — requiere login
 
 Ya existía. Devuelve `userId`, `email`, `displayName`, `role`, `avatarUrl`, y ahora también
 `instagram` y `showProfilePublic`.
 
 ---
 
-### `PATCH /auth/me` — requiere login
+### `PATCH /rest/auth/me` — requiere login
 
 Actualiza el perfil social del usuario: su handle de Instagram y si quiere aparecer con nombre/foto/IG
 en las listas públicas de asistentes.
@@ -412,7 +415,7 @@ Devuelve el mismo shape que `GET /auth/me` con los valores actualizados.
 
 ## 6. Pendiente (no implementado todavía)
 
-- Restringir `/api/admin/organizers/**` a `ROLE_ADMIN` (hoy cualquier usuario autenticado puede
+- Restringir `/rest/admin/organizers/**` a `ROLE_ADMIN` (hoy cualquier usuario autenticado puede
   llamarlo).
 - Migraciones versionadas (Flyway/Liquibase) — hoy el schema se aplica a mano contra la BD real, sin
   registro de qué `ALTER TABLE` ya corrió en cada entorno.

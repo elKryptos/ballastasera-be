@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.exceptions.InvalidPaginationException;
+import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
 import com.kryptosystems.ballastasera.models.dtos.CityDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
@@ -18,6 +19,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Arrays;
+import java.util.Locale;
+import java.time.OffsetDateTime;
 
 import static com.kryptosystems.ballastasera.utilities.RestConstants.CITIES;
 
@@ -55,7 +59,13 @@ public class CitiesController {
     public ResponseEntity<Page<EventCardDto>> getCityEvents(
             @PathVariable String slug,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(name = "from", required = false)
+            OffsetDateTime fromTime,
+            @RequestParam(name = "to", required = false)
+            OffsetDateTime toTime,
+            @RequestParam(name = "danceStyle", required = false)
+            String danceStyle
     ) {
         if (page < 0 || size < 1 || size > 100) {
             throw new InvalidPaginationException(
@@ -63,9 +73,39 @@ public class CitiesController {
             );
         }
 
+        if (fromTime != null
+                && toTime != null
+                && fromTime.isAfter(toTime)) {
+            throw new InvalidEventTimingException(
+                    "from must be before or equal to to"
+            );
+        }
+
+        List<String> danceStyleSlugs =
+                parseDanceStyleSlugs(danceStyle);
+
         Cities city = citiesService.findActiveBySlug(slug);
         return ResponseEntity.ok(
-                eventsService.findPublicByCity(city.getId(), PageRequest.of(page, size))
+                eventsService.findPublicByCity(
+                        city.getId(),
+                        fromTime,
+                        toTime,
+                        danceStyleSlugs,
+                        PageRequest.of(page, size)
+                )
         );
+    }
+
+    private List<String> parseDanceStyleSlugs(String danceStyle) {
+        if (danceStyle == null || danceStyle.isBlank()) {
+            return List.of();
+        }
+
+        return Arrays.stream(danceStyle.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
     }
 }

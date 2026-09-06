@@ -5,6 +5,7 @@ import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
@@ -65,6 +66,9 @@ class EventsRepositoryTest {
 
     @Autowired
     private EventsRepository eventsRepository;
+
+    @Autowired
+    private DanceStylesRepository danceStylesRepository;
 
     @Autowired
     private EventAttendanceRepository eventAttendanceRepository;
@@ -163,6 +167,8 @@ class EventsRepositoryTest {
         Page<UUID> result = eventsRepository.findPublicEventIdsByCity(
                 city.getId(),
                 now,
+                null,
+                null,
                 PageRequest.of(0, 20)
         );
 
@@ -217,6 +223,8 @@ class EventsRepositoryTest {
         Page<UUID> result = eventsRepository.findPublicEventIdsByCity(
                 city.getId(),
                 now,
+                null,
+                null,
                 PageRequest.of(1, 2)
         );
 
@@ -226,6 +234,66 @@ class EventsRepositoryTest {
         assertEquals(1, result.getNumber());
         assertEquals(2, result.getSize());
         assertEquals(1, result.getNumberOfElements());
+    }
+
+    @Test
+    void publicEventIdsApplyDateOverlapAndDanceStyleFilters() {
+        OffsetDateTime now = OffsetDateTime.now();
+        Cities city = saveCity("repository-events-filters", true);
+        Organizers organizer = saveOrganizer("repository-events-filters-organizer");
+        DanceStyles salsa = saveStyle("Repository Salsa", "repository-salsa");
+        DanceStyles bachata = saveStyle("Repository Bachata", "repository-bachata");
+
+        UUID bothStylesId = UUID.randomUUID();
+        Events bothStyles = event(
+                bothStylesId,
+                city,
+                organizer,
+                "repository-events-both-styles",
+                now.plusHours(2),
+                now.plusHours(4),
+                EventStatus.PUBLISHED
+        );
+        insertEvent(bothStyles);
+        insertStyleLink(bothStylesId, salsa.getId());
+        insertStyleLink(bothStylesId, bachata.getId());
+
+        UUID bachataOnlyId = UUID.randomUUID();
+        Events bachataOnly = event(
+                bachataOnlyId,
+                city,
+                organizer,
+                "repository-events-bachata-only",
+                now.plusHours(3),
+                now.plusHours(5),
+                EventStatus.PUBLISHED
+        );
+        insertEvent(bachataOnly);
+        insertStyleLink(bachataOnlyId, bachata.getId());
+
+        UUID outsideRangeId = UUID.randomUUID();
+        insertEvent(event(
+                outsideRangeId,
+                city,
+                organizer,
+                "repository-events-outside-range",
+                now.plusHours(8),
+                now.plusHours(9),
+                EventStatus.PUBLISHED
+        ));
+        entityManager.flush();
+
+        Page<UUID> result = eventsRepository.findPublicEventIdsByCityAndDanceStyles(
+                city.getId(),
+                now,
+                now.plusHours(3),
+                now.plusHours(6),
+                List.of("repository-salsa", "repository-bachata"),
+                PageRequest.of(0, 20)
+        );
+
+        assertEquals(List.of(bothStylesId, bachataOnlyId), result.getContent());
+        assertEquals(2, result.getTotalElements());
     }
 
     @Test
@@ -317,6 +385,13 @@ class EventsRepositoryTest {
         return organizersRepository.saveAndFlush(organizer);
     }
 
+    private DanceStyles saveStyle(String name, String slug) {
+        DanceStyles style = new DanceStyles();
+        style.setName(name);
+        style.setSlug(slug);
+        return danceStylesRepository.saveAndFlush(style);
+    }
+
     private Events event(
             UUID id,
             Cities city,
@@ -363,6 +438,16 @@ class EventsRepositoryTest {
                 .setParameter("latitude", event.getLatitude())
                 .setParameter("longitude", event.getLongitude())
                 .setParameter("status", event.getStatus().name())
+                .executeUpdate();
+    }
+
+    private void insertStyleLink(UUID eventId, Long danceStyleId) {
+        entityManager.createNativeQuery("""
+                INSERT INTO event_dance_styles (event_id, dance_style_id)
+                VALUES (:eventId, :danceStyleId)
+                """)
+                .setParameter("eventId", eventId)
+                .setParameter("danceStyleId", danceStyleId)
                 .executeUpdate();
     }
 }

@@ -31,6 +31,23 @@ GET http://localhost:8081/rest/events?minLat=45.40&maxLat=45.53&minLng=9.10&maxL
 (`liveNow: false`). **`dddd` y `eeee` NO deben aparecer** — si aparecen, algo está mal en el
 filtro de la query (`status`/fecha).
 
+### `GET /rest/cities/{slug}/events`
+
+Lista los eventos públicos de una ciudad con paginación y filtros opcionales.
+
+```
+GET http://localhost:8081/rest/cities/milano/events?page=0&size=20
+```
+
+Para filtrar por rango y estilos:
+
+```
+GET http://localhost:8081/rest/cities/milano/events?from=2026-09-01T00:00:00Z&to=2026-09-30T23:59:59Z&danceStyle=salsa,bachata
+```
+
+`danceStyle` usa lógica OR. Un evento con salsa o bachata puede aparecer una sola vez.
+Los eventos `PENDING`, cancelados y ya terminados no deben aparecer.
+
 ### `GET /rest/events/{id}`
 
 ```

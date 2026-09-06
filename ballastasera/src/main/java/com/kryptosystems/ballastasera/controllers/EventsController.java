@@ -176,5 +176,4 @@ public class EventsController {
         var event = eventsService.deleteFlyer(id, principal.getId());
         return ResponseEntity.ok(eventsService.toEventDetailDto(event));
     }
-
 }
