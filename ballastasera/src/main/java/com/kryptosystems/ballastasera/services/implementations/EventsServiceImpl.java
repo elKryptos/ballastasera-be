@@ -75,12 +75,6 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public List<Events> findUpcomingPublishedByCity(Long cityId) {
-        return eventsRepository.findByCityIdAndStatusAndStartAtGreaterThanEqualOrderByStartAtAsc(
-                cityId, EventStatus.PUBLISHED, OffsetDateTime.now());
-    }
-
-    @Override
     public Events save(Events event) {
         return eventsRepository.save(event);
     }

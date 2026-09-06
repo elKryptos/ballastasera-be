@@ -29,6 +29,7 @@ CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASS
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE attendance_status AS ENUM ('INTERESTED', 'GOING');
 CREATE TYPE flyer_status AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
+CREATE TYPE event_type AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
 
 
 -- ============================================================================

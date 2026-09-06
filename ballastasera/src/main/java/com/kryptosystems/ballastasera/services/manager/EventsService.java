@@ -21,7 +21,6 @@ public interface EventsService {
     List<Events> findByOrganizerId(UUID organizerId);
     List<Events> findByVenueId(UUID venueId);
     List<Events> findBySeriesId(UUID seriesId);
-    List<Events> findUpcomingPublishedByCity(Long cityId);
     Events save(Events event);
     void deleteById(UUID id);
 

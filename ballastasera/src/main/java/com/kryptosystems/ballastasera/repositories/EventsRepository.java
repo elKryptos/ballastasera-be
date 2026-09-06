@@ -18,8 +18,6 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     List<Events> findByOrganizerId(UUID organizerId);
     List<Events> findByVenueId(UUID venueId);
     List<Events> findBySeriesId(UUID seriesId);
-    List<Events> findByCityIdAndStatusAndStartAtGreaterThanEqualOrderByStartAtAsc(
-            Long cityId, EventStatus status, OffsetDateTime from);
     boolean existsByVenueIdAndStatusNot(UUID venueId, EventStatus status);
 
     /**
