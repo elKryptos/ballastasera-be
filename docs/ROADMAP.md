@@ -91,11 +91,13 @@ Sin tests automatizados todavía.
 ### City event list (`/rest/cities/{slug}/events`)
 - [x] GET `/rest/cities/{slug}/events` — lista pública paginada por ciudad
 - [x] Filtros opcionales `from`, `to` y `danceStyle`
-- [x] Solapamiento de fechas y estilos con lógica OR
-- [x] Tests de controller, service y repository
+- [x] Solapamiento semiabierto de fechas y estilos con lógica OR sin duplicados
+- [x] Normalización de estilos CSV y validación de paginación
+- [x] Tests de controller, service y repository para bordes temporales, estilos inexistentes y metadatos de página
 
-Pruebas automatizadas: `CitiesControllerTest`, `CitiesServiceImplTest`, `DanceStylesControllerTest`,
-`DanceStylesServiceImplTest`, `SecurityConfigTest` y `CitiesRepositoryTest`. La suite Maven completa pasa con 43 tests.
+Pruebas automatizadas relevantes: `CitiesControllerTest`, `EventsServiceImplTest` y
+`EventsRepositoryTest`. La suite debe finalizar sin failures ni errores; no se fija un número
+total de tests porque la matriz puede crecer.
 
 ---
 

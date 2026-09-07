@@ -155,6 +155,85 @@ class CitiesControllerTest {
     }
 
     @Test
+    void getCityEventsRemovesEmptyTokensAndNormalizesDuplicateStyles() throws Exception {
+        Cities city = city(7L, "roma");
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(citiesService.findActiveBySlug("roma")).thenReturn(city);
+        when(eventsService.findPublicByCity(
+                7L,
+                null,
+                null,
+                List.of("salsa", "bachata"),
+                pageable
+        )).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        mockMvc.perform(get("/rest/cities/roma/events")
+                        .param("danceStyle", " salsa, ,BACHATA,, salsa "))
+                .andExpect(status().isOk());
+
+        verify(eventsService).findPublicByCity(
+                7L,
+                null,
+                null,
+                List.of("salsa", "bachata"),
+                pageable
+        );
+    }
+
+    @Test
+    void getCityEventsPassesFromOnlyFilterToService() throws Exception {
+        Cities city = city(7L, "roma");
+        OffsetDateTime from = OffsetDateTime.parse("2026-09-01T00:00:00Z");
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(citiesService.findActiveBySlug("roma")).thenReturn(city);
+        when(eventsService.findPublicByCity(7L, from, null, List.of(), pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        mockMvc.perform(get("/rest/cities/roma/events")
+                        .param("from", "2026-09-01T00:00:00Z"))
+                .andExpect(status().isOk());
+
+        verify(eventsService).findPublicByCity(7L, from, null, List.of(), pageable);
+    }
+
+    @Test
+    void getCityEventsPassesToOnlyFilterToService() throws Exception {
+        Cities city = city(7L, "roma");
+        OffsetDateTime to = OffsetDateTime.parse("2026-09-30T23:59:59Z");
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(citiesService.findActiveBySlug("roma")).thenReturn(city);
+        when(eventsService.findPublicByCity(7L, null, to, List.of(), pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        mockMvc.perform(get("/rest/cities/roma/events")
+                        .param("to", "2026-09-30T23:59:59Z"))
+                .andExpect(status().isOk());
+
+        verify(eventsService).findPublicByCity(7L, null, to, List.of(), pageable);
+    }
+
+    @Test
+    void getCityEventsAcceptsEqualDateBounds() throws Exception {
+        Cities city = city(7L, "roma");
+        OffsetDateTime boundary = OffsetDateTime.parse("2026-09-15T12:00:00Z");
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(citiesService.findActiveBySlug("roma")).thenReturn(city);
+        when(eventsService.findPublicByCity(7L, boundary, boundary, List.of(), pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        mockMvc.perform(get("/rest/cities/roma/events")
+                        .param("from", "2026-09-15T12:00:00Z")
+                        .param("to", "2026-09-15T12:00:00Z"))
+                .andExpect(status().isOk());
+
+        verify(eventsService).findPublicByCity(7L, boundary, boundary, List.of(), pageable);
+    }
+
+    @Test
     void getCityEventsRejectsInvertedDateRange() throws Exception {
         mockMvc.perform(get("/rest/cities/milano/events")
                         .param("from", "2026-09-30T00:00:00Z")

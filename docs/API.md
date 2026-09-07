@@ -115,20 +115,22 @@ curso también aparecen en la respuesta.
 
 | Param | Tipo | Requerido | Descripción |
 |---|---|---|---|
-| `page` | `int` | no | Página basada en cero. Default `0`. |
-| `size` | `int` | no | Elementos por página. Default `20`, máximo `100`. |
-| `from` | `OffsetDateTime` | no | Inicio del rango de fechas. |
-| `to` | `OffsetDateTime` | no | Final del rango de fechas. |
-| `danceStyle` | `string` | no | Slugs separados por coma, con lógica OR. |
+| `page` | `int` | no | Página basada en cero. Default `0`. Debe ser `>= 0`. |
+| `size` | `int` | no | Elementos por página. Default `20`. Debe estar entre `1` y `100`. |
+| `from` | `OffsetDateTime` | no | Inicio del rango. Incluye eventos cuyo fin efectivo sea estrictamente posterior. |
+| `to` | `OffsetDateTime` | no | Final del rango. Incluye eventos cuyo inicio sea menor o igual. |
+| `danceStyle` | `string` | no | Slugs CSV. Se recortan espacios, se ignoran valores vacíos, se pasan a minúsculas y se eliminan duplicados. |
 
 **Respuesta** — `Page<EventCardDto>`:
 
 La respuesta contiene `content` con tarjetas de eventos y metadata de
 paginación (`number`, `size`, `numberOfElements`, `totalElements`, `totalPages`,
-`empty`). Una ciudad activa sin eventos devuelve `200` con `content: []`.
+`empty`). Una ciudad activa sin eventos o sin coincidencias de estilo devuelve
+`200` con `content: []`. El filtro de estilos usa lógica OR sin duplicar un
+evento asociado a varios estilos.
 
 `404` si la ciudad no existe o está inactiva. `400` si `page` o `size` son
-inválidos. No requiere autenticación.
+inválidos, o si `from` es posterior a `to`. No requiere autenticación.
 
 ---
 

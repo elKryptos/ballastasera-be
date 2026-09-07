@@ -575,7 +575,7 @@ class EventsServiceImplTest {
         OffsetDateTime from = OffsetDateTime.parse("2026-09-01T00:00:00Z");
         OffsetDateTime to = OffsetDateTime.parse("2026-09-30T23:59:59Z");
         List<String> styles = List.of("salsa", "bachata");
-        PageRequest pageable = PageRequest.of(0, 20);
+        PageRequest pageable = PageRequest.of(1, 2);
         UUID eventId = UUID.fromString("20000000-0000-0000-0000-000000000006");
         Events event = eventWithId(
                 eventId,
@@ -591,7 +591,7 @@ class EventsServiceImplTest {
                 eq(to),
                 eq(styles),
                 eq(pageable)
-        )).thenReturn(new PageImpl<>(List.of(eventId), pageable, 1));
+        )).thenReturn(new PageImpl<>(List.of(eventId), pageable, 5));
         when(eventsRepository.findAllWithDetailsByIdIn(List.of(eventId)))
                 .thenReturn(List.of(event));
         when(eventAttendanceRepository.countByEventIdInAndStatus(
@@ -608,6 +608,10 @@ class EventsServiceImplTest {
         );
 
         assertEquals(List.of(card), result.getContent());
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getSize());
+        assertEquals(5, result.getTotalElements());
+        assertEquals(3, result.getTotalPages());
         verify(eventsRepository).findPublicEventIdsByCityAndDanceStyles(
                 eq(1L),
                 any(OffsetDateTime.class),
@@ -619,6 +623,63 @@ class EventsServiceImplTest {
         verify(eventsRepository, never()).findPublicEventIdsByCity(
                 any(Long.class),
                 any(OffsetDateTime.class),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void findPublicByCityReturnsEmptyPageForUnknownDanceStyle() {
+        PageRequest pageable = PageRequest.of(1, 2);
+        when(eventsRepository.findPublicEventIdsByCityAndDanceStyles(
+                eq(1L),
+                any(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                eq(List.of("stile-inesistente")),
+                eq(pageable)
+        )).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        Page<EventCardDto> result = eventsService.findPublicByCity(
+                1L, null, null, List.of("stile-inesistente"), pageable);
+
+        assertTrue(result.isEmpty());
+        assertEquals(1, result.getNumber());
+        assertEquals(2, result.getSize());
+        assertEquals(0, result.getTotalElements());
+        verify(eventsRepository, never()).findAllWithDetailsByIdIn(any());
+        verify(eventAttendanceRepository, never())
+                .countByEventIdInAndStatus(any(), any(AttendanceStatus.class));
+        verify(eventsMapper, never()).toEventCardDto(any(Events.class));
+    }
+
+    @Test
+    void findPublicByCityUsesDefaultQueryWhenDanceStylesAreNull() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(eventsRepository.findPublicEventIdsByCity(
+                eq(1L),
+                any(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                eq(pageable)
+        )).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        Page<EventCardDto> result = eventsService.findPublicByCity(
+                1L, null, null, null, pageable);
+
+        assertTrue(result.isEmpty());
+        verify(eventsRepository).findPublicEventIdsByCity(
+                eq(1L),
+                any(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                isNull(OffsetDateTime.class),
+                eq(pageable)
+        );
+        verify(eventsRepository, never()).findPublicEventIdsByCityAndDanceStyles(
+                any(Long.class),
+                any(OffsetDateTime.class),
+                any(),
                 any(),
                 any(),
                 any()

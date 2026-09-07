@@ -297,6 +297,82 @@ class EventsRepositoryTest {
     }
 
     @Test
+    void publicEventIdsApplySingleDateFiltersAndEffectiveEndBoundaries() {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime from = now.plusHours(3);
+        OffsetDateTime to = now.plusHours(6);
+        Cities city = saveCity("repository-events-date-boundaries", true);
+        Organizers organizer = saveOrganizer("repository-events-date-boundaries-organizer");
+
+        UUID endsAtFromId = UUID.randomUUID();
+        UUID overlapsFromId = UUID.randomUUID();
+        UUID noEndId = UUID.randomUUID();
+        UUID startsAtToId = UUID.randomUUID();
+        UUID afterToId = UUID.randomUUID();
+
+        insertEvent(event(
+                endsAtFromId, city, organizer, "repository-events-ends-at-from",
+                now.plusMinutes(30), from, EventStatus.PUBLISHED));
+        insertEvent(event(
+                overlapsFromId, city, organizer, "repository-events-overlaps-from",
+                now.plusHours(1), now.plusHours(4), EventStatus.PUBLISHED));
+        insertEvent(event(
+                noEndId, city, organizer, "repository-events-no-end-filter",
+                now.plusHours(2), null, EventStatus.PUBLISHED));
+        insertEvent(event(
+                startsAtToId, city, organizer, "repository-events-starts-at-to",
+                to, now.plusHours(7), EventStatus.PUBLISHED));
+        insertEvent(event(
+                afterToId, city, organizer, "repository-events-after-to",
+                now.plusHours(7), now.plusHours(8), EventStatus.PUBLISHED));
+        entityManager.flush();
+
+        PageRequest pageable = PageRequest.of(0, 20);
+        Page<UUID> fromOnly = eventsRepository.findPublicEventIdsByCity(
+                city.getId(), now, from, null, pageable);
+        Page<UUID> toOnly = eventsRepository.findPublicEventIdsByCity(
+                city.getId(), now, null, to, pageable);
+        Page<UUID> dateRangeWithoutStyle = eventsRepository.findPublicEventIdsByCity(
+                city.getId(), now, from, to, pageable);
+
+        assertEquals(
+                List.of(overlapsFromId, noEndId, startsAtToId, afterToId),
+                fromOnly.getContent()
+        );
+        assertEquals(
+                List.of(endsAtFromId, overlapsFromId, noEndId, startsAtToId),
+                toOnly.getContent()
+        );
+        assertEquals(
+                List.of(overlapsFromId, noEndId, startsAtToId),
+                dateRangeWithoutStyle.getContent()
+        );
+    }
+
+    @Test
+    void publicEventIdsReturnEmptyPageForUnknownDanceStyle() {
+        OffsetDateTime now = OffsetDateTime.now();
+        Cities city = saveCity("repository-events-unknown-style", true);
+        Organizers organizer = saveOrganizer("repository-events-unknown-style-organizer");
+        insertEvent(event(
+                UUID.randomUUID(), city, organizer, "repository-events-known-event",
+                now.plusHours(1), now.plusHours(2), EventStatus.PUBLISHED));
+        entityManager.flush();
+
+        Page<UUID> result = eventsRepository.findPublicEventIdsByCityAndDanceStyles(
+                city.getId(),
+                now,
+                null,
+                null,
+                List.of("style-does-not-exist"),
+                PageRequest.of(0, 20)
+        );
+
+        assertTrue(result.isEmpty());
+        assertEquals(0, result.getTotalElements());
+    }
+
+    @Test
     void goingCountsGroupByEventAndIgnoreInterestedAttendance() {
         OffsetDateTime now = OffsetDateTime.now();
         Cities city = saveCity("repository-events-counts", true);

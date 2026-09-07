@@ -46,7 +46,24 @@ GET http://localhost:8081/rest/cities/milano/events?from=2026-09-01T00:00:00Z&to
 ```
 
 `danceStyle` usa lógica OR. Un evento con salsa o bachata puede aparecer una sola vez.
-Los eventos `PENDING`, cancelados y ya terminados no deben aparecer.
+Los valores se normalizan antes de consultar: `danceStyle=Salsa, ,bachata,salsa`
+equivale a `salsa,bachata`. Los eventos `PENDING`, cancelados y ya terminados no deben
+aparecer. Si `end_at` es nulo, el evento se considera activo durante cuatro horas desde
+`start_at`.
+
+Los límites del intervalo son semiabiertos: un evento cuyo fin efectivo coincide con
+`from` queda fuera, mientras que un evento cuyo inicio coincide con `to` queda dentro.
+
+Casos de error:
+
+```
+GET http://localhost:8081/rest/cities/milano/events?page=-1
+GET http://localhost:8081/rest/cities/milano/events?size=101
+GET http://localhost:8081/rest/cities/milano/events?from=2026-09-30T00:00:00Z&to=2026-09-01T00:00:00Z
+```
+
+Las tres solicitudes deben devolver `400`. Una ciudad inexistente o inactiva, por ejemplo
+`/rest/cities/hidden/events`, debe devolver `404`.
 
 ### `GET /rest/events/{id}`
 
