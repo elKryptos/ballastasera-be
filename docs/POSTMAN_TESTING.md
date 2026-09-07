@@ -31,6 +31,40 @@ GET http://localhost:8081/rest/events?minLat=45.40&maxLat=45.53&minLng=9.10&maxL
 (`liveNow: false`). **`dddd` y `eeee` NO deben aparecer** — si aparecen, algo está mal en el
 filtro de la query (`status`/fecha).
 
+### `GET /rest/cities/{slug}/events`
+
+Lista los eventos públicos de una ciudad con paginación y filtros opcionales.
+
+```
+GET http://localhost:8081/rest/cities/milano/events?page=0&size=20
+```
+
+Para filtrar por rango y estilos:
+
+```
+GET http://localhost:8081/rest/cities/milano/events?from=2026-09-01T00:00:00Z&to=2026-09-30T23:59:59Z&danceStyle=salsa,bachata
+```
+
+`danceStyle` usa lógica OR. Un evento con salsa o bachata puede aparecer una sola vez.
+Los valores se normalizan antes de consultar: `danceStyle=Salsa, ,bachata,salsa`
+equivale a `salsa,bachata`. Los eventos `PENDING`, cancelados y ya terminados no deben
+aparecer. Si `end_at` es nulo, el evento se considera activo durante cuatro horas desde
+`start_at`.
+
+Los límites del intervalo son semiabiertos: un evento cuyo fin efectivo coincide con
+`from` queda fuera, mientras que un evento cuyo inicio coincide con `to` queda dentro.
+
+Casos de error:
+
+```
+GET http://localhost:8081/rest/cities/milano/events?page=-1
+GET http://localhost:8081/rest/cities/milano/events?size=101
+GET http://localhost:8081/rest/cities/milano/events?from=2026-09-30T00:00:00Z&to=2026-09-01T00:00:00Z
+```
+
+Las tres solicitudes deben devolver `400`. Una ciudad inexistente o inactiva, por ejemplo
+`/rest/cities/hidden/events`, debe devolver `404`.
+
 ### `GET /rest/events/{id}`
 
 ```

@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
@@ -72,6 +73,30 @@ class CitiesServiceImplTest {
         assertThrows(
                 EntityNotFoundException.class,
                 () -> citiesService.findActiveById(1L)
+        );
+    }
+
+    @Test
+    void findActiveBySlugReturnsActiveCity() {
+        Cities city = new Cities();
+        city.setId(1L);
+        city.setSlug("milano");
+        city.setActive(true);
+
+        when(citiesRepository.findBySlugAndIsActiveTrue("milano"))
+                .thenReturn(Optional.of(city));
+
+        assertSame(city, citiesService.findActiveBySlug("milano"));
+    }
+
+    @Test
+    void findActiveBySlugDoesNotReturnUnavailableCity() {
+        when(citiesRepository.findBySlugAndIsActiveTrue("hidden"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                EntityNotFoundException.class,
+                () -> citiesService.findActiveBySlug("hidden")
         );
     }
 }

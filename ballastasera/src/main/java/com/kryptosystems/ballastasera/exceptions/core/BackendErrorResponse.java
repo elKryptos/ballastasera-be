@@ -92,6 +92,21 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
     }
 
+    @ExceptionHandler(InvalidPaginationException.class)
+    public ResponseEntity<ErrorDetails> handleInvalidPagination(
+            InvalidPaginationException ex,
+            HttpServletRequest request
+    ) {
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Pagination parameters are invalid",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDetails> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception", ex);

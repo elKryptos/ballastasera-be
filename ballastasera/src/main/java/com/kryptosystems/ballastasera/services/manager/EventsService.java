@@ -6,7 +6,10 @@ import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
+import java.time.OffsetDateTime;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,7 +21,6 @@ public interface EventsService {
     List<Events> findByOrganizerId(UUID organizerId);
     List<Events> findByVenueId(UUID venueId);
     List<Events> findBySeriesId(UUID seriesId);
-    List<Events> findUpcomingPublishedByCity(Long cityId);
     Events save(Events event);
     void deleteById(UUID id);
 
@@ -63,4 +65,14 @@ public interface EventsService {
     Events removeVenue(UUID eventId, UUID requesterId);
 
     List<Events> findPublishedByOrganizerId(UUID organizerId);
+
+    Page<EventCardDto> findPublicByCity(
+            Long cityId,
+            OffsetDateTime fromTime,
+            OffsetDateTime toTime,
+            List<String> danceStyleSlugs,
+            Pageable pageable
+    );
+
+
 }

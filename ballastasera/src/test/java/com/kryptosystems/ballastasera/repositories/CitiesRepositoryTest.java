@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
@@ -45,6 +46,22 @@ class CitiesRepositoryTest {
         assertTrue(activeIds.contains(zeta.getId()));
         assertTrue(activeIds.indexOf(alpha.getId()) < activeIds.indexOf(zeta.getId()));
         assertFalse(activeIds.contains(hidden.getId()));
+    }
+
+    @Test
+    void findBySlugAndIsActiveTrueExcludesInactiveCity() {
+        Cities active = citiesRepository.saveAndFlush(city(
+                "Active Slug City", "repository-test-active-slug", true));
+        Cities inactive = citiesRepository.saveAndFlush(city(
+                "Inactive Slug City", "repository-test-inactive-slug", false));
+
+        assertEquals(active.getId(), citiesRepository
+                .findBySlugAndIsActiveTrue(active.getSlug())
+                .orElseThrow()
+                .getId());
+        assertTrue(citiesRepository
+                .findBySlugAndIsActiveTrue(inactive.getSlug())
+                .isEmpty());
     }
 
     private Cities city(String name, String slug, boolean active) {

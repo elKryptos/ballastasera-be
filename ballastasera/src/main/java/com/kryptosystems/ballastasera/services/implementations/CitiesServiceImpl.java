@@ -56,5 +56,12 @@ public class CitiesServiceImpl implements CitiesService {
         city.setActive(false);
     }
 
+    @Override
+    public Cities findActiveBySlug(String slug){
+        return citiesRepository.findBySlugAndIsActiveTrue(slug)
+                .orElseThrow(() -> new EntityNotFoundException("City not found with slug " + slug));
+    }
+
+
 
 }

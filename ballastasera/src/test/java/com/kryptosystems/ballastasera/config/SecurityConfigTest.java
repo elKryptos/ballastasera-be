@@ -165,6 +165,12 @@ class SecurityConfigTest {
     }
 
     @Test
+    void cityEventsRemainPublic() throws Exception {
+        mockMvc.perform(get("/rest/cities/milano/events"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void danceStylesRemainPublic() throws Exception {
         mockMvc.perform(get("/rest/dance-styles"))
                 .andExpect(status().isOk());
@@ -251,6 +257,11 @@ class SecurityConfigTest {
 
         @GetMapping("/rest/cities/{id}")
         String getCity(@PathVariable Long id) {
+            return "ok";
+        }
+
+        @GetMapping("/rest/cities/{slug}/events")
+        String getCityEvents(@PathVariable String slug) {
             return "ok";
         }
 

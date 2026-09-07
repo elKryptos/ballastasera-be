@@ -16,34 +16,34 @@ Convención de estado por bloque:
 
 El CRUD de Events, Venues y Event Series ya está disponible.
 
-### Events (`/api/events`, auth + ownership organizer)
-- [x] POST `/api/events` — crear evento (DTO `EventCreateDto`)
-- [x] PATCH `/api/events/{id}` — editar evento propio
-- [x] DELETE `/api/events/{id}` — borrar/cancelar evento propio
-- [x] PATCH `/api/events/{id}/status` — publicar / despublicar / cancelar (`EventStatus`)
+### Events (`/rest/events`, auth + ownership organizer)
+- [x] POST `/rest/events` — crear evento (DTO `EventCreateDto`)
+- [x] PATCH `/rest/events/{id}` — editar evento propio
+- [x] DELETE `/rest/events/{id}` — borrar/cancelar evento propio
+- [x] PATCH `/rest/events/{id}/status` — publicar / despublicar / cancelar (`EventStatus`)
 - [x] Validar ownership: `event.organizer.user.id == principal.getId()`
 
 Pruebas automatizadas: `EventsServiceImplTest` (14), `EventsControllerTest` (8) y
 `SecurityConfigTest` (11). La suite Maven completa pasa con 43 tests.
 
-### Venues (`/api/venues`)
-- [x] GET `/api/venues` — listado público / autocomplete (`cityId` + `search` opcional)
-- [x] GET `/api/venues/{id}` — detalle público (`VenueDetailDto`)
-- [x] POST `/api/venues` — crea venue publico reutilizable para no repetir direción
-- [x] PATCH `/api/venues/{id}` — editar venue propio (dueño = organizer que lo creó)
-- [x] DELETE `/api/admin/venues/{id}` — solo ADMIN (no el organizer creador); bloquea si el
+### Venues (`/rest/venues`)
+- [x] GET `/rest/venues` — listado público / autocomplete (`cityId` + `search` opcional)
+- [x] GET `/rest/venues/{id}` — detalle público (`VenueDetailDto`)
+- [x] POST `/rest/venues` — crea venue publico reutilizable para no repetir direción
+- [x] PATCH `/rest/venues/{id}` — editar venue propio (dueño = organizer que lo creó)
+- [x] DELETE `/rest/admin/venues/{id}` — solo ADMIN (no el organizer creador); bloquea si el
       venue tiene eventos activos (cualquier status distinto de `CANCELLED`)
 
 Decisión: el venue es un recurso reusable entre organizadores (varios eventos de distintos
 organizers pueden apuntar al mismo venue), así que el creador **no** puede borrarlo
-unilateralmente — se movió a `AdminController` bajo `/api/admin/venues/{id}`, protegido por
+unilateralmente — se movió a `AdminController` bajo `/rest/admin/venues/{id}`, protegido por
 `hasRole("ADMIN")` en `SecurityConfig`. El PATCH sí sigue siendo del dueño original.
 
 Sin tests automatizados todavía — falta `VenuesServiceImplTest` y `VenuesControllerTest`
 (la suite Maven sigue en 43 tests, ninguno cubre Venues). Pendiente antes de dar el bloque
 por cerrado del todo.
 
-### Event Series (`/api/event-series`)
+### Event Series (`/rest/event-series`)
 - [x] Schema `event_series` actualizado (venue, city, address/lat/lng, is_free/price/currency,
       flyer/instagram/whatsapp, start_time/end_time) + tabla puente `event_series_dance_styles`
 - [x] Entity `EventSeries` mapeada al schema nuevo
@@ -51,12 +51,12 @@ por cerrado del todo.
       `EventSeriesSummaryDto`) + `EventSeriesMapper`
 - [x] `EventSeriesRepository` + `EventSeriesService`/`Impl` (create/update/delete con ownership
       y geocoding, vía `EventResolverService` compartido con Events)
-- [x] POST `/api/event-series` — crear serie recurrente (rrule)
-- [x] PATCH `/api/event-series/{id}` — editar serie propia
-- [x] DELETE `/api/event-series/{id}` — borrar serie propia
-- [x] DELETE `/api/event-series/{id}/venue` — desvincular venue de la serie
-- [x] GET `/api/event-series/{id}` — detalle público
-- [x] GET `/api/organizers/{id}/event-series` — listado público por organizador
+- [x] POST `/rest/event-series` — crear serie recurrente (rrule)
+- [x] PATCH `/rest/event-series/{id}` — editar serie propia
+- [x] DELETE `/rest/event-series/{id}` — borrar serie propia
+- [x] DELETE `/rest/event-series/{id}/venue` — desvincular venue de la serie
+- [x] GET `/rest/event-series/{id}` — detalle público
+- [x] GET `/rest/organizers/{id}/event-series` — listado público por organizador
 - [ ] Definir cómo se generan las instancias de `Events` a partir de la rrule. Dos opciones
       evaluadas, sin decidir todavía:
       - **A (recomendada)**: generar N ocurrencias al crear la serie (ej. próximas 8 semanas) +
@@ -83,13 +83,21 @@ Sin tests automatizados todavía.
 
 ## Bloque 2 — Catálogos públicos
 
-- [x] GET `/api/cities` — listado (para poblar filtros/mapa)
-- [x] GET `/api/cities/{id}`
-- [x] GET `/api/dance-styles` — listado
-- [x] GET `/api/dance-styles/{id}`
+- [x] GET `/rest/cities` — listado (para poblar filtros/mapa)
+- [x] GET `/rest/cities/{id}`
+- [x] GET `/rest/dance-styles` — listado
+- [x] GET `/rest/dance-styles/{id}`
 
-Pruebas automatizadas: `CitiesControllerTest`, `CitiesServiceImplTest`, `DanceStylesControllerTest`,
-`DanceStylesServiceImplTest`, `SecurityConfigTest` y `CitiesRepositoryTest`. La suite Maven completa pasa con 43 tests.
+### City event list (`/rest/cities/{slug}/events`)
+- [x] GET `/rest/cities/{slug}/events` — lista pública paginada por ciudad
+- [x] Filtros opcionales `from`, `to` y `danceStyle`
+- [x] Solapamiento semiabierto de fechas y estilos con lógica OR sin duplicados
+- [x] Normalización de estilos CSV y validación de paginación
+- [x] Tests de controller, service y repository para bordes temporales, estilos inexistentes y metadatos de página
+
+Pruebas automatizadas relevantes: `CitiesControllerTest`, `EventsServiceImplTest` y
+`EventsRepositoryTest`. La suite debe finalizar sin failures ni errores; no se fija un número
+total de tests porque la matriz puede crecer.
 
 ---
 
@@ -100,11 +108,11 @@ organizador para enterarse de sus próximos eventos.
 
 - [ ] Entidad `Follow` (composite key userId+organizerId, como `Favorites`)
 - [ ] Migración SQL tabla `follows`
-- [ ] POST `/api/organizers/{id}/follow`
-- [ ] DELETE `/api/organizers/{id}/follow`
-- [ ] GET `/api/organizers/{id}/follow` — check si el user actual sigue
-- [ ] GET `/api/users/me/following` — organizadores que sigo
-- [ ] GET `/api/organizers/{id}/followers/count` — contador público (sin exponer lista, mismo criterio que attendees)
+- [ ] POST `/rest/organizers/{id}/follow`
+- [ ] DELETE `/rest/organizers/{id}/follow`
+- [ ] GET `/rest/organizers/{id}/follow` — check si el user actual sigue
+- [ ] GET `/rest/users/me/following` — organizadores que sigo
+- [ ] GET `/rest/organizers/{id}/followers/count` — contador público (sin exponer lista, mismo criterio que attendees)
 
 ---
 
@@ -113,7 +121,7 @@ organizador para enterarse de sus próximos eventos.
 `flyerUrl`, `logoUrl`, `avatarUrl` son hoy strings sueltos; no hay endpoint de subida.
 
 - [ ] Elegir storage (S3 / Cloudinary / similar) — decisión de infra, no de código
-- [ ] POST `/api/media/upload` (o por recurso: `/api/events/{id}/flyer`) — devuelve URL
+- [ ] POST `/rest/media/upload` (o por recurso: `/rest/events/{id}/flyer`) — devuelve URL
 - [ ] Validación de tipo/tamaño de archivo
 - [ ] Borrado de media huérfana al reemplazar/eliminar el recurso
 
@@ -126,15 +134,15 @@ Depende de Bloque 3 (Follow) para tener sentido completo.
 - [ ] Entidad `Notification` (userId, tipo, payload, leída/no leída, timestamp)
 - [ ] Trigger: organizador publica evento → notificar a followers
 - [ ] Trigger: evento marcado INTERESTED es "mañana" → recordatorio
-- [ ] GET `/api/users/me/notifications` (paginado)
-- [ ] PATCH `/api/users/me/notifications/{id}/read`
+- [ ] GET `/rest/users/me/notifications` (paginado)
+- [ ] PATCH `/rest/users/me/notifications/{id}/read`
 - [ ] Push (FCM/APNs) — solo si hay app móvil, evaluar después
 
 ---
 
 ## Bloque 6 — Nice to have (después de lo anterior)
 
-- [ ] Búsqueda full-text: GET `/api/events/search?q=&cityId=&danceStyleId=`
+- [ ] Búsqueda full-text: GET `/rest/events/search?q=&cityId=&danceStyleId=`
 - [ ] Reviews/ratings de organizador o venue
 - [ ] Comentarios en evento
 - [ ] Reporte de contenido (evento falso/ofensivo)
@@ -146,8 +154,8 @@ Depende de Bloque 3 (Follow) para tener sentido completo.
 
 - ¿Un organizador puede tener varios venues/series, o 1:1? (ya hay M:N en el modelo, confirmar UX)
 - ¿Quién puede editar un evento de un `EventSeries`: solo la instancia o toda la serie de una vez?
-  Propuesta: edición individual vía `PATCH /api/events/{id}` (ya soportado); editar la serie
-  (`PATCH /api/event-series/{id}`) solo afecta ocurrencias futuras aún no generadas, nunca
+Propuesta: edición individual vía `PATCH /rest/events/{id}` (ya soportado); editar la serie
+   (`PATCH /rest/event-series/{id}`) solo afecta ocurrencias futuras aún no generadas, nunca
   retroactivo (mismo criterio que Google Calendar/similares — evita re-sincronizar en cascada).
 - ¿Las ocurrencias de `Events` generadas desde una serie nacen en `PENDING` (requieren aprobación
   una por una, tedioso para algo semanal) o heredan el estado ya aprobado, dado que el organizer

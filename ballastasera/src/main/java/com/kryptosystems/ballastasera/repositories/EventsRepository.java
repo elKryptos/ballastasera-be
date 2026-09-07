@@ -2,6 +2,8 @@ package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,8 +18,6 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     List<Events> findByOrganizerId(UUID organizerId);
     List<Events> findByVenueId(UUID venueId);
     List<Events> findBySeriesId(UUID seriesId);
-    List<Events> findByCityIdAndStatusAndStartAtGreaterThanEqualOrderByStartAtAsc(
-            Long cityId, EventStatus status, OffsetDateTime from);
     boolean existsByVenueIdAndStatusNot(UUID venueId, EventStatus status);
 
     /**
@@ -69,4 +69,97 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
             UUID organizerId,
             EventStatus status
     );
+
+    @Query(value = """
+        SELECT e.id FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+        ORDER BY e.start_at ASC, e.id ASC
+        """,
+            countQuery = """
+        SELECT COUNT(*) FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+        """,
+            nativeQuery = true)
+    Page<UUID> findPublicEventIdsByCity(
+            @Param("cityId") Long cityId,
+            @Param("now") OffsetDateTime now,
+            @Param("fromTime") OffsetDateTime fromTime,
+            @Param("toTime") OffsetDateTime toTime,
+            Pageable pageable
+    );
+
+    @Query(value = """
+        SELECT e.id FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+          AND EXISTS (
+                SELECT 1
+                FROM event_dance_styles eds
+                JOIN dance_styles ds ON ds.id = eds.dance_style_id
+                WHERE eds.event_id = e.id
+                  AND ds.slug IN (:danceStyleSlugs)
+              )
+        ORDER BY e.start_at ASC, e.id ASC
+        """,
+            countQuery = """
+        SELECT COUNT(*) FROM events e
+        WHERE e.city_id = :cityId
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :now
+          AND (
+                CAST(:fromTime AS timestamptz) IS NULL
+                OR COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > :fromTime
+              )
+          AND (
+                CAST(:toTime AS timestamptz) IS NULL
+                OR e.start_at <= :toTime
+              )
+          AND EXISTS (
+                SELECT 1
+                FROM event_dance_styles eds
+                JOIN dance_styles ds ON ds.id = eds.dance_style_id
+                WHERE eds.event_id = e.id
+                  AND ds.slug IN (:danceStyleSlugs)
+              )
+        """,
+            nativeQuery = true)
+    Page<UUID> findPublicEventIdsByCityAndDanceStyles(
+            @Param("cityId") Long cityId,
+            @Param("now") OffsetDateTime now,
+            @Param("fromTime") OffsetDateTime fromTime,
+            @Param("toTime") OffsetDateTime toTime,
+            @Param("danceStyleSlugs") List<String> danceStyleSlugs,
+            Pageable pageable
+    );
+
+
 }
