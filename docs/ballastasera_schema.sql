@@ -26,9 +26,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- ----------------------------------------------------------------------------
 CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
 CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
+CREATE TYPE event_type        as enum ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE attendance_status AS ENUM ('INTERESTED', 'GOING');
-CREATE TYPE flyer_status AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
+CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
 
 
 -- ============================================================================
