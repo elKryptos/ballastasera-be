@@ -51,6 +51,19 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
                 .toUriString();
     }
 
+    private void putObject(String targetBucket, String key, byte[] content, String contentType) {
+        try {
+            s3Client.putObject(PutObjectRequest.builder()
+                            .bucket(targetBucket)
+                            .key(key)
+                            .contentType(contentType)
+                            .build(),
+                    RequestBody.fromBytes(content));
+        } catch (S3Exception e) {
+            throw new MediaStorageException("Failed to store flyer", e);
+        }
+    }
+
     @Override
     public void deleteEventFlyerRaw(UUID eventId) {
         delete(rawBucket, eventId.toString());
@@ -59,19 +72,6 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
     @Override
     public void deleteEventFlyerFinal(UUID eventId) {
         delete(finalBucket, eventId.toString());
-    }
-
-    private void putObject(String targetBucket, String key, byte[] content, String contentType) {
-        try {
-            s3Client.putObject(PutObjectRequest.builder()
-                    .bucket(targetBucket)
-                    .key(key)
-                    .contentType(contentType)
-                    .build(),
-                    RequestBody.fromBytes(content));
-        } catch (S3Exception e) {
-            throw new MediaStorageException("Failed to store flyer", e);
-        }
     }
 
     private void delete(String targetBucket, String key) {

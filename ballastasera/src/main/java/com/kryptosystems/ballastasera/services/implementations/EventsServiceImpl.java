@@ -238,6 +238,20 @@ public class EventsServiceImpl implements EventsService {
         return applyFlyer(findById(id), file);
     }
 
+    private Events applyFlyer(Events event, MultipartFile file) {
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Could not read uploaded file", e);
+        }
+        objectStorageService.uploadEventFlyerRaw(event.getId(), content);
+        event.setFlyerStatus(FlyerStatus.PROCESSING);
+        Events savedEvent = eventsRepository.save(event);
+        eventFlyerProcessingService.convertAndPublish(event.getId(), content);
+        return savedEvent;
+    }
+
     @Override
     public Events deleteFlyer(UUID id, UUID requesterId) {
         Events event = findById(id);
@@ -258,26 +272,21 @@ public class EventsServiceImpl implements EventsService {
         return eventsRepository.save(event);
     }
 
-    private Events applyFlyer(Events event, MultipartFile file) {
-        byte[] content;
-        try {
-            content = file.getBytes();
-        } catch (IOException e) {
-            throw new MediaStorageException("Could not read uploaded file", e);
-        }
-        objectStorageService.uploadEventFlyerRaw(event.getId(), content);
-        event.setFlyerStatus(FlyerStatus.PROCESSING);
-        Events savedEvent = eventsRepository.save(event);
-        eventFlyerProcessingService.convertAndPublish(event.getId(), content);
-        return savedEvent;
-    }
-
     @Override
     public void delete(UUID id, UUID requesterId) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
-        objectStorageService.deleteEventFlyerRaw(id);
-        objectStorageService.deleteEventFlyerFinal(id);
+        deleteEvent(event);
+    }
+
+    @Override
+    public void deleteAsAdmin(UUID id) {
+        deleteEvent(findById(id));
+    }
+
+    private void deleteEvent(Events event) {
+        objectStorageService.deleteEventFlyerRaw(event.getId());
+        objectStorageService.deleteEventFlyerFinal(event.getId());
         eventsRepository.delete(event);
     }
 
