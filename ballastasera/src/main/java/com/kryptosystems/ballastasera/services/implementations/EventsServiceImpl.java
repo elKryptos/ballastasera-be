@@ -253,35 +253,16 @@ public class EventsServiceImpl implements EventsService {
         return removeFlyer(findById(id));
     }
 
-    private Events removeFlyer(Events event) {
-        objectStorageService.deleteEventFlyerRaw(event.getId());
-        objectStorageService.deleteEventFlyerFinal(event.getId());
-        event.setFlyerUrl(null);
-        event.setFlyerStatus(FlyerStatus.NONE);
-        return eventsRepository.save(event);
-    }
-
-    private Events applyFlyer(Events event, MultipartFile file) {
-        byte[] content;
-        try {
-            content = file.getBytes();
-        } catch (IOException e) {
-            throw new MediaStorageException("Could not read uploaded file", e);
-        }
-        objectStorageService.uploadEventFlyerRaw(event.getId(), content);
-        event.setFlyerStatus(FlyerStatus.PROCESSING);
-        Events savedEvent = eventsRepository.save(event);
-        eventFlyerProcessingService.convertAndPublish(event.getId(), content);
-        return savedEvent;
-    }
-
     @Override
     public void delete(UUID id, UUID requesterId) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
-        objectStorageService.deleteEventFlyerRaw(id);
-        objectStorageService.deleteEventFlyerFinal(id);
-        eventsRepository.delete(event);
+        deleteEvent(event);
+    }
+
+    @Override
+    public void deleteAsAdmin(UUID id) {
+        deleteEvent(findById(id));
     }
 
     @Override
@@ -298,6 +279,34 @@ public class EventsServiceImpl implements EventsService {
                 organizerId,
                 EventStatus.PUBLISHED
         );
+    }
+
+    private Events applyFlyer(Events event, MultipartFile file) {
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Could not read uploaded file", e);
+        }
+        objectStorageService.uploadEventFlyerRaw(event.getId(), content);
+        event.setFlyerStatus(FlyerStatus.PROCESSING);
+        Events savedEvent = eventsRepository.save(event);
+        eventFlyerProcessingService.convertAndPublish(event.getId(), content);
+        return savedEvent;
+    }
+
+    private Events removeFlyer(Events event) {
+        objectStorageService.deleteEventFlyerRaw(event.getId());
+        objectStorageService.deleteEventFlyerFinal(event.getId());
+        event.setFlyerUrl(null);
+        event.setFlyerStatus(FlyerStatus.NONE);
+        return eventsRepository.save(event);
+    }
+
+    private void deleteEvent(Events event) {
+        objectStorageService.deleteEventFlyerRaw(event.getId());
+        objectStorageService.deleteEventFlyerFinal(event.getId());
+        eventsRepository.delete(event);
     }
 
     private void assertOwnership(Events event, UUID requesterId) {
