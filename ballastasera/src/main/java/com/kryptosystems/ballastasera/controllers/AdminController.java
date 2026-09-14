@@ -29,8 +29,11 @@ import static com.kryptosystems.ballastasera.utilities.RestConstants.ADMIN;
 public class AdminController {
 
     private static final String GET_ORGANIZER_PENDING = "/organizers/pending";
+    private static final String GET_ORGANIZER_VERIFIED = "/organizers/verified";
     private static final String ORGANIZER_VERIFY = "/organizers/{id}/verify";
     private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
+    private static final String UPDATE_ORGANIZER = "/organizers/{id}";
+    private static final String DELETE_ORGANIZER = "/organizers/{id}";
     private static final String CLAIM_ORGANIZER = "/organizers/{id}/claim";
     private static final String CREATE_EVENT = "/events";
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
@@ -42,9 +45,9 @@ public class AdminController {
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
     private final VenuesService venuesService;
+    private final VenuesMapper venuesMapper;
     private final EventsService eventsService;
     private final EventSeriesService eventSeriesService;
-    private final VenuesMapper venuesMapper;
 
     /** Lista de organizadores pendientes de verificacion por un admin. */
     @GetMapping(GET_ORGANIZER_PENDING)
@@ -52,6 +55,16 @@ public class AdminController {
                                                                @RequestParam(defaultValue = "20") int size) {
         Page<OrganizerDetailDto> result = organizersService
                 .findPendingVerification(PageRequest.of(page, size))
+                .map(organizerMapper::toOrganizerDetailDto);
+        return ResponseEntity.ok(result);
+    }
+
+    /** Lista de organizadores ya verificados. */
+    @GetMapping(GET_ORGANIZER_VERIFIED)
+    public ResponseEntity<Page<OrganizerDetailDto>> getVerified(@RequestParam(defaultValue = "0") int page,
+                                                                 @RequestParam(defaultValue = "20") int size) {
+        Page<OrganizerDetailDto> result = organizersService
+                .findVerified(PageRequest.of(page, size))
                 .map(organizerMapper::toOrganizerDetailDto);
         return ResponseEntity.ok(result);
     }
@@ -67,6 +80,20 @@ public class AdminController {
     public ResponseEntity<OrganizerDetailDto> createUnclaimedOrganizer(@Valid @RequestBody OrganizerCreateDto body) {
         var organizer = organizersService.createUnclaimed(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetailDto(organizer));
+    }
+
+    /** Admin actualiza datos de un organizer */
+    @PatchMapping(UPDATE_ORGANIZER)
+    public ResponseEntity<OrganizerDetailDto> updateOrganizer(@PathVariable UUID id, @Valid @RequestBody OrganizerUpdateDto body) {
+        var organizer = organizersService.updateAsAdmin(id, body);
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
+    }
+
+    /** Admin elimina un organizer */
+    @DeleteMapping(DELETE_ORGANIZER)
+    public ResponseEntity<Void> deleteOrganizer(@PathVariable UUID id) {
+        organizersService.deleteAsAdmin(id);
+        return ResponseEntity.noContent().build();
     }
 
     /** Admin asigna el organizer al usuario que lo reclamo. */

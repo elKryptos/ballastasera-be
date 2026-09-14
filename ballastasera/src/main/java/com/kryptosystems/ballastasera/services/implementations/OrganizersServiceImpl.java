@@ -77,10 +77,22 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    public Organizers updateAsAdmin(UUID id, OrganizerUpdateDto dto) {
+        Organizers organizer = findById(id);
+        organizerMapper.updateOrganizerFromDto(dto, organizer);
+        return organizersRepository.save(organizer);
+    }
+
+    @Override
     public void delete(UUID id, UUID requesterId){
-        Organizers organizer = this.findById(id);
+        Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
         organizersRepository.delete(organizer);
+    }
+
+    @Override
+    public void deleteAsAdmin(UUID id) {
+        organizersRepository.deleteById(id);
     }
 
     @Override

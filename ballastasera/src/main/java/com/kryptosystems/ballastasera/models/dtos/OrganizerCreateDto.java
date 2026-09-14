@@ -18,7 +18,7 @@ public class OrganizerCreateDto {
     @NotNull
     private OrganizerType type;
 
-    @Size(max = 2000)
+    @Size(max = 500)
     private String description;
 
     private String logoUrl;

@@ -22,7 +22,11 @@ public interface OrganizersService {
     /** Actualiza datos del organizador que posee un usuario. */
     Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto);
 
+    Organizers updateAsAdmin(UUID id, OrganizerUpdateDto dto);
+
     void delete(UUID id, UUID requesterId);
+
+    void deleteAsAdmin(UUID id);
 
     Page<Organizers> findPendingVerification(Pageable pageable);
 
