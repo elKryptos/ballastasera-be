@@ -30,6 +30,7 @@ public class AdminController {
 
     private static final String GET_ORGANIZER_PENDING = "/organizers/pending";
     private static final String GET_ORGANIZER_VERIFIED = "/organizers/verified";
+    private static final String GET_ORGANIZER_BY_ID = "/organizers/{id}";
     private static final String ORGANIZER_VERIFY = "/organizers/{id}/verify";
     private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
     private static final String UPDATE_ORGANIZER = "/organizers/{id}";
@@ -61,12 +62,17 @@ public class AdminController {
 
     /** Lista de organizadores ya verificados. */
     @GetMapping(GET_ORGANIZER_VERIFIED)
-    public ResponseEntity<Page<OrganizerDetailDto>> getVerified(@RequestParam(defaultValue = "0") int page,
+    public ResponseEntity<Page<OrganizerSummaryDto>> getVerified(@RequestParam(defaultValue = "0") int page,
                                                                  @RequestParam(defaultValue = "20") int size) {
-        Page<OrganizerDetailDto> result = organizersService
+        Page<OrganizerSummaryDto> result = organizersService
                 .findVerified(PageRequest.of(page, size))
-                .map(organizerMapper::toOrganizerDetailDto);
+                .map(organizerMapper::toOrganizerSummaryDto);
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping(GET_ORGANIZER_BY_ID)
+    public ResponseEntity<OrganizerDetailDto> getOrganizerById(@PathVariable UUID id) {
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizersService.findById(id)));
     }
 
     /** Aprueba: isVerified=true, sube el rol del usuario y envia el email de notificacion. */
