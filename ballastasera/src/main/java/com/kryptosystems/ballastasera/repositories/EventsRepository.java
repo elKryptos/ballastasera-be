@@ -2,6 +2,8 @@ package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -56,7 +58,7 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     List<Events> findAllWithDetailsByIdIn(@Param("ids") List<UUID> ids);
 
     @Query("""
-            SELECT e FROM Events e
+            SELECT DISTINCT e FROM Events e
             JOIN FETCH e.organizer o
             LEFT JOIN FETCH e.venue v
             LEFT JOIN FETCH e.city c
@@ -69,4 +71,39 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
             UUID organizerId,
             EventStatus status
     );
+
+    @Query(value = """
+            SELECT e FROM Events e
+            JOIN FETCH e.organizer o
+            LEFT JOIN FETCH e.venue v
+            LEFT JOIN FETCH e.city c
+            WHERE o.id = :organizerId
+            ORDER BY e.startAt DESC
+            """,
+            countQuery = """
+            SELECT COUNT(e) FROM Events e
+            WHERE e.organizer.id = :organizerId
+            """)
+    Page<Events> findManageableByOrganizerId(
+            @Param("organizerId") UUID organizerId,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT e FROM Events e
+            JOIN FETCH e.organizer o
+            LEFT JOIN FETCH e.venue v
+            LEFT JOIN FETCH e.city c
+            WHERE o.id = :organizerId
+              AND e.status = :status
+            ORDER BY e.startAt DESC
+            """,
+            countQuery = """
+            SELECT COUNT(e) FROM Events e
+            WHERE e.organizer.id = :organizerId
+              AND e.status = :status
+            """)
+    Page<Events> findManageableByOrganizerIdAndStatus(
+            @Param("organizerId") UUID organizerId,
+            @Param("status") EventStatus status,
+            Pageable pageable);
 }

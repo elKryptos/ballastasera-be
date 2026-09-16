@@ -76,4 +76,20 @@ public interface EventsMapper {
                 .sorted()
                 .toList();
     }
+
+    @Mapping(target = "venueName", source = "venue.name")
+    @Mapping(target = "cityName", source = "city.name")
+    OrganizerEventSummaryDto toOrganizerEventSummaryDto(Events event);
+
+    @Mapping(target = "venueName", source = "venue.name")
+    @Mapping(target = "cityName", source = "city.name")
+    @Mapping(target = "cityId", source = "city.id")
+    @Mapping(target = "venueId", source = "venue.id")
+    @Mapping(target = "seriesId", source = "series.id")
+    @Mapping(target = "instagramUrl", source = "instagramUrl")
+    @Mapping(target = "liveNow", ignore = true)
+    @Mapping(target = "goingCount", ignore = true)
+    @Mapping(target = "interestedCount", ignore = true)
+    @Mapping(target = "danceStyles", ignore = true)
+    OrganizerEventDetailDto toOrganizerEventDetailDto(Events event);
 }

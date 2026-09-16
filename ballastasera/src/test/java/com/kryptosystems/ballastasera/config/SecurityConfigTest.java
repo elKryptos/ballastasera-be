@@ -115,6 +115,20 @@ class SecurityConfigTest {
     }
 
     @Test
+    void anonymousCannotGetManageableEventDetail() throws Exception {
+        mockMvc.perform(get("/rest/events/{id}/manage", EVENT_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void anonymousCannotGetManageableOrganizerEvents() throws Exception {
+        mockMvc.perform(get("/rest/organizers/{id}/events/manage", EVENT_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
     void anonymousCannotUpdateAdminFlyer() throws Exception {
         mockMvc.perform(patch("/rest/admin/events/{id}/flyer", EVENT_ID))
                 .andExpect(status().isUnauthorized())
@@ -241,6 +255,16 @@ class SecurityConfigTest {
 
         @GetMapping("/rest/events/{id}")
         String getEvent(@PathVariable UUID id) {
+            return "ok";
+        }
+
+        @GetMapping("/rest/events/{id}/manage")
+        String getManageableEvent(@PathVariable UUID id) {
+            return "ok";
+        }
+
+        @GetMapping("/rest/organizers/{id}/events/manage")
+        String getManageableOrganizerEvents(@PathVariable UUID id) {
             return "ok";
         }
 

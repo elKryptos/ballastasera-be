@@ -4,7 +4,10 @@ import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerEventDetailDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerEventSummaryDto;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.entities.EventSeries;
 import com.kryptosystems.ballastasera.models.entities.Events;
@@ -12,6 +15,7 @@ import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.DanceStylesMapper;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
@@ -27,12 +31,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -63,6 +71,9 @@ class EventsServiceImplTest {
     private EventsMapper eventsMapper;
 
     @Mock
+    private DanceStylesMapper danceStylesMapper;
+
+    @Mock
     private OrganizersRepository organizersRepository;
 
     @Mock
@@ -81,6 +92,72 @@ class EventsServiceImplTest {
     private EventsServiceImpl eventsService;
 
     @Test
+    void getEventDetailReturnsPublishedPastEvent() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        event.setStatus(EventStatus.PUBLISHED);
+        event.setStartAt(OffsetDateTime.now().minusDays(2));
+        event.setEndAt(OffsetDateTime.now().minusDays(1));
+        EventDetailDto detail = new EventDetailDto();
+
+        when(eventsRepository.findByIdWithDetails(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(detail);
+
+        assertSame(detail, eventsService.getEventDetail(EVENT_ID));
+    }
+
+    @Test
+    void getEventDetailHidesNonPublishedEvent() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        event.setStatus(EventStatus.PENDING);
+        when(eventsRepository.findByIdWithDetails(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(EntityNotFoundException.class, () -> eventsService.getEventDetail(EVENT_ID));
+        verify(eventsMapper, never()).toEventDetailDto(event);
+    }
+
+    @Test
+    void getManageableEventDetailReturnsRawInstagramValue() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        event.getOrganizer().setInstagram("https://instagram.com/organizer");
+        event.setInstagramUrl(null);
+        OrganizerEventDetailDto detail = stubManageableDetail(event);
+
+        when(eventsRepository.findByIdWithDetails(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertSame(detail, eventsService.getManageableEventDetail(REQUESTER_ID, EVENT_ID));
+        assertNull(detail.getInstagramUrl());
+    }
+
+    @Test
+    void findManageableByOrganizerIdFiltersByStatusForOwner() {
+        Organizers organizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        Events event = event(organizer);
+        OrganizerEventSummaryDto summary = new OrganizerEventSummaryDto();
+        PageRequest pageable = PageRequest.of(0, 20);
+
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
+        when(eventsRepository.findManageableByOrganizerIdAndStatus(ORGANIZER_ID, EventStatus.PENDING, pageable))
+                .thenReturn(new PageImpl<>(List.of(event), pageable, 1));
+        when(eventsMapper.toOrganizerEventSummaryDto(event)).thenReturn(summary);
+
+        var result = eventsService.findManageableByOrganizerId(
+                REQUESTER_ID, ORGANIZER_ID, EventStatus.PENDING, pageable);
+
+        assertEquals(1, result.getTotalElements());
+        assertSame(summary, result.getContent().getFirst());
+    }
+
+    @Test
+    void findManageableByOrganizerIdRejectsAnotherUser() {
+        Organizers organizer = organizer(ORGANIZER_ID, OTHER_USER_ID, true);
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.findManageableByOrganizerId(
+                REQUESTER_ID, ORGANIZER_ID, null, PageRequest.of(0, 20)));
+        verify(eventsRepository, never()).findManageableByOrganizerId(any(UUID.class), any());
+    }
+
+    @Test
     void createSavesPendingEventForVerifiedOrganizerOwner() {
         Organizers organizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
         EventCreateDto dto = createDto(ORGANIZER_ID);
@@ -91,12 +168,13 @@ class EventsServiceImplTest {
         when(eventResolverService.resolveCity(1L)).thenReturn(new Cities());
         when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
         when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
+        OrganizerEventDetailDto response = stubManageableDetail(mappedEvent);
 
-        Events result = eventsService.create(REQUESTER_ID, dto);
+        OrganizerEventDetailDto result = eventsService.create(REQUESTER_ID, dto);
 
-        assertSame(mappedEvent, result);
-        assertSame(organizer, result.getOrganizer());
-        assertEquals(EventStatus.PENDING, result.getStatus());
+        assertSame(response, result);
+        assertSame(organizer, mappedEvent.getOrganizer());
+        assertEquals(EventStatus.PENDING, mappedEvent.getStatus());
         verify(eventsRepository).save(mappedEvent);
     }
 
@@ -152,10 +230,11 @@ class EventsServiceImplTest {
         when(eventResolverService.resolveVenue(VENUE_ID, 1L)).thenReturn(venue);
         when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
         when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
+        stubManageableDetail(mappedEvent);
 
-        Events result = eventsService.create(REQUESTER_ID, dto);
+        eventsService.create(REQUESTER_ID, dto);
 
-        assertSame(venue, result.getVenue());
+        assertSame(venue, mappedEvent.getVenue());
         verify(eventsRepository).save(mappedEvent);
     }
 
@@ -219,10 +298,11 @@ class EventsServiceImplTest {
 
         when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventsRepository.save(event)).thenReturn(event);
+        OrganizerEventDetailDto response = stubManageableDetail(event);
 
-        Events result = eventsService.update(EVENT_ID, REQUESTER_ID, dto);
+        OrganizerEventDetailDto result = eventsService.update(EVENT_ID, REQUESTER_ID, dto);
 
-        assertSame(event, result);
+        assertSame(response, result);
         verify(eventsRepository).save(event);
     }
 
@@ -296,10 +376,11 @@ class EventsServiceImplTest {
 
         when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventsRepository.save(event)).thenReturn(event);
+        OrganizerEventDetailDto response = stubManageableDetail(event);
 
-        Events result = eventsService.updateStatus(REQUESTER_ID, EVENT_ID, EventStatus.PUBLISHED);
+        OrganizerEventDetailDto result = eventsService.updateStatus(REQUESTER_ID, EVENT_ID, EventStatus.PUBLISHED);
 
-        assertSame(event, result);
+        assertSame(response, result);
         assertEquals(EventStatus.PUBLISHED, event.getStatus());
         verify(eventsRepository).save(event);
     }
@@ -326,10 +407,11 @@ class EventsServiceImplTest {
 
         when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventsRepository.save(event)).thenReturn(event);
+        OrganizerEventDetailDto response = stubManageableDetail(event);
 
-        Events result = eventsService.updateFlyer(EVENT_ID, REQUESTER_ID, file);
+        OrganizerEventDetailDto result = eventsService.updateFlyer(EVENT_ID, REQUESTER_ID, file);
 
-        assertSame(event, result);
+        assertSame(response, result);
         assertEquals(FlyerStatus.PROCESSING, event.getFlyerStatus());
         verify(objectStorageService).uploadEventFlyerRaw(eq(EVENT_ID), any(byte[].class));
         verify(eventsRepository).save(event);
@@ -394,10 +476,11 @@ class EventsServiceImplTest {
 
         when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventsRepository.save(event)).thenReturn(event);
+        OrganizerEventDetailDto response = stubManageableDetail(event);
 
-        Events result = eventsService.deleteFlyer(EVENT_ID, REQUESTER_ID);
+        OrganizerEventDetailDto result = eventsService.deleteFlyer(EVENT_ID, REQUESTER_ID);
 
-        assertSame(event, result);
+        assertSame(response, result);
         assertEquals(FlyerStatus.NONE, event.getFlyerStatus());
         assertEquals(null, event.getFlyerUrl());
         verify(objectStorageService).deleteEventFlyerRaw(EVENT_ID);
@@ -498,6 +581,8 @@ class EventsServiceImplTest {
         event.setAddress("Via Roma 1");
         event.setLatitude(45.4642);
         event.setLongitude(9.1900);
+        event.setStartAt(OffsetDateTime.now().plusDays(2));
+        event.setEndAt(OffsetDateTime.now().plusDays(2).plusHours(3));
         return event;
     }
 
@@ -519,5 +604,11 @@ class EventsServiceImplTest {
         organizer.setUser(user);
         organizer.setVerified(verified);
         return organizer;
+    }
+
+    private OrganizerEventDetailDto stubManageableDetail(Events event) {
+        OrganizerEventDetailDto detail = new OrganizerEventDetailDto();
+        when(eventsMapper.toOrganizerEventDetailDto(event)).thenReturn(detail);
+        return detail;
     }
 }

@@ -176,14 +176,32 @@ de "van" se traen en un solo `GROUP BY` por lote, no una query por evento.
 
 ### `GET /api/events/{id}` — público
 
-Detalle completo de un evento.
+Detalle completo de un evento publicado. Los eventos `PUBLISHED` permanecen
+accesibles aunque su fecha ya haya pasado.
 
 **Respuesta** — `EventDetailDto`: todo lo del card, más `description`, `cityName`, `organizer`
 completo (`OrganizerDetailDto`: website, phone, contactEmail, facebook, instagram...),
 `instagramUrl`/`whatsappUrl` **ya resueltos con el fallback al organizador**, y
 `goingCount`/`interestedCount` por separado.
 
-`404` si el evento no existe.
+`404` si el evento no existe o su estado es `DRAFT`, `PENDING` o `CANCELLED`.
+Este filtro se aplica también cuando el requester es administrador: el endpoint
+público no cambia de semántica según el rol.
+
+> **Breaking change:** antes este endpoint permitía consultar cualquier estado
+> conociendo el UUID. Los propietarios deben usar `GET /api/events/{id}/manage`.
+
+### `GET /api/events/{id}/manage` — requiere login y ownership
+
+Detalle privado de un evento propio, independientemente de su estado o fecha.
+
+**Respuesta** — `OrganizerEventDetailDto`, que incluye `status`, `cityId`,
+`venueId`, `seriesId` y `danceStyles` con `id`, `name` y `slug`. Los enlaces son
+los valores crudos del evento: `instagramUrl` no hereda el Instagram del
+organizador.
+
+`401` sin autenticación, `403` si el evento pertenece a otro usuario y `404` si
+no existe.
 
 ---
 
@@ -192,6 +210,11 @@ completo (`OrganizerDetailDto`: website, phone, contactEmail, facebook, instagra
 Las mutaciones requieren un usuario autenticado. El servicio comprueba que el organizer del evento
 pertenezca al usuario autenticado (`event.organizer.user.id`). Un usuario anónimo recibe `401` y un
 usuario autenticado sin permisos recibe `403`.
+
+`POST /api/events`, `PATCH /api/events/{id}`, `PATCH /api/events/{id}/status`,
+`PATCH /api/events/{id}/flyer` y `DELETE /api/events/{id}/flyer` devuelven
+`OrganizerEventDetailDto`, de modo que el cliente conserva `status` y los IDs
+necesarios para continuar editando sin realizar otro GET.
 
 ### `POST /api/events` — crear evento
 
@@ -202,7 +225,7 @@ El evento se guarda inicialmente con estado `PENDING`.
 opcionales. Un venue sin organizer puede compartirse; un venue o una serie perteneciente a otro
 organizer se rechaza con `403`.
 
-`201 Created` con `EventDetailDto`. El DTO de respuesta actual no expone el campo `status`.
+`201 Created` con `OrganizerEventDetailDto` y `status=PENDING`.
 `400` para datos inválidos, `403` para ownership/verification/asociaciones ajenas y `404` para
 organizer, ciudad, venue o serie inexistentes.
 
@@ -212,7 +235,7 @@ Todos los campos del `EventUpdateDto` son opcionales. Solo el organizer propieta
 evento; no se puede cambiar su organizer ni su status desde este endpoint. Las asociaciones `venueId`
 y `seriesId` se vuelven a validar contra el organizer del evento.
 
-`200 OK` con `EventDetailDto`. `400` para datos o rangos temporales inválidos, `403` si el usuario no
+`200 OK` con `OrganizerEventDetailDto`. `400` para datos o rangos temporales inválidos, `403` si el usuario no
 es propietario o intenta asociar un venue/serie ajeno y `404` si el evento o una asociación no existe.
 
 ### `PATCH /api/events/{id}/status` — cambiar estado
@@ -220,7 +243,7 @@ es propietario o intenta asociar un venue/serie ajeno y `404` si el evento o una
 Solo el organizer propietario puede cambiar el estado. Los valores válidos son `DRAFT`, `PENDING`,
 `PUBLISHED` y `CANCELLED`; actualmente no hay una matriz adicional de transiciones.
 
-`200 OK` con `EventDetailDto`. El DTO de respuesta actual no expone el campo `status`.
+`200 OK` con `OrganizerEventDetailDto`, incluyendo el nuevo `status`.
 
 ### `DELETE /api/events/{id}` — eliminar evento propio
 
@@ -302,6 +325,20 @@ Devuelve el/los perfil(es) de organizador del usuario logueado (un usuario puede
 Pensado para el panel/dashboard del propio organizador, no para consulta pública.
 
 **Respuesta** — `List<OrganizerDetailDto>`.
+
+### `GET /api/organizers/{id}/events/manage` — requiere login y ownership
+
+Lista privada paginada de los eventos propios. Incluye todos los estados y los
+eventos pasados, ordenados por `startAt DESC`.
+
+**Query params**: `page` (default `0`), `size` (default `20`, rango `1..50`) y
+`status` opcional (`DRAFT`, `PENDING`, `PUBLISHED` o `CANCELLED`).
+
+**Respuesta** — `Page<OrganizerEventSummaryDto>`; cada elemento incluye
+`status`, fechas, ciudad, venue y estado del flyer.
+
+`400` si `page < 0` o `size` está fuera de `1..50`, `401` sin autenticación,
+`403` si el organizer pertenece a otro usuario y `404` si no existe.
 
 ---
 
