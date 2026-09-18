@@ -2,10 +2,13 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.UserRole;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.repositories.EventsRepository;
+import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +20,8 @@ import java.util.UUID;
 public class UsersServiceImpl implements UsersService {
 
     private final UsersRepository usersRepository;
+    private final FavoritesRepository favoritesRepository;
+    private final EventsRepository eventsRepository;
 
     @Override
     public List<Users> findAll() {
@@ -47,7 +52,12 @@ public class UsersServiceImpl implements UsersService {
     }
 
     @Override
+    @Transactional
     public void deleteById(UUID id) {
+        List<UUID> favoriteEventIds = favoritesRepository.findEventIdsByUserId(id);
+        if (!favoriteEventIds.isEmpty()) {
+            eventsRepository.decrementLikesCountForEvents(favoriteEventIds);
+        }
         usersRepository.deleteById(id);
     }
 

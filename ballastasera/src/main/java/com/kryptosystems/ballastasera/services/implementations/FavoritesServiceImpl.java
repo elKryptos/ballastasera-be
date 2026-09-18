@@ -34,28 +34,33 @@ public class FavoritesServiceImpl implements FavoritesService {
 
     @Override
     @Transactional
-    public Favorites addFavorite(UUID userId, UUID eventId) {
+    public void addFavorite(UUID userId, UUID eventId) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
         UserEventId id = new UserEventId();
         id.setUserId(userId);
         id.setEventId(eventId);
-        return favoritesRepository.findById(id)
-                .orElseGet(() -> {
-                    Favorites favorite = new Favorites();
-                    favorite.setUser(usersRepository.getReferenceById(userId));
-                    favorite.setEvent(eventsRepository.getReferenceById(eventId));
-                    return favoritesRepository.save(favorite);
-                });
+        if (favoritesRepository.existsById(id)) {
+            return;
+        }
+        Favorites favorite = new Favorites();
+        favorite.setUser(usersRepository.getReferenceById(userId));
+        favorite.setEvent(eventsRepository.getReferenceById(eventId));
+        favoritesRepository.save(favorite);
+        eventsRepository.incrementLikesCount(eventId);
     }
 
     @Override
+    @Transactional
     public void removeFavorite(UUID userId, UUID eventId) {
         UserEventId id = new UserEventId();
         id.setUserId(userId);
         id.setEventId(eventId);
-        favoritesRepository.deleteById(id);
+        if (favoritesRepository.existsById(id)) {
+            favoritesRepository.deleteById(id);
+            eventsRepository.decrementLikesCount(eventId);
+        }
     }
 
     @Override

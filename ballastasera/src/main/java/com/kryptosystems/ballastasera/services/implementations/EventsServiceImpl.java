@@ -133,7 +133,6 @@ public class EventsServiceImpl implements EventsService {
         EventDetailDto dto = eventsMapper.toEventDetailDto(event);
         dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
         dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.GOING));
-        dto.setInterestedCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.INTERESTED));
         dto.setInstagramUrl(event.getInstagramUrl() != null
                 ? event.getInstagramUrl()
                 : event.getOrganizer().getInstagram());

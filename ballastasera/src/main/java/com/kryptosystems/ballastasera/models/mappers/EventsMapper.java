@@ -34,7 +34,6 @@ public interface EventsMapper {
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
     @Mapping(target = "liveNow", ignore = true)
     @Mapping(target = "goingCount", ignore = true)
-    @Mapping(target = "interestedCount", ignore = true)
     @Mapping(target = "instagramUrl", ignore = true)
     EventDetailDto toEventDetailDto(Events event);
 

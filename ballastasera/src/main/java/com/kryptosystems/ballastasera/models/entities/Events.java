@@ -69,6 +69,9 @@ public class Events {
     @Column(name = "whatsapp_url")
     private String whatsappUrl;
 
+    @Column(name = "likes_count")
+    private Long likesCount;
+
     @Column(name = "start_at", nullable = false)
     private OffsetDateTime startAt;
 
