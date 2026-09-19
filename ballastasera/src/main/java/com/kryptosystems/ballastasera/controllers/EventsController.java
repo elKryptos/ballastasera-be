@@ -35,8 +35,9 @@ public class EventsController {
     private static final String DELETE = "/{id}";
     private static final String REMOVE_VENUE = "/{id}/venue";
     private static final String GET_ATTENDEES = "/{id}/attendees";
-    private static final String SET_ATTENDANCE = "/{id}/attendance";
+    private static final String ADD_ATTENDANCE = "/{id}/attendance";
     private static final String REMOVE_ATTENDANCE = "/{id}/attendance";
+    private static final String IS_GOING = "/{id}/going";
     private static final String ADD_FAVORITE = "/{id}/favorite";
     private static final String REMOVE_FAVORITE = "/{id}/favorite";
     private static final String IS_FAVORITE = "/{id}/favorite";
@@ -51,13 +52,9 @@ public class EventsController {
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
      * dentro del bounding box visible. Nunca devuelve eventos pasados. */
     @GetMapping(GET_MAP_EVENTS)
-    public ResponseEntity<List<EventCardDto>> getMapEvents(
-            @RequestParam double minLat,
-            @RequestParam double maxLat,
-            @RequestParam double minLng,
-            @RequestParam double maxLng,
-            @RequestParam(required = false) Long cityId
-    ) {
+    public ResponseEntity<List<EventCardDto>> getMapEvents(@RequestParam double minLat, @RequestParam double maxLat,
+                                                           @RequestParam double minLng, @RequestParam double maxLng,
+                                                           @RequestParam(required = false) Long cityId) {
         return ResponseEntity.ok(eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId));
     }
 
@@ -111,33 +108,29 @@ public class EventsController {
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
      * de esta lista y siempre incluye a todos, con o sin opt-in. */
     @GetMapping(GET_ATTENDEES)
-    public ResponseEntity<Page<AttendeeDto>> getAttendees(
-            @PathVariable UUID id,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        return ResponseEntity.ok(eventAttendanceService.findPublicGoingAttendees(id, PageRequest.of(page, size)));
+    public ResponseEntity<Page<AttendeeDto>> getAttendees(@PathVariable UUID id,
+                                                          @RequestParam(defaultValue = "0") int page,
+                                                          @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(eventAttendanceService.findPublicAttendees(id, PageRequest.of(page, size)));
     }
 
-    /** Requiere estar autenticato. Marca "GOING" o "INTERESTED". Idempotente: repetir con otro status lo actualiza. */
-    @PostMapping(SET_ATTENDANCE)
-    public ResponseEntity<Void> setAttendance(
-            @PathVariable UUID id,
-            @Valid @RequestBody AttendanceRequestDto body,
-            @AuthenticationPrincipal UserPrincipal principal
-    ) {
-        eventAttendanceService.setAttendance(principal.getId(), id, body.getStatus());
+    /** Requiere estar autenticado. Marca "voy" al evento. Idempotente. +1 in Events dbtable */
+    @PostMapping(ADD_ATTENDANCE)
+    public ResponseEntity<Void> setAttendance(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        eventAttendanceService.addAttendance(principal.getId(), id);
         return ResponseEntity.noContent().build();
     }
 
-    /** Requiere estar autenticado. Elimina la marca "GOING" o "INTERESTED". La lista de asistentes se actualiza con -1 */
+    /** Requiere estar autenticado. Quita la marca "voy". La lista de asistentes se actualiza con -1 */
     @DeleteMapping(REMOVE_ATTENDANCE)
-    public ResponseEntity<Void> removeAttendance(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal UserPrincipal principal
-    ) {
+    public ResponseEntity<Void> removeAttendance(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
         eventAttendanceService.removeAttendance(principal.getId(), id);
         return ResponseEntity.noContent().build();
+    }
+    /** Requiere estar autenticado. Indica si el usuario logueado ya marcó "voy". */
+    @GetMapping(IS_GOING)
+    public ResponseEntity<Boolean> isGoing(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventAttendanceService.isGoing(principal.getId(), id));
     }
 
     /** Requiere estar autenticado. Usuario marca evento como favorito */
@@ -154,7 +147,8 @@ public class EventsController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Requiere estar autenticado */
+    /** Requiere estar autenticado. Recupera si un evento es favorito de cada usuario
+     * es usada para mostrar el icono de favorito en la vista y se llama al momento de seleccionar un pin y abre la card */
     @GetMapping(IS_FAVORITE)
     public ResponseEntity<Boolean> isFavorite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         return ResponseEntity.ok(favoritesService.existsByUserIdAndEventId(principal.getId(), id));

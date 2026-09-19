@@ -1,6 +1,5 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
-import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
@@ -97,9 +96,6 @@ public class EventsServiceImpl implements EventsService {
         Map<UUID, Events> eventsById = eventsRepository.findAllWithDetailsByIdIn(ids).stream()
                 .collect(Collectors.toMap(Events::getId, e -> e));
 
-        Map<UUID, Long> goingCounts = eventAttendanceRepository.countByEventIdInAndStatus(ids, AttendanceStatus.GOING).stream()
-                .collect(Collectors.toMap(row -> (UUID) row[0], row -> (Long) row[1]));
-
         OffsetDateTime now = OffsetDateTime.now();
 
         return ids.stream()
@@ -108,7 +104,6 @@ public class EventsServiceImpl implements EventsService {
                 .map(event -> {
                     EventCardDto dto = eventsMapper.toEventCardDto(event);
                     dto.setLiveNow(EventTimingUtils.isLiveNow(event, now));
-                    dto.setGoingCount(goingCounts.getOrDefault(event.getId(), 0L));
                     return dto;
                 })
                 .toList();
@@ -132,7 +127,6 @@ public class EventsServiceImpl implements EventsService {
     private EventDetailDto buildDetailDto(Events event) {
         EventDetailDto dto = eventsMapper.toEventDetailDto(event);
         dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
-        dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.GOING));
         dto.setInstagramUrl(event.getInstagramUrl() != null
                 ? event.getInstagramUrl()
                 : event.getOrganizer().getInstagram());

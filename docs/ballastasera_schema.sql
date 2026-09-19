@@ -207,6 +207,7 @@ CREATE TABLE events (
 	instagram_url TEXT,
 	whatsapp_url  TEXT,
 	likes_count   BIGINT NOT NULL DEFAULT 0,
+	going_count   BIGINT NOT NULL DEFAULT 0,
 
     start_at      TIMESTAMPTZ NOT NULL,           -- inizio (data + ora, con timezone)
     end_at        TIMESTAMPTZ,                    -- fine (opzionale)
@@ -267,7 +268,6 @@ CREATE INDEX idx_favorites_event ON favorites(event_id);
 CREATE TABLE event_attendance (
     user_id    UUID NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    status     attendance_status NOT NULL DEFAULT 'INTERESTED',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, event_id)
 );

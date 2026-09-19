@@ -70,7 +70,10 @@ public class Events {
     private String whatsappUrl;
 
     @Column(name = "likes_count")
-    private Long likesCount;
+    private Long likesCount = 0L;
+
+    @Column(name = "going_count")
+    private Long goingCount = 0L;
 
     @Column(name = "start_at", nullable = false)
     private OffsetDateTime startAt;

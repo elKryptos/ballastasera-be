@@ -41,5 +41,4 @@ public class EventDetailDto {
     private List<String> danceStyles;
 
     private long goingCount;
-    private long interestedCount;
 }

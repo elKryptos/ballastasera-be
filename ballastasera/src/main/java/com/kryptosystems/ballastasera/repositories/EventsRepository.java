@@ -33,6 +33,18 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     @Query("UPDATE Events e SET e.likesCount = e.likesCount - 1 WHERE e.id IN :eventIds AND e.likesCount > 0")
     void decrementLikesCountForEvents(@Param("eventIds") List<UUID> eventIds);
 
+    @Modifying
+    @Query("UPDATE Events e SET e.goingCount = e.goingCount + 1 WHERE e.id = :eventId")
+    void incrementGoingCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.goingCount = e.goingCount - 1 WHERE e.id = :eventId AND e.goingCount > 0")
+    void decrementGoingCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.goingCount = e.goingCount - 1 WHERE e.id IN :eventIds AND e.goingCount > 0")
+    void decrementGoingCountForEvents(@Param("eventIds") List<UUID> eventIds);
+
     /**
      * Ids de eventos publicados que siguen "vivos" para el mapa: en curso o
      * todavia por empezar (nunca pasados), dentro del bounding box visible.

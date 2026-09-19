@@ -26,14 +26,12 @@ public interface EventsMapper {
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
     @Mapping(target = "liveNow", ignore = true)
-    @Mapping(target = "goingCount", ignore = true)
     EventCardDto toEventCardDto(Events event);
 
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "cityName", source = "city.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
     @Mapping(target = "liveNow", ignore = true)
-    @Mapping(target = "goingCount", ignore = true)
     @Mapping(target = "instagramUrl", ignore = true)
     EventDetailDto toEventDetailDto(Events event);
 

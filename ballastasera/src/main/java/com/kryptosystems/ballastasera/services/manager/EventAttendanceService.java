@@ -1,6 +1,5 @@
 package com.kryptosystems.ballastasera.services.manager;
 
-import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.models.dtos.AttendeeDto;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
@@ -17,11 +16,13 @@ public interface EventAttendanceService {
     void deleteById(UserEventId id);
 
     /** Asistentes con status GOING que optaron por mostrar su perfil. */
-    Page<AttendeeDto> findPublicGoingAttendees(UUID eventId, Pageable pageable);
+    Page<AttendeeDto> findPublicAttendees(UUID eventId, Pageable pageable);
 
     /** Crea o actualiza el "voy"/"me interesa" del usuario logueado para el evento. */
-    EventAttendance setAttendance(UUID userId, UUID eventId, AttendanceStatus status);
+    void addAttendance(UUID userId, UUID eventId);
 
     /** Quita al usuario logueado de la lista de asistentes del evento. */
     void removeAttendance(UUID userId, UUID eventId);
+
+    boolean isGoing(UUID userId, UUID eventId);
 }

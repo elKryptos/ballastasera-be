@@ -1,6 +1,5 @@
 package com.kryptosystems.ballastasera.repositories;
 
-import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
 import org.springframework.data.domain.Page;
@@ -15,7 +14,12 @@ import java.util.UUID;
 public interface EventAttendanceRepository extends JpaRepository<EventAttendance, UserEventId> {
     List<EventAttendance> findByUserId(UUID userId);
     List<EventAttendance> findByEventId(UUID eventId);
-    long countByEventIdAndStatus(UUID eventId, AttendanceStatus status);
+
+    @Query("SELECT a.id.eventId FROM EventAttendance a WHERE a.user.id = :userId")
+    List<UUID> findEventIdsByUserId( @Param("userId") UUID userId);
+
+
+//    long countByEventIdAndStatus(UUID eventId, AttendanceStatus status);
 
     /**
      * Conteo de "van" por evento, en lote, para las cards del mapa.
@@ -24,12 +28,12 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
      * que Hibernate lo resuelva siempre como el enum de Java, nunca como un
      * cast de tipo Postgres.
      */
-    @Query("""
-            SELECT ea.event.id, COUNT(ea) FROM EventAttendance ea
-            WHERE ea.event.id IN :eventIds AND ea.status = :status
-            GROUP BY ea.event.id
-            """)
-    List<Object[]> countByEventIdInAndStatus(@Param("eventIds") List<UUID> eventIds, @Param("status") AttendanceStatus status);
+//    @Query("""
+//            SELECT ea.event.id, COUNT(ea) FROM EventAttendance ea
+//            WHERE ea.event.id IN :eventIds AND ea.status = :status
+//            GROUP BY ea.event.id
+//            """)
+//    List<Object[]> countByEventIdInAndStatus(@Param("eventIds") List<UUID> eventIds, @Param("status") AttendanceStatus status);
 
     /**
      * Solo quienes van Y activaron show_profile_public. El conteo total de
@@ -39,12 +43,11 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             SELECT ea FROM EventAttendance ea
             JOIN FETCH ea.user u
             WHERE ea.event.id = :eventId
-              AND ea.status = :status
               AND u.showProfilePublic = true
             ORDER BY ea.createdAt ASC
             """)
     Page<EventAttendance> findByEventIdAndStatusAndUserShowProfilePublicTrue(
-            @Param("eventId") UUID eventId, @Param("status") AttendanceStatus status, Pageable pageable);
+            @Param("eventId") UUID eventId, Pageable pageable);
 
     /** Trae el attendance del usuario con el evento (y organizer/venue/danceStyles)
      * ya cargados, para evitar N+1 al armar las cards en /me/attendance. */

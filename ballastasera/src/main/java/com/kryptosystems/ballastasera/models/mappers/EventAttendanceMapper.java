@@ -17,7 +17,6 @@ public class EventAttendanceMapper {
     public AttendanceCardDto toCardDto(EventAttendance attendance) {
         AttendanceCardDto dto = new AttendanceCardDto();
         dto.setEvent(eventsMapper.toEventCardDto(attendance.getEvent()));
-        dto.setStatus(attendance.getStatus());
         return dto;
     }
 
