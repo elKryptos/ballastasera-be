@@ -37,4 +37,5 @@ public class EventCardDto {
     private String venueName;
     private List<String> danceStyles;
     private long goingCount;
+    private long likesCount;
 }

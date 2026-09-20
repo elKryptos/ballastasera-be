@@ -13,6 +13,9 @@ public interface FavoritesRepository extends JpaRepository<Favorites, UserEventI
     List<Favorites> findByUserId(UUID userId);
     List<Favorites> findByEventId(UUID eventId);
 
+    @Query("SELECT f.id.eventId FROM Favorites f WHERE f.id.userId = :userId")
+    List<UUID> findEventIdsByUserId(@Param("userId") UUID userId);
+
     /** Trae los favoritos del usuario con el evento (y organizer/venue/danceStyles)
      * ya cargados, para evitar N+1 al armar las cards en /me/favorites. */
     @Query("""                                                                                                                                                                                                      

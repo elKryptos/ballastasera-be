@@ -34,11 +34,11 @@ public class EventDetailDto {
     /** Ya resuelto con fallback: event.instagramUrl si existe, si no organizer.instagram. */
     private String instagramUrl;
     private String whatsappUrl;
+    private Long likesCount;
 
     private OrganizerDetailDto organizer;
     private String venueName;
     private List<String> danceStyles;
 
     private long goingCount;
-    private long interestedCount;
 }

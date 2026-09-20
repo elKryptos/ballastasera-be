@@ -26,10 +26,10 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- ----------------------------------------------------------------------------
 CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
 CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
-CREATE TYPE event_type        as enum ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE attendance_status AS ENUM ('INTERESTED', 'GOING');
-CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
+CREATE TYPE flyer_status AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
+CREATE TYPE event_type AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
 
 
 -- ============================================================================
@@ -206,6 +206,8 @@ CREATE TABLE events (
 	flyer_status  flyer_status NOT NULL DEFAULT 'NONE',
 	instagram_url TEXT,
 	whatsapp_url  TEXT,
+	likes_count   BIGINT NOT NULL DEFAULT 0,
+	going_count   BIGINT NOT NULL DEFAULT 0,
 
     start_at      TIMESTAMPTZ NOT NULL,           -- inizio (data + ora, con timezone)
     end_at        TIMESTAMPTZ,                    -- fine (opzionale)
@@ -266,7 +268,6 @@ CREATE INDEX idx_favorites_event ON favorites(event_id);
 CREATE TABLE event_attendance (
     user_id    UUID NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    status     attendance_status NOT NULL DEFAULT 'INTERESTED',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, event_id)
 );
@@ -337,16 +338,3 @@ INSERT INTO dance_styles (name, slug) VALUES
 --  --  WHERE ST_DWithin(geom, ST_MakePoint(9.19, 45.46)::geography, 5000)
 --  --  ORDER BY geom <-> ST_MakePoint(9.19, 45.46)::geography;
 -- ============================================================================
-
-
-ALTER TABLE organizers
-ALTER COLUMN user_id DROP NOT NULL,
-ADD COLUMN claimed BOOLEAN NOT NULL DEFAULT FALSE;
-
-UPDATE organizers
-SET claimed = TRUE
-WHERE user_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_organizers_claimed ON organizers(claimed);
-
-ALTER TABLE events ADD COLUMN flyer_status flyer_status NOT NULL DEFAULT 'NONE';

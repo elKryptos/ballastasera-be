@@ -5,6 +5,7 @@ import com.kryptosystems.ballastasera.models.entities.Events;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,6 +22,30 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     List<Events> findByCityIdAndStatusAndStartAtGreaterThanEqualOrderByStartAtAsc(
             Long cityId, EventStatus status, OffsetDateTime from);
     boolean existsByVenueIdAndStatusNot(UUID venueId, EventStatus status);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.likesCount = e.likesCount + 1 WHERE e.id = :eventId")
+    void incrementLikesCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.likesCount = e.likesCount - 1 WHERE e.id = :eventId AND e.likesCount > 0")
+    void decrementLikesCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.likesCount = e.likesCount - 1 WHERE e.id IN :eventIds AND e.likesCount > 0")
+    void decrementLikesCountForEvents(@Param("eventIds") List<UUID> eventIds);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.goingCount = e.goingCount + 1 WHERE e.id = :eventId")
+    void incrementGoingCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.goingCount = e.goingCount - 1 WHERE e.id = :eventId AND e.goingCount > 0")
+    void decrementGoingCount(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query("UPDATE Events e SET e.goingCount = e.goingCount - 1 WHERE e.id IN :eventIds AND e.goingCount > 0")
+    void decrementGoingCountForEvents(@Param("eventIds") List<UUID> eventIds);
 
     /**
      * Ids de eventos publicados que siguen "vivos" para el mapa: en curso o

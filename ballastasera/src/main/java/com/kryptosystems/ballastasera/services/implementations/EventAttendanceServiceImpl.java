@@ -1,6 +1,5 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
-import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import com.kryptosystems.ballastasera.models.dtos.AttendeeDto;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
@@ -49,42 +48,51 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
     }
 
     @Override
-    public Page<AttendeeDto> findPublicGoingAttendees(UUID eventId, Pageable pageable) {
+    public Page<AttendeeDto> findPublicAttendees(UUID eventId, Pageable pageable) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
 
-        return eventAttendanceRepository.findByEventIdAndStatusAndUserShowProfilePublicTrue(eventId, AttendanceStatus.GOING, pageable)
+        return eventAttendanceRepository.findByEventIdAndStatusAndUserShowProfilePublicTrue(eventId, pageable)
                 .map(ea -> attendeeMapper.toDto(ea.getUser()));
     }
 
     @Override
     @Transactional
-    public EventAttendance setAttendance(UUID userId, UUID eventId, AttendanceStatus status) {
+    public void addAttendance(UUID userId, UUID eventId) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
-
         UserEventId id = new UserEventId();
         id.setUserId(userId);
         id.setEventId(eventId);
-
-        EventAttendance attendance = eventAttendanceRepository.findById(id)
-                .orElseGet(() -> {
-                    EventAttendance ea = new EventAttendance();
-                    ea.setUser(usersRepository.getReferenceById(userId));
-                    ea.setEvent(eventsRepository.getReferenceById(eventId));
-                    return ea;
-                });
-        attendance.setStatus(status);
-        return eventAttendanceRepository.save(attendance);
+        if (eventAttendanceRepository.existsById(id)) {
+            return;
+        }
+        EventAttendance attendance = new EventAttendance();
+        attendance.setUser(usersRepository.getReferenceById(userId));
+        attendance.setEvent(eventsRepository.getReferenceById(eventId));
+        eventAttendanceRepository.save(attendance);
+        eventsRepository.incrementGoingCount(eventId);
     }
 
     @Override
+    @Transactional
     public void removeAttendance(UUID userId, UUID eventId) {
         UserEventId id = new UserEventId();
         id.setUserId(userId);
         id.setEventId(eventId);
-        eventAttendanceRepository.deleteById(id);
+        if (eventAttendanceRepository.existsById(id)) {
+            eventAttendanceRepository.deleteById(id);
+            eventsRepository.decrementGoingCount(eventId);
+        }
+    }
+
+    @Override
+    public boolean isGoing(UUID userId, UUID eventId) {
+        UserEventId id = new UserEventId();
+        id.setUserId(userId);
+        id.setEventId(eventId);
+        return eventAttendanceRepository.existsById(id);
     }
 }

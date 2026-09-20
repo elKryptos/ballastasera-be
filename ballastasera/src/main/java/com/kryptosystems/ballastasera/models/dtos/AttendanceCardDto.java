@@ -1,6 +1,5 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
-import com.kryptosystems.ballastasera.enums.AttendanceStatus;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,5 +8,4 @@ import lombok.Setter;
 @Setter
 public class AttendanceCardDto {
     private EventCardDto event;
-    private AttendanceStatus status;
 }
