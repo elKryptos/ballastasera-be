@@ -163,8 +163,9 @@ public class EventsServiceImpl implements EventsService {
         event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
                 slug -> eventsRepository.findBySlug(slug).isPresent()));
         event.setStatus(EventStatus.PENDING);
-        /** Si el cliente no mando lat/lng (ej. no arrastro el pin en el mapa),
-         * las calculamos a partir de la dirección. */
+        /** Si el cliente no mando lat/lng las calculamos a partir de la dirección.
+         * Es un Fallback para recalcular las coordenadas ahorramos una llamada a la API.
+         * Actualmente el FE deberia enviar todos los datos desde la api de Photon, es solo de seguridad*/
         if (event.getLatitude() == null || event.getLongitude() == null) {
             GeocodingService.GeoPoint point = eventResolverService.resolveCoordinates(event.getAddress(), event.getCity().getName());
             event.setLatitude(point.latitude());
