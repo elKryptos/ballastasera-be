@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
@@ -35,6 +36,7 @@ public class OrganizersController {
     private static final String UPDATE = "/{id}";
     private static final String GET_ORGANIZERS_LIST = "";
     private static final String GET_ORGANIZER_EVENTS = "/{id}/events";
+    private static final String GET_ORGANIZER_EVENTS_MANAGE = "/{id}/events/manage";
     private static final String GET_ORGANIZER_VENUES = "/{id}/venues";
     private static final String GET_ORGANIZER_EVENT_SERIES = "/{id}/event-series";
     private static final String DELETE_ORGANIZER = "/{id}";
@@ -92,6 +94,22 @@ public class OrganizersController {
         var organizers = organizersService.findVerified(PageRequest.of(page, size))
                 .map(organizerMapper::toOrganizerSummaryDto);
         return ResponseEntity.ok(organizers);
+    }
+
+    /** Requiere estar autenticado y ser dueño del organizer. Lista privada de
+     * sus eventos: todos los estados, incluidos los pasados, startAt DESC. */
+    @GetMapping(GET_ORGANIZER_EVENTS_MANAGE)
+    public ResponseEntity<Page<OrganizerEventSummaryDto>> getOrganizerEventsManage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) EventStatus status) {
+        if (page < 0 || size < 1 || size > 50) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(eventService.findManageableByOrganizerId(
+                principal.getId(), id, status, PageRequest.of(page, size)));
     }
 
     /** Público. Lista los eventos publicados por un organizador, para su página de perfil. */

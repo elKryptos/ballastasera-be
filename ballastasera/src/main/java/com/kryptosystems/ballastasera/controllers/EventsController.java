@@ -29,6 +29,7 @@ public class EventsController {
 
     private static final String GET_MAP_EVENTS = "";
     private static final String GET_EVENT_DETAIL = "/{id}";
+    private static final String GET_EVENT_MANAGE = "/{id}/manage";
     private static final String CREATE = "";
     private static final String UPDATE = "/{id}";
     private static final String UPDATE_STATUS = "/{id}/status";
@@ -64,31 +65,37 @@ public class EventsController {
         return ResponseEntity.ok(eventsService.getEventDetail(id));
     }
 
+    /** Requiere estar autenticado y ser dueño del evento. Devuelve el detalle
+     * privado con status e identificadores crudos. */
+    @GetMapping(GET_EVENT_MANAGE)
+    public ResponseEntity<OrganizerEventDetailDto> getEventManage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(eventsService.getManageableEventDetail(principal.getId(), id));
+    }
+
     /** Requiere estar autenticado. El organizerId del body debe pertenecer al
      * usuario logueado y ese organizer debe estar verificado. Nace en PENDING. */
     @PostMapping(CREATE)
-    public ResponseEntity<EventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
-                                                 @Valid @RequestBody EventCreateDto body) {
-        var event = eventsService.create(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.toEventDetailDto(event));
+    public ResponseEntity<OrganizerEventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
+                                                          @Valid @RequestBody EventCreateDto body) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.create(principal.getId(), body));
     }
 
     /** Requiere estar autenticado y ser dueño del evento (via organizer.user.id). */
     @PatchMapping(UPDATE)
-    public ResponseEntity<EventDetailDto> update(@AuthenticationPrincipal UserPrincipal principal,
-                                                 @PathVariable UUID id,
-                                                 @Valid @RequestBody EventUpdateDto body) {
-        var event = eventsService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    public ResponseEntity<OrganizerEventDetailDto> update(@AuthenticationPrincipal UserPrincipal principal,
+                                                          @PathVariable UUID id,
+                                                          @Valid @RequestBody EventUpdateDto body) {
+        return ResponseEntity.ok(eventsService.update(id, principal.getId(), body));
     }
 
     /** Requiere estar autenticado y ser dueño del evento. Publicar / despublicar / cancelar. */
     @PatchMapping(UPDATE_STATUS)
-    public ResponseEntity<EventDetailDto> updateStatus(@AuthenticationPrincipal UserPrincipal principal,
-                                                       @PathVariable UUID id,
-                                                       @Valid @RequestBody EventStatusUpdateDto body) {
-        var event = eventsService.updateStatus(principal.getId(), id, body.getStatus());
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    public ResponseEntity<OrganizerEventDetailDto> updateStatus(@AuthenticationPrincipal UserPrincipal principal,
+                                                                @PathVariable UUID id,
+                                                                @Valid @RequestBody EventStatusUpdateDto body) {
+        return ResponseEntity.ok(eventsService.updateStatus(principal.getId(), id, body.getStatus()));
     }
 
     @DeleteMapping(DELETE)
@@ -156,19 +163,17 @@ public class EventsController {
 
     /** Requiere autenticacion y ownership. La conversion a WebP se ejecuta de forma asincrona. */
     @PatchMapping(value = UPDATE_FLYER, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<EventDetailDto> updateFlyer(@AuthenticationPrincipal UserPrincipal principal,
-                                                      @PathVariable UUID id,
-                                                      @RequestParam("file") MultipartFile file) {
-        var event = eventsService.updateFlyer(id, principal.getId(), file);
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    public ResponseEntity<OrganizerEventDetailDto> updateFlyer(@AuthenticationPrincipal UserPrincipal principal,
+                                                               @PathVariable UUID id,
+                                                               @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(eventsService.updateFlyer(id, principal.getId(), file));
     }
 
     /** Requiere estar autenticado y ser dueño del evento. */
     @DeleteMapping(DELETE_FLYER)
-    public ResponseEntity<EventDetailDto> deleteFlyer(@AuthenticationPrincipal UserPrincipal principal,
-                                                       @PathVariable UUID id) {
-        var event = eventsService.deleteFlyer(id, principal.getId());
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+    public ResponseEntity<OrganizerEventDetailDto> deleteFlyer(@AuthenticationPrincipal UserPrincipal principal,
+                                                                @PathVariable UUID id) {
+        return ResponseEntity.ok(eventsService.deleteFlyer(id, principal.getId()));
     }
 
 }

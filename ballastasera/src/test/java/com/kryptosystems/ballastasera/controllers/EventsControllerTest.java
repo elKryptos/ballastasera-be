@@ -4,7 +4,7 @@ import com.kryptosystems.ballastasera.exceptions.core.BackendErrorResponse;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
-import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerEventDetailDto;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
@@ -38,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -82,11 +83,9 @@ class EventsControllerTest {
 
     @Test
     void createReturnsCreatedEvent() throws Exception {
-        Events event = event();
-        EventDetailDto response = detail("Salsa Night");
+        OrganizerEventDetailDto response = manageableDetail("Salsa Night");
 
-        when(eventsService.create(eq(USER_ID), any(EventCreateDto.class))).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsService.create(eq(USER_ID), any(EventCreateDto.class))).thenReturn(response);
 
         mockMvc.perform(post("/rest/events")
                         .with(authentication(userAuthentication()))
@@ -100,11 +99,9 @@ class EventsControllerTest {
 
     @Test
     void updateReturnsUpdatedEvent() throws Exception {
-        Events event = event();
-        EventDetailDto response = detail("Updated Salsa Night");
+        OrganizerEventDetailDto response = manageableDetail("Updated Salsa Night");
 
-        when(eventsService.update(eq(EVENT_ID), eq(USER_ID), any(EventUpdateDto.class))).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsService.update(eq(EVENT_ID), eq(USER_ID), any(EventUpdateDto.class))).thenReturn(response);
 
         mockMvc.perform(patch("/rest/events/{id}", EVENT_ID)
                         .with(authentication(userAuthentication()))
@@ -122,8 +119,7 @@ class EventsControllerTest {
 
     @Test
     void updateFlyerReturnsUpdatedEvent() throws Exception {
-        Events event = event();
-        EventDetailDto response = detail("Salsa Night");
+        OrganizerEventDetailDto response = manageableDetail("Salsa Night");
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "flyer.jpg",
@@ -131,8 +127,7 @@ class EventsControllerTest {
                 new byte[]{1, 2, 3}
         );
 
-        when(eventsService.updateFlyer(eq(EVENT_ID), eq(USER_ID), eq(file))).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsService.updateFlyer(eq(EVENT_ID), eq(USER_ID), eq(file))).thenReturn(response);
 
         mockMvc.perform(multipart("/rest/events/{id}/flyer", EVENT_ID)
                         .file(file)
@@ -149,11 +144,9 @@ class EventsControllerTest {
 
     @Test
     void deleteFlyerReturnsUpdatedEvent() throws Exception {
-        Events event = event();
-        EventDetailDto response = detail("Salsa Night");
+        OrganizerEventDetailDto response = manageableDetail("Salsa Night");
 
-        when(eventsService.deleteFlyer(EVENT_ID, USER_ID)).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsService.deleteFlyer(EVENT_ID, USER_ID)).thenReturn(response);
 
         mockMvc.perform(delete("/rest/events/{id}/flyer", EVENT_ID)
                         .with(authentication(userAuthentication())))
@@ -177,12 +170,10 @@ class EventsControllerTest {
 
     @Test
     void updateStatusReturnsUpdatedEvent() throws Exception {
-        Events event = event();
-        EventDetailDto response = detail("Salsa Night");
+        OrganizerEventDetailDto response = manageableDetail("Salsa Night");
 
         when(eventsService.updateStatus(USER_ID, EVENT_ID,
-                com.kryptosystems.ballastasera.enums.EventStatus.PUBLISHED)).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+                com.kryptosystems.ballastasera.enums.EventStatus.PUBLISHED)).thenReturn(response);
 
         mockMvc.perform(patch("/rest/events/{id}/status", EVENT_ID)
                         .with(authentication(userAuthentication()))
@@ -258,6 +249,36 @@ class EventsControllerTest {
                 .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));
     }
 
+    @Test
+    void getEventDetailReturnsPublicDetail() throws Exception {
+        EventDetailDto response = detail("Salsa Night");
+        when(eventsService.getEventDetail(EVENT_ID)).thenReturn(response);
+
+        mockMvc.perform(get("/rest/events/{id}", EVENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Salsa Night"));
+    }
+
+    @Test
+    void getEventDetailReturnsNotFoundForNonPublishedEvent() throws Exception {
+        when(eventsService.getEventDetail(EVENT_ID))
+                .thenThrow(new EntityNotFoundException("Event not found with id " + EVENT_ID));
+
+        mockMvc.perform(get("/rest/events/{id}", EVENT_ID))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getEventManageReturnsPrivateDetail() throws Exception {
+        OrganizerEventDetailDto response = manageableDetail("Pending Salsa Night");
+        when(eventsService.getManageableEventDetail(USER_ID, EVENT_ID)).thenReturn(response);
+
+        mockMvc.perform(get("/rest/events/{id}/manage", EVENT_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Pending Salsa Night"));
+    }
+
     private String validCreateJson() {
         return """
                 {
@@ -271,14 +292,14 @@ class EventsControllerTest {
                 """;
     }
 
-    private Events event() {
-        Events event = new Events();
-        event.setId(EVENT_ID);
-        return event;
-    }
-
     private EventDetailDto detail(String title) {
         EventDetailDto detail = new EventDetailDto();
+        detail.setTitle(title);
+        return detail;
+    }
+
+    private OrganizerEventDetailDto manageableDetail(String title) {
+        OrganizerEventDetailDto detail = new OrganizerEventDetailDto();
         detail.setTitle(title);
         return detail;
     }

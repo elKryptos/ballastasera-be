@@ -8,13 +8,18 @@ import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerEventDetailDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerEventSummaryDto;
 import com.kryptosystems.ballastasera.models.entities.*;
+import com.kryptosystems.ballastasera.models.mappers.DanceStylesMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.*;
 import com.kryptosystems.ballastasera.services.manager.*;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -32,6 +37,7 @@ public class EventsServiceImpl implements EventsService {
     private final EventsRepository eventsRepository;
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsMapper eventsMapper;
+    private final DanceStylesMapper danceStylesMapper;
     private final OrganizersRepository organizersRepository;
     private final EventSeriesRepository eventSeriesRepository;
     private final EventResolverService eventResolverService;
@@ -113,7 +119,35 @@ public class EventsServiceImpl implements EventsService {
     public EventDetailDto getEventDetail(UUID id) {
         Events event = eventsRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("Event not found with id " + id));
+        /** Breaking change SPEC 06: il dettaglio pubblico espone solo eventi
+         * PUBLISHED, inclusi quelli passati. Gli altri stati rispondono 404. */
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new EntityNotFoundException("Event not found with id " + id);
+        }
         return buildDetailDto(event);
+    }
+
+    @Override
+    public Page<OrganizerEventSummaryDto> findManageableByOrganizerId(
+            UUID requesterId, UUID organizerId, EventStatus status, Pageable pageable) {
+        Organizers organizer = organizersRepository.findById(organizerId)
+                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + organizerId));
+        if (organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
+            throw new AccessDeniedException("Not the owner of this organizer");
+        }
+
+        Page<Events> events = status == null
+                ? eventsRepository.findManageableByOrganizerId(organizerId, pageable)
+                : eventsRepository.findManageableByOrganizerIdAndStatus(organizerId, status, pageable);
+        return events.map(eventsMapper::toOrganizerEventSummaryDto);
+    }
+
+    @Override
+    public OrganizerEventDetailDto getManageableEventDetail(UUID requesterId, UUID id) {
+        Events event = eventsRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new EntityNotFoundException("Event not found with id " + id));
+        assertOwnership(event, requesterId);
+        return buildManageableDetailDto(event);
     }
 
     @Override
@@ -134,7 +168,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public Events create(UUID requesterId, EventCreateDto dto) {
+    public OrganizerEventDetailDto create(UUID requesterId, EventCreateDto dto) {
         Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
         if (organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
@@ -143,7 +177,7 @@ public class EventsServiceImpl implements EventsService {
         if (!organizer.isVerified()) {
             throw new AccessDeniedException("Organizer not verified yet");
         }
-        return buildAndSaveEvent(organizer, dto);
+        return buildManageableDetailDto(buildAndSaveEvent(organizer, dto));
     }
 
     @Override
@@ -175,7 +209,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
+    public OrganizerEventDetailDto update(UUID id, UUID requesterId, EventUpdateDto dto) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
         Organizers organizer = event.getOrganizer();
@@ -212,22 +246,22 @@ public class EventsServiceImpl implements EventsService {
             event.setLatitude(point.latitude());
             event.setLongitude(point.longitude());
         }
-        return eventsRepository.save(event);
+        return buildManageableDetailDto(eventsRepository.save(event));
     }
 
     @Override
-    public Events updateStatus(UUID requesterId, UUID id, EventStatus status) {
+    public OrganizerEventDetailDto updateStatus(UUID requesterId, UUID id, EventStatus status) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
         event.setStatus(status);
-        return eventsRepository.save(event);
+        return buildManageableDetailDto(eventsRepository.save(event));
     }
 
     @Override
-    public Events updateFlyer(UUID id, UUID requesterId, MultipartFile file) {
+    public OrganizerEventDetailDto updateFlyer(UUID id, UUID requesterId, MultipartFile file) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
-        return applyFlyer(event, file);
+        return buildManageableDetailDto(applyFlyer(event, file));
     }
 
     @Override
@@ -236,10 +270,10 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public Events deleteFlyer(UUID id, UUID requesterId) {
+    public OrganizerEventDetailDto deleteFlyer(UUID id, UUID requesterId) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
-        return removeFlyer(event);
+        return buildManageableDetailDto(removeFlyer(event));
     }
 
     @Override
@@ -301,6 +335,22 @@ public class EventsServiceImpl implements EventsService {
         objectStorageService.deleteEventFlyerRaw(event.getId());
         objectStorageService.deleteEventFlyerFinal(event.getId());
         eventsRepository.delete(event);
+    }
+
+    /** Completa i campi privati che il mapper ignora: liveNow, conteggi e gli
+     * stili con id, name e slug. Instagram resta il valore crudo dell'evento. */
+    private OrganizerEventDetailDto buildManageableDetailDto(Events event) {
+        OrganizerEventDetailDto dto = eventsMapper.toOrganizerEventDetailDto(event);
+        dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
+        // Il conteggio "going" vive ora sulla entity Events; AttendanceStatus (e interested)
+        // non esiste più: EventAttendance non ha più il campo status.
+        dto.setGoingCount(event.getGoingCount() == null ? 0L : event.getGoingCount());
+        dto.setInterestedCount(0L);
+        dto.setDanceStyles(event.getDanceStyles().stream()
+                .sorted(Comparator.comparing(DanceStyles::getName))
+                .map(danceStylesMapper::toDto)
+                .toList());
+        return dto;
     }
 
     private void assertOwnership(Events event, UUID requesterId) {
