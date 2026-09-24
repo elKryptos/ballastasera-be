@@ -4,8 +4,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -14,7 +16,7 @@ public class EventSeriesSummaryDto {
 
     private UUID id;
     private String title;
-    private String rrule;
+    private Set<DayOfWeek> recurrenceDays;
     private String flyerUrl;
 
     private LocalTime startTime;

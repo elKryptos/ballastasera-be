@@ -7,6 +7,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -40,8 +42,21 @@ public class EventSeries {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(name = "rrule")
-    private String rrule;
+    /** Días de la semana en que se repite la clase/evento (ej. LUNES + MIERCOLES). */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "event_series_recurrence_days", joinColumns = @JoinColumn(name = "series_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_of_week", nullable = false)
+    private Set<DayOfWeek> recurrenceDays = new HashSet<>();
+
+    @Column(name = "active", nullable = false)
+    private boolean active = true;
+
+    /** Última fecha hasta la que ya se generaron Events para esta serie.
+     * Cursor para generateOccurrences: nunca vuelve a generar fechas ya
+     * cubiertas, aunque se pida un rango que las incluya. */
+    @Column(name = "generated_until")
+    private LocalDate generatedUntil;
 
     @Column(name = "description")
     private String description;

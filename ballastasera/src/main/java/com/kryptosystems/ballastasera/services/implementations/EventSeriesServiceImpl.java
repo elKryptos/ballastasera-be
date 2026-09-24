@@ -1,21 +1,30 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.exceptions.EventSeriesInactiveException;
+import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
 import com.kryptosystems.ballastasera.models.dtos.EventSeriesCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventSeriesDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventSeriesUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.*;
 import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
 import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
+import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
+import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +35,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     private final EventSeriesRepository eventSeriesRepository;
     private final EventSeriesMapper eventSeriesMapper;
     private final OrganizersRepository organizersRepository;
+    private final EventsRepository eventsRepository;
     private final EventResolverService eventResolverService;
 
     @Override
@@ -145,6 +155,81 @@ public class EventSeriesServiceImpl implements EventSeriesService {
         assertOwnership(series, requesterId);
         series.setVenue(null);
         return eventSeriesRepository.save(series);
+    }
+
+    @Override
+    public List<Events> generateOccurences(UUID seriesId, UUID requesterId, LocalDate startDate, LocalDate endDate) {
+        EventSeries series = findById(seriesId);
+        assertOwnership(series, requesterId);
+        return doGenerateOccurrences(series, startDate, endDate);
+    }
+
+    @Override
+    public List<Events> generateOccurencesAsAdmin(UUID seriesId, LocalDate startDate, LocalDate endDate) {
+        EventSeries series = findById(seriesId);
+        return doGenerateOccurrences(series, startDate, endDate);
+    }
+
+    /** Genera un Events por cada fecha en [from, until] cuyo día de semana
+     * esté en recurrenceDays, arrancando desde el día siguiente a
+     * generatedUntil para no duplicar ocurrencias ya generadas. */
+    private List<Events> doGenerateOccurrences(EventSeries series, LocalDate startDate, LocalDate endDate) {
+        if (!series.isActive()) {
+            throw new EventSeriesInactiveException("Event series " + series.getId() + " in not active");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new InvalidEventTimingException("until (" + endDate + ") must not be before from (" + startDate + ")");
+        }
+        LocalDate effectiveStartDate = series.getGeneratedUntil() != null && series.getGeneratedUntil().plusDays(1).isAfter(startDate)
+                ? series.getGeneratedUntil().plusDays(1)
+                : startDate;
+        List<Events> occurrences = new ArrayList<>();
+        for (LocalDate date = effectiveStartDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            if (series.getRecurrenceDays().contains(date.getDayOfWeek())) {
+                occurrences.add(buildOccurrence(series, date));
+            }
+        }
+
+        List<Events> saved = occurrences.isEmpty() ? List.of() : eventsRepository.saveAll(occurrences);
+        series.setGeneratedUntil(endDate);
+        eventSeriesRepository.save(series);
+        return saved;
+    }
+
+    /** Mapper manual MapStruct no hace mapping entre entidades*/
+    private Events buildOccurrence(EventSeries series, LocalDate date) {
+        Events event = new Events();
+        event.setOrganizer(series.getOrganizer());
+        event.setVenue(series.getVenue());
+        event.setSeries(series);
+        event.setCity(series.getCity());
+        event.setTitle(series.getTitle());
+        event.setDescription(series.getDescription());
+        event.setFlyerUrl(series.getFlyerUrl());
+        event.setInstagramUrl(series.getInstagramUrl());
+        event.setWhatsappUrl(series.getWhatsappUrl());
+        event.setFree(series.isFree());
+        event.setPrice(series.getPrice());
+        event.setCurrency(series.getCurrency());
+        event.setAddress(series.getAddress());
+        event.setLatitude(series.getLatitude());
+        event.setLongitude(series.getLongitude());
+        event.setDanceStyles(new HashSet<>(series.getDanceStyles()));
+        event.setStartAt(date.atTime(series.getStartTime()).atZone(ZoneId.systemDefault()).toOffsetDateTime());
+        if (series.getEndTime() != null) {
+            /** Si endTime no es posterior a startTime (ej. empieza 21:30 y
+             * termina 00:00), la fiesta termina al dia siguiente: sin esto
+             * end_at quedaria antes que start_at y violaria chk_event_time. */
+            LocalDate endDate = series.getEndTime().isAfter(series.getStartTime()) ? date : date.plusDays(1);
+            event.setEndAt(endDate.atTime(series.getEndTime()).atZone(ZoneId.systemDefault()).toOffsetDateTime());
+        }
+        event.setSlug(SlugUtils.uniqueSlug(series.getTitle() + "-" + date,
+                slug -> eventsRepository.findBySlug(slug).isPresent()));
+        /** Nace PUBLISHED: la serie ya pasó el mismo chequeo de ownership y
+         * verificación de organizer que un evento suelto; pedir aprobación
+         * manual clase por clase no tiene sentido para algo semanal. */
+        event.setStatus(EventStatus.PUBLISHED);
+        return event;
     }
 
     private void assertOwnership(EventSeries series, UUID requesterId) {

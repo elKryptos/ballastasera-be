@@ -19,6 +19,7 @@ import java.util.UUID;
 @Setter
 public class EventCardDto {
     private UUID id;
+    private UUID seriesId;
     private String slug;
     private String title;
     private EventType eventType;

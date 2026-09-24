@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Set;
 import java.util.UUID;
@@ -16,7 +17,8 @@ public class EventSeriesUpdateDto {
     private UUID venueId;
     private Long cityId;
     private String title;
-    private String rrule;
+    private Set<DayOfWeek> recurrenceDays;
+    private Boolean active;
     private String description;
     private String flyerUrl;
     private String instagramUrl;

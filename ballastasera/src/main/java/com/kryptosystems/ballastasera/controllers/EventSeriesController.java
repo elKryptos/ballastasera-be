@@ -1,8 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
-import com.kryptosystems.ballastasera.models.dtos.EventSeriesCreateDto;
-import com.kryptosystems.ballastasera.models.dtos.EventSeriesDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.EventSeriesUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import jakarta.validation.Valid;
@@ -12,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.kryptosystems.ballastasera.utilities.RestConstants.EVENT_SERIES;
@@ -23,11 +23,13 @@ public class EventSeriesController {
 
     private static final String GET_EVENT_SERIES_DETAIL = "/{id}";
     private static final String CREATE = "";
+    private static final String GENERATE_OCCURRENCES = "/{id}/occurrences";
     private static final String UPDATE = "/{id}";
     private static final String DELETE = "/{id}";
     private static final String REMOVE_VENUE = "/{id}/venue";
 
     private final EventSeriesService eventSeriesService;
+    private final EventsMapper eventsMapper;
 
     /** Público. Detalle de una serie (título, rrule, venue, precio, dance styles...). */
     @GetMapping(GET_EVENT_SERIES_DETAIL)
@@ -42,6 +44,14 @@ public class EventSeriesController {
                                                        @Valid @RequestBody EventSeriesCreateDto body) {
         var series = eventSeriesService.create(principal.getId(), body);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventSeriesService.toEventSeriesDetailDto(series));
+    }
+
+    @PostMapping(GENERATE_OCCURRENCES)
+    public ResponseEntity<List<EventCardDto>> generateOccurrences(@AuthenticationPrincipal UserPrincipal principal,
+                                                                  @PathVariable UUID id,
+                                                                  @Valid @RequestBody EventSeriesGenerateOccurencesDto body) {
+        var occurrences = eventSeriesService.generateOccurences(id, principal.getId(), body.getStartDate(), body.getEndDate());
+        return ResponseEntity.status(HttpStatus.CREATED).body(occurrences.stream().map(eventsMapper::toEventCardDto).toList());
     }
 
     /** Requiere estar autenticado y ser dueño de la serie (via organizer.user.id). */

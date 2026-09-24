@@ -197,4 +197,17 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(errorDetails);
     }
 
+    @ExceptionHandler(EventSeriesInactiveException.class)
+    public ResponseEntity<ErrorDetails> handleEventSeriesInactive(EventSeriesInactiveException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Event series is not active",
+                HttpStatus.CONFLICT
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
 }

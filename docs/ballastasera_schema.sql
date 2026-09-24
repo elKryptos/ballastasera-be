@@ -135,42 +135,57 @@ CREATE TABLE dance_styles (
 --  (colonna events.series_id). Specchia gran parte delle colonne di `events`
 --  (stessa denormalizzazione lat/lng, stesso criterio "gratis o prezzo
 --  obbligatorio") perché ogni occorrenza generata ha bisogno di quei dati.
---  start_time/end_time sono l'orario del giorno: la rrule dice SOLO i giorni
---  (es. BYDAY=TH), non l'ora.
+--  I giorni di ricorrenza vivono in event_series_recurrence_days (niente
+--  iCalendar/rrule): start_time/end_time restano l'orario del giorno.
+--  generated_until è il cursore di quanto già generato in `events`;
+--  active=false congela la serie (non genera più occorrenze nuove).
 -- ============================================================================
 CREATE TABLE event_series (
-    id             UUID   PRIMARY KEY DEFAULT gen_random_uuid(),
-    organizer_id   UUID   NOT NULL REFERENCES organizers(id) ON DELETE CASCADE,
-    venue_id       UUID            REFERENCES venues(id)     ON DELETE SET NULL,
-    city_id        BIGINT NOT NULL REFERENCES cities(id),
+    id              UUID   PRIMARY KEY DEFAULT gen_random_uuid(),
+    organizer_id    UUID   NOT NULL REFERENCES organizers(id) ON DELETE CASCADE,
+    venue_id        UUID            REFERENCES venues(id)     ON DELETE SET NULL,
+    city_id         BIGINT NOT NULL REFERENCES cities(id),
 
-    title          TEXT NOT NULL,
-    rrule          TEXT,          -- regola ricorrenza formato iCalendar, es. 'FREQ=WEEKLY;BYDAY=TH'
-    description    TEXT,
-    flyer_url      TEXT,
-	instagram_url  TEXT,
-	whatsapp_url   TEXT,
+    title           TEXT NOT NULL,
+	active          BOOLEAN NOT NULL DEFAULT TRUE,
+	generated_until DATE,         -- cursor: hasta qué fecha ya se generaron occurrences en `events`
+	
+    description     TEXT,
+    flyer_url       TEXT,
+	instagram_url   TEXT,
+	whatsapp_url    TEXT,
 
-    is_free        BOOLEAN NOT NULL DEFAULT TRUE,
-    price          NUMERIC(8,2),
-    currency       CHAR(3) NOT NULL DEFAULT 'EUR',
+    is_free         BOOLEAN NOT NULL DEFAULT TRUE,
+    price           NUMERIC(8,2),
+    currency        CHAR(3) NOT NULL DEFAULT 'EUR',
 
     -- posizione (obbligatoria, stesso criterio di events)
-    address        TEXT   NOT NULL,
-    latitude       DOUBLE PRECISION NOT NULL,
-    longitude      DOUBLE PRECISION NOT NULL,
+    address         TEXT   NOT NULL,
+    latitude        DOUBLE PRECISION NOT NULL,
+    longitude       DOUBLE PRECISION NOT NULL,
 
-    start_time     TIME NOT NULL,  -- orario di inizio di ogni occorrenza generata
-    end_time       TIME,           -- orario di fine (opzionale)
+    start_time      TIME NOT NULL,  -- orario di inizio di ogni occorrenza generata
+    end_time        TIME,           -- orario di fine (opzionale)
 
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT chk_event_series_price CHECK (is_free OR price IS NOT NULL)
 );
 CREATE INDEX idx_event_series_organizer ON event_series(organizer_id);
 CREATE INDEX idx_event_series_venue     ON event_series(venue_id);
 CREATE INDEX idx_event_series_city      ON event_series(city_id);
+
+
+-- ============================================================================
+--  EVENT_SERIES_RECURRENCE_DAYS — giorni della settimana in cui si ripete
+--  la serie (es. LUNEDI + MERCOLEDI). Sostituisce la vecchia colonna rrule.
+-- ============================================================================
+CREATE TABLE event_series_recurrence_days (
+    series_id   UUID NOT NULL REFERENCES event_series(id) ON DELETE CASCADE,
+    day_of_week TEXT NOT NULL,   -- nome del java.time.DayOfWeek: 'MONDAY', 'TUESDAY', ...
+    PRIMARY KEY (series_id, day_of_week)
+);
 
 
 -- ============================================================================

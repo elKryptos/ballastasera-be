@@ -2,7 +2,9 @@ package com.kryptosystems.ballastasera.services.manager;
 
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.EventSeries;
+import com.kryptosystems.ballastasera.models.entities.Events;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,4 +21,13 @@ public interface EventSeriesService {
     EventSeries update(UUID id, UUID requesterId, EventSeriesUpdateDto eventUpdateDto);
     void delete(UUID id, UUID requesterId);
     EventSeries removeVenue(UUID seriesId, UUID requesterId);
+
+    /** Genera los Events concretos de la serie para los días de recurrencia
+     * dentro de [from, until]. Idempotente respecto a lo ya generado: si
+     * generatedUntil cae dentro del rango pedido, arranca desde el día
+     * siguiente en vez de duplicar ocurrencias. */
+    List<Events> generateOccurences(UUID seriesId, UUID requesterId, LocalDate startDate, LocalDate endDate);
+
+    /** Igual que generateOccurrences pero sin chequeo de ownership. */
+    List<Events> generateOccurencesAsAdmin(UUID seriesId, LocalDate startDate, LocalDate endDate);
 }

@@ -20,6 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.kryptosystems.ballastasera.utilities.RestConstants.ADMIN;
@@ -41,6 +42,7 @@ public class AdminController {
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String CREATE_EVENT_SERIES = "/event-series";
+    private static final String GENERATE_EVENT_SERIES_OCCURRENCES = "/event-series/{id}/occurrences";
     private static final String CREATE_VENUE = "/venues";
     private static final String DELETE_VENUE = "/venues/{id}";
 
@@ -139,6 +141,13 @@ public class AdminController {
     public ResponseEntity<EventSeriesDetailDto> createEventSeries(@Valid @RequestBody EventSeriesCreateDto body) {
         var series = eventSeriesService.createAsAdmin(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventSeriesService.toEventSeriesDetailDto(series));
+    }
+
+    @PostMapping(GENERATE_EVENT_SERIES_OCCURRENCES)
+    public ResponseEntity<List<EventCardDto>> generateEventSeriesOccurences(@PathVariable UUID id,
+                                                                            @Valid @RequestBody EventSeriesGenerateOccurencesDto body) {
+        var occurrences = eventSeriesService.generateOccurencesAsAdmin(id, body.getStartDate(), body.getEndDate());
+        return ResponseEntity.status(HttpStatus.CREATED).body(occurrences.stream().map(eventsMapper::toEventCardDto).toList());
     }
 
     /** Admin crea un venue para cualquier organizer, sin chequeo de ownership. */

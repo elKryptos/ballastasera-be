@@ -14,6 +14,7 @@ import java.util.UUID;
 @Setter
 public class EventDetailDto {
     private UUID id;
+    private UUID seriesId;
     private String slug;
     private String title;
     private EventType eventType;
@@ -23,7 +24,7 @@ public class EventDetailDto {
     private OffsetDateTime startAt;
     private OffsetDateTime endAt;
     private boolean liveNow;
-    private boolean isfree;
+    private boolean isFree;
     private BigDecimal price;
     private String currency;
     private String address;

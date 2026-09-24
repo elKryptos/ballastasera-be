@@ -2,11 +2,13 @@ package com.kryptosystems.ballastasera.models.dtos;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Set;
 import java.util.UUID;
@@ -25,8 +27,8 @@ public class EventSeriesCreateDto {
     @NotBlank
     private String title;
 
-    @NotBlank
-    private String rrule;
+    @NotEmpty
+    private Set<DayOfWeek> recurrenceDays;
 
     private String description;
     private String flyerUrl;

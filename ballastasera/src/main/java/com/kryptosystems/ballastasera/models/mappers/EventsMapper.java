@@ -24,11 +24,13 @@ import java.util.List;
         imports = {EventTimingUtils.class, OffsetDateTime.class})
 public interface EventsMapper {
 
+    @Mapping(target = "seriesId", source = "series.id")
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
     @Mapping(target = "liveNow",  expression = "java(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()))")
     EventCardDto toEventCardDto(Events event);
 
+    @Mapping(target = "seriesId", source = "series.id")
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "cityName", source = "city.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
