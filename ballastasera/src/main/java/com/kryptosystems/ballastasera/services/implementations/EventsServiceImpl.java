@@ -342,8 +342,10 @@ public class EventsServiceImpl implements EventsService {
     private OrganizerEventDetailDto buildManageableDetailDto(Events event) {
         OrganizerEventDetailDto dto = eventsMapper.toOrganizerEventDetailDto(event);
         dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
-        dto.setGoingCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.GOING));
-        dto.setInterestedCount(eventAttendanceRepository.countByEventIdAndStatus(event.getId(), AttendanceStatus.INTERESTED));
+        // Il conteggio "going" vive ora sulla entity Events; AttendanceStatus (e interested)
+        // non esiste più: EventAttendance non ha più il campo status.
+        dto.setGoingCount(event.getGoingCount() == null ? 0L : event.getGoingCount());
+        dto.setInterestedCount(0L);
         dto.setDanceStyles(event.getDanceStyles().stream()
                 .sorted(Comparator.comparing(DanceStyles::getName))
                 .map(danceStylesMapper::toDto)
