@@ -23,7 +23,7 @@ public class EventDetailDto {
     private OffsetDateTime startAt;
     private OffsetDateTime endAt;
     private boolean liveNow;
-    private boolean isfree;
+    private boolean isFree;
     private BigDecimal price;
     private String currency;
     private String address;
