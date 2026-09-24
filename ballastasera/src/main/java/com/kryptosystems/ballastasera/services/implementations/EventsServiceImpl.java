@@ -268,7 +268,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public List<Events>  findPublishedByOrganizerId(UUID organizerId) {
+    public List<Events> findPublishedByOrganizerId(UUID organizerId) {
         return eventsRepository.findByOrganizerIdAndStatusOrderByStartAtDesc(
                 organizerId,
                 EventStatus.PUBLISHED

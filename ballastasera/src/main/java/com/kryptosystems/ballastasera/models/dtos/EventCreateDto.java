@@ -40,12 +40,6 @@ public class EventCreateDto implements EventTimeRange {
     private String instagramUrl;
     private String whatsappUrl;
 
-    @NotNull
-    @Future
-    private OffsetDateTime startAt;
-
-    @NotNull
-    private OffsetDateTime endAt;
     private boolean isFree = true;
 
     @DecimalMin(value = "0.0", inclusive = true)
@@ -56,5 +50,13 @@ public class EventCreateDto implements EventTimeRange {
     private String address;
     private Double latitude;
     private Double longitude;
+
+    @NotNull
+    @Future
+    private OffsetDateTime startAt;
+
+    @NotNull
+    private OffsetDateTime endAt;
+
     private Set<Long> danceStyleIds;
 }
