@@ -6,6 +6,7 @@ import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
@@ -68,6 +69,9 @@ class EventsControllerTest {
     private EventsRepository eventsRepository;
 
     @MockitoBean
+    private EventsMapper eventsMapper;
+
+    @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @BeforeEach
@@ -86,7 +90,7 @@ class EventsControllerTest {
         EventDetailDto response = detail("Salsa Night");
 
         when(eventsService.create(eq(USER_ID), any(EventCreateDto.class))).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(post("/rest/events")
                         .with(authentication(userAuthentication()))
@@ -104,7 +108,7 @@ class EventsControllerTest {
         EventDetailDto response = detail("Updated Salsa Night");
 
         when(eventsService.update(eq(EVENT_ID), eq(USER_ID), any(EventUpdateDto.class))).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(patch("/rest/events/{id}", EVENT_ID)
                         .with(authentication(userAuthentication()))
@@ -132,7 +136,7 @@ class EventsControllerTest {
         );
 
         when(eventsService.updateFlyer(eq(EVENT_ID), eq(USER_ID), eq(file))).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(multipart("/rest/events/{id}/flyer", EVENT_ID)
                         .file(file)
@@ -153,7 +157,7 @@ class EventsControllerTest {
         EventDetailDto response = detail("Salsa Night");
 
         when(eventsService.deleteFlyer(EVENT_ID, USER_ID)).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(delete("/rest/events/{id}/flyer", EVENT_ID)
                         .with(authentication(userAuthentication())))
@@ -182,7 +186,7 @@ class EventsControllerTest {
 
         when(eventsService.updateStatus(USER_ID, EVENT_ID,
                 com.kryptosystems.ballastasera.enums.EventStatus.PUBLISHED)).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(patch("/rest/events/{id}/status", EVENT_ID)
                         .with(authentication(userAuthentication()))

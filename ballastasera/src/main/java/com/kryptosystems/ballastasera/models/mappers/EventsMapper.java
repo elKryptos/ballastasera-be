@@ -3,36 +3,37 @@ package com.kryptosystems.ballastasera.models.mappers;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
  * Mapea entidades a los DTOs de lectura del mapa/detalle de eventos.
- * Los campos que dependen de "ahora" (liveNow) o de queries agregadas
- * (goingCount, interestedCount, fallback de instagramUrl) NO se mapean
- * aqui: se completan en EventsServiceImpl porque necesitan datos que no
- * vienen de la propia entidad Events.
+ * liveNow e instagramUrl se resuelven aca mismo (via expression) porque solo
+ * dependen del propio grafo de Events, no de queries agregadas externas.
  * nullValuePropertyMappingStrategy = IGNORE a nivel de @Mapper: en updateEntityFromDto,
  * cualquier campo del DTO que venga null deja el valor existente de la entidad intacto (no lo pisa).
  * Esto no afecta a toEventCardDto/toEventDetailDto/toEntity porque esos no tienen @MappingTarget (arrancan de un objeto nuevo).
  */
-@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+        imports = {EventTimingUtils.class, OffsetDateTime.class})
 public interface EventsMapper {
 
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
-    @Mapping(target = "liveNow", ignore = true)
+    @Mapping(target = "liveNow",  expression = "java(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()))")
     EventCardDto toEventCardDto(Events event);
 
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "cityName", source = "city.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
-    @Mapping(target = "liveNow", ignore = true)
-    @Mapping(target = "instagramUrl", ignore = true)
+    @Mapping(target = "liveNow", expression = "java(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()))")
+    @Mapping(target = "instagramUrl", expression = "java(resolveInstagramUrl(event))")
     EventDetailDto toEventDetailDto(Events event);
 
     /** Solo copia campos escalares. organizer/venue/city/series/danceStyles,
@@ -72,5 +73,11 @@ public interface EventsMapper {
                 .map(DanceStyles::getName)
                 .sorted()
                 .toList();
+    }
+
+    default String resolveInstagramUrl(Events event) {
+        return event.getInstagramUrl() != null
+                ? event.getInstagramUrl()
+                : event.getOrganizer().getInstagram();
     }
 }

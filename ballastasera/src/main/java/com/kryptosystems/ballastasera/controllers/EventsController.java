@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
@@ -48,6 +49,7 @@ public class EventsController {
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
     private final EventsRepository eventsRepository;
+    private final EventsMapper eventsMapper;
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
      * dentro del bounding box visible. Nunca devuelve eventos pasados. */
@@ -55,13 +57,15 @@ public class EventsController {
     public ResponseEntity<List<EventCardDto>> getMapEvents(@RequestParam double minLat, @RequestParam double maxLat,
                                                            @RequestParam double minLng, @RequestParam double maxLng,
                                                            @RequestParam(required = false) Long cityId) {
-        return ResponseEntity.ok(eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId));
+        var events = eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId);
+        return ResponseEntity.ok(events.stream().map(eventsMapper::toEventCardDto).toList());
     }
 
     /** Publico */
     @GetMapping(GET_EVENT_DETAIL)
     public ResponseEntity<EventDetailDto> getEventDetail(@PathVariable UUID id) {
-        return ResponseEntity.ok(eventsService.getEventDetail(id));
+        var event = eventsService.findByIdWithDetails(id);
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     /** Requiere estar autenticado. El organizerId del body debe pertenecer al
@@ -70,7 +74,7 @@ public class EventsController {
     public ResponseEntity<EventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
                                                  @Valid @RequestBody EventCreateDto body) {
         var event = eventsService.create(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.toEventDetailDto(event));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventsMapper.toEventDetailDto(event));
     }
 
     /** Requiere estar autenticado y ser dueño del evento (via organizer.user.id). */
@@ -79,7 +83,7 @@ public class EventsController {
                                                  @PathVariable UUID id,
                                                  @Valid @RequestBody EventUpdateDto body) {
         var event = eventsService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     /** Requiere estar autenticado y ser dueño del evento. Publicar / despublicar / cancelar. */
@@ -88,7 +92,7 @@ public class EventsController {
                                                        @PathVariable UUID id,
                                                        @Valid @RequestBody EventStatusUpdateDto body) {
         var event = eventsService.updateStatus(principal.getId(), id, body.getStatus());
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     @DeleteMapping(DELETE)
@@ -101,7 +105,7 @@ public class EventsController {
     @DeleteMapping(REMOVE_VENUE)
     public ResponseEntity<EventDetailDto> removeVenue(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         var event = eventsService.removeVenue(id, principal.getId());
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     /** Público. Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
@@ -160,7 +164,7 @@ public class EventsController {
                                                       @PathVariable UUID id,
                                                       @RequestParam("file") MultipartFile file) {
         var event = eventsService.updateFlyer(id, principal.getId(), file);
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     /** Requiere estar autenticado y ser dueño del evento. */
@@ -168,7 +172,7 @@ public class EventsController {
     public ResponseEntity<EventDetailDto> deleteFlyer(@AuthenticationPrincipal UserPrincipal principal,
                                                        @PathVariable UUID id) {
         var event = eventsService.deleteFlyer(id, principal.getId());
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
 }

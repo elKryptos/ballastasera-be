@@ -4,15 +4,12 @@ import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
 import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
-import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
-import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.*;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.repositories.*;
 import com.kryptosystems.ballastasera.services.manager.*;
-import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -87,7 +84,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public List<EventCardDto> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId) {
+    public List<Events> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId) {
         List<UUID> ids = eventsRepository.findActiveOrUpcomingIdsInBounds(minLat, maxLat, minLng, maxLng, cityId);
         if (ids.isEmpty()) {
             return List.of();
@@ -96,41 +93,16 @@ public class EventsServiceImpl implements EventsService {
         Map<UUID, Events> eventsById = eventsRepository.findAllWithDetailsByIdIn(ids).stream()
                 .collect(Collectors.toMap(Events::getId, e -> e));
 
-        OffsetDateTime now = OffsetDateTime.now();
-
         return ids.stream()
                 .map(eventsById::get)
                 .filter(Objects::nonNull)
-                .map(event -> {
-                    EventCardDto dto = eventsMapper.toEventCardDto(event);
-                    dto.setLiveNow(EventTimingUtils.isLiveNow(event, now));
-                    return dto;
-                })
                 .toList();
     }
 
     @Override
-    public EventDetailDto getEventDetail(UUID id) {
-        Events event = eventsRepository.findByIdWithDetails(id)
+    public Events findByIdWithDetails(UUID id) {
+        return eventsRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("Event not found with id " + id));
-        return buildDetailDto(event);
-    }
-
-    @Override
-    public EventDetailDto toEventDetailDto(Events event) {
-        return buildDetailDto(event);
-    }
-
-    /** Mapea + completa los campos que el mapper ignora a propósito (liveNow,
-     * counts, fallback de instagramUrl). Recibe el Events ya cargado para no
-     * forzar un roundtrip extra a la DB cuando el caller ya lo tiene en memoria. */
-    private EventDetailDto buildDetailDto(Events event) {
-        EventDetailDto dto = eventsMapper.toEventDetailDto(event);
-        dto.setLiveNow(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()));
-        dto.setInstagramUrl(event.getInstagramUrl() != null
-                ? event.getInstagramUrl()
-                : event.getOrganizer().getInstagram());
-        return dto;
     }
 
     @Override

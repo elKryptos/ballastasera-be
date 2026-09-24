@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.controllers;
 import com.kryptosystems.ballastasera.exceptions.core.BackendErrorResponse;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
@@ -56,6 +57,9 @@ class AdminControllerTest {
     private EventsService eventsService;
 
     @MockitoBean
+    private EventsMapper eventsMapper;
+
+    @MockitoBean
     private EventSeriesService eventSeriesService;
 
     @MockitoBean
@@ -78,7 +82,7 @@ class AdminControllerTest {
         );
 
         when(eventsService.updateFlyerAsAdmin(eq(EVENT_ID), any())).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(multipart("/rest/admin/events/{id}/flyer", EVENT_ID)
                         .file(file)
@@ -121,7 +125,7 @@ class AdminControllerTest {
         response.setTitle("Salsa Night");
 
         when(eventsService.deleteFlyerAsAdmin(EVENT_ID)).thenReturn(event);
-        when(eventsService.toEventDetailDto(event)).thenReturn(response);
+        when(eventsMapper.toEventDetailDto(event)).thenReturn(response);
 
         mockMvc.perform(delete("/rest/admin/events/{id}/flyer", EVENT_ID))
                 .andExpect(status().isOk())

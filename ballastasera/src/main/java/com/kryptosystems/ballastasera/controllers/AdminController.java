@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
@@ -48,6 +49,7 @@ public class AdminController {
     private final VenuesService venuesService;
     private final VenuesMapper venuesMapper;
     private final EventsService eventsService;
+    private final EventsMapper eventsMapper;
     private final EventSeriesService eventSeriesService;
 
     /** Lista de organizadores pendientes de verificacion por un admin. */
@@ -114,7 +116,7 @@ public class AdminController {
     @PostMapping( CREATE_EVENT)
     public ResponseEntity<EventDetailDto> createEvent(@Valid @RequestBody EventCreateDto body) {
         var event = eventsService.createAsAdmin(body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(eventsService.toEventDetailDto(event));
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventsMapper.toEventDetailDto(event));
     }
 
     /** Admin sube o reemplaza el flyer de un evento sin chequeo de ownership. */
@@ -122,14 +124,14 @@ public class AdminController {
     public ResponseEntity<EventDetailDto> updateEventFlyer(@PathVariable UUID id,
                                                            @RequestParam("file") MultipartFile file) {
         var event = eventsService.updateFlyerAsAdmin(id, file);
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     /** Admin elimina el flyer de un evento sin chequeo de ownership. */
     @DeleteMapping(DELETE_EVENT_FLYER)
     public ResponseEntity<EventDetailDto> deleteEventFlyer(@PathVariable UUID id) {
         var event = eventsService.deleteFlyerAsAdmin(id);
-        return ResponseEntity.ok(eventsService.toEventDetailDto(event));
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
     }
 
     /** Admin crea una serie de eventos para cualquier organizer, sin chequeo de ownership. */
