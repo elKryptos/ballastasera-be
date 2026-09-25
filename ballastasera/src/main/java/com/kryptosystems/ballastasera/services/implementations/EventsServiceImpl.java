@@ -15,6 +15,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -106,6 +107,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @Transactional
     public Events create(UUID requesterId, EventCreateDto dto) {
         Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
@@ -119,6 +121,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @Transactional
     public Events createAsAdmin(EventCreateDto dto) {
         Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
@@ -147,6 +150,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @Transactional
     public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
@@ -262,17 +266,18 @@ public class EventsServiceImpl implements EventsService {
     }
 
     private Events removeFlyer(Events event) {
-        objectStorageService.deleteEventFlyerRaw(event.getId());
-        objectStorageService.deleteEventFlyerFinal(event.getId());
         event.setFlyerUrl(null);
         event.setFlyerStatus(FlyerStatus.NONE);
-        return eventsRepository.save(event);
+        Events savedEvent = eventsRepository.save(event);
+        objectStorageService.deleteEventFlyerRaw(event.getId());
+        objectStorageService.deleteEventFlyerFinal(event.getId());
+        return savedEvent;
     }
 
     private void deleteEvent(Events event) {
+        eventsRepository.delete(event);
         objectStorageService.deleteEventFlyerRaw(event.getId());
         objectStorageService.deleteEventFlyerFinal(event.getId());
-        eventsRepository.delete(event);
     }
 
     private void assertOwnership(Events event, UUID requesterId) {

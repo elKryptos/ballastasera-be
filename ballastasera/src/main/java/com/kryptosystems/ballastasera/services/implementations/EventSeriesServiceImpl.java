@@ -2,7 +2,9 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.EventSeriesInactiveException;
+import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
+import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.models.dtos.EventSeriesCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventSeriesDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventSeriesUpdateDto;
@@ -13,14 +15,19 @@ import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
-import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
+import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
+import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
+import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -37,6 +44,8 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     private final OrganizersRepository organizersRepository;
     private final EventsRepository eventsRepository;
     private final EventResolverService eventResolverService;
+    private final WebpConverterService webpConverterService;
+    private final ObjectStorageService objectStorageService;
 
     @Override
     public List<EventSeries> findAll() {
@@ -85,6 +94,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     @Override
+    @Transactional
     public EventSeries create(UUID requesterId, EventSeriesCreateDto dto) {
         Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
@@ -98,6 +108,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     @Override
+    @Transactional
     public EventSeries createAsAdmin(EventSeriesCreateDto dto) {
         Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
@@ -146,7 +157,27 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     public void delete(UUID id, UUID requesterId) {
         EventSeries series = findById(id);
         assertOwnership(series, requesterId);
+        objectStorageService.deleteEventFlyerFinal(series.getId());
         eventSeriesRepository.delete(series);
+    }
+
+    /** Sincrono a proposito (a diferencia del flyer de un evento suelto): el
+     * admin genera las ocurrencias justo despues y necesitan encontrar la URL
+     * ya publicada. La clave en el bucket es el id de la serie, que no choca
+     * con los ids de eventos. */
+    @Override
+    public EventSeries updateFlyerAsAdmin(UUID seriesId, MultipartFile file) {
+        EventSeries series = findById(seriesId);
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Could not read uploaded file", e);
+        }
+        ImageTypeValidator.detectExtension(content);
+        byte[] webpContent = webpConverterService.convertToWebp(content);
+        series.setFlyerUrl(objectStorageService.uploadEventFlyerFinal(seriesId, webpContent));
+        return eventSeriesRepository.save(series);
     }
 
     @Override
@@ -158,6 +189,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     @Override
+    @Transactional
     public List<Events> generateOccurences(UUID seriesId, UUID requesterId, LocalDate startDate, LocalDate endDate) {
         EventSeries series = findById(seriesId);
         assertOwnership(series, requesterId);
@@ -165,6 +197,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     @Override
+    @Transactional
     public List<Events> generateOccurencesAsAdmin(UUID seriesId, LocalDate startDate, LocalDate endDate) {
         EventSeries series = findById(seriesId);
         return doGenerateOccurrences(series, startDate, endDate);
@@ -206,6 +239,9 @@ public class EventSeriesServiceImpl implements EventSeriesService {
         event.setTitle(series.getTitle());
         event.setDescription(series.getDescription());
         event.setFlyerUrl(series.getFlyerUrl());
+        if (series.getFlyerUrl() != null) {
+            event.setFlyerStatus(FlyerStatus.READY);
+        }
         event.setInstagramUrl(series.getInstagramUrl());
         event.setWhatsappUrl(series.getWhatsappUrl());
         event.setFree(series.isFree());

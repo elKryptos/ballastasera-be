@@ -79,4 +79,14 @@ public class UsersServiceImpl implements UsersService {
         }
         return usersRepository.save(user);
     }
+
+    @Override
+    public Users demoteToUser(UUID userId) {
+        return null;
+    }
+
+    @Override
+    public Users becomeOrganizer(UUID userId) {
+        return null;
+    }
 }

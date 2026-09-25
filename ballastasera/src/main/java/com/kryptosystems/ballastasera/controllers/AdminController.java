@@ -42,6 +42,7 @@ public class AdminController {
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String CREATE_EVENT_SERIES = "/event-series";
+    private static final String UPDATE_EVENT_SERIES_FLYER = "/event-series/{seriesId}/flyer";
     private static final String GENERATE_EVENT_SERIES_OCCURRENCES = "/event-series/{id}/occurrences";
     private static final String CREATE_VENUE = "/venues";
     private static final String DELETE_VENUE = "/venues/{id}";
@@ -141,6 +142,14 @@ public class AdminController {
     public ResponseEntity<EventSeriesDetailDto> createEventSeries(@Valid @RequestBody EventSeriesCreateDto body) {
         var series = eventSeriesService.createAsAdmin(body);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventSeriesService.toEventSeriesDetailDto(series));
+    }
+
+    /** Admin sube o reemplaza el flyer de la serie una sola vez; las ocurrencias generadas despues lo heredan. */
+    @PatchMapping(value = UPDATE_EVENT_SERIES_FLYER, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EventSeriesDetailDto> updateEventSeriesFlyer(@PathVariable UUID seriesId,
+                                                                       @RequestParam("file") MultipartFile file) {
+        var series = eventSeriesService.updateFlyerAsAdmin(seriesId, file);
+        return ResponseEntity.ok(eventSeriesService.toEventSeriesDetailDto(series));
     }
 
     @PostMapping(GENERATE_EVENT_SERIES_OCCURRENCES)

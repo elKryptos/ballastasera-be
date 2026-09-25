@@ -57,7 +57,7 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
               AND e.latitude  BETWEEN :minLat AND :maxLat
               AND e.longitude BETWEEN :minLng AND :maxLng
               AND (:cityId IS NULL OR e.city_id = :cityId)
-            ORDER BY e.start_at ASC
+            ORDER BY e.start_at DESC
             """, nativeQuery = true)
     List<UUID> findActiveOrUpcomingIdsInBounds(
             @Param("minLat") double minLat,
