@@ -78,8 +78,9 @@ public interface EventsMapper {
     }
 
     default String resolveInstagramUrl(Events event) {
-        return event.getInstagramUrl() != null
-                ? event.getInstagramUrl()
-                : event.getOrganizer().getInstagram();
+        if (event.getInstagramUrl() != null) {
+            return event.getInstagramUrl();
+        }
+        return event.getOrganizer().getInstagram() != null ? event.getOrganizer().getInstagram() : null;
     }
 }

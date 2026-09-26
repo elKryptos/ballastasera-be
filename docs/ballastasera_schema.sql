@@ -27,9 +27,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
 CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
-CREATE TYPE attendance_status AS ENUM ('INTERESTED', 'GOING');
-CREATE TYPE flyer_status AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
-CREATE TYPE event_type AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
+CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
+CREATE TYPE event_type        AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
 
 
 -- ============================================================================
@@ -142,7 +141,7 @@ CREATE TABLE dance_styles (
 -- ============================================================================
 CREATE TABLE event_series (
     id              UUID   PRIMARY KEY DEFAULT gen_random_uuid(),
-    organizer_id    UUID   NOT NULL REFERENCES organizers(id) ON DELETE CASCADE,
+    organizer_id    UUID            REFERENCES organizers(id) ON DELETE SET NULL,
     venue_id        UUID            REFERENCES venues(id)     ON DELETE SET NULL,
     city_id         BIGINT NOT NULL REFERENCES cities(id),
 
@@ -208,7 +207,7 @@ CREATE TABLE event_series_dance_styles (
 -- ============================================================================
 CREATE TABLE events (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organizer_id  UUID   NOT NULL REFERENCES organizers(id)  ON DELETE CASCADE,
+    organizer_id  UUID            REFERENCES organizers(id)   ON DELETE SET NULL,
     venue_id      UUID            REFERENCES venues(id)       ON DELETE SET NULL,
     series_id     UUID            REFERENCES event_series(id) ON DELETE SET NULL,
     city_id       BIGINT NOT NULL REFERENCES cities(id),
@@ -308,11 +307,11 @@ SELECT
     e.id, e.title, e.slug, e.start_at, e.end_at,
     e.latitude, e.longitude, e.address, e.flyer_url,
     e.is_free, e.price, e.currency,
-    o.name  AS organizer_name,
+    COALESCE(o.name, 'Organizzatore eliminato') AS organizer_name,
     c.name  AS city_name,
     c.slug  AS city_slug
 FROM events e
-JOIN organizers o ON o.id = e.organizer_id
+LEFT JOIN organizers o ON o.id = e.organizer_id
 JOIN cities     c ON c.id = e.city_id
 WHERE e.status = 'PUBLISHED'                                                                                                                                                                                                                                                                                                                                
     AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > now()     

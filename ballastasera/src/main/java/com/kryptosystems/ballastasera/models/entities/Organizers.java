@@ -80,6 +80,6 @@ public class Organizers {
     @OneToMany(mappedBy = "organizer")
     private List<EventSeries> eventSeries = new ArrayList<>();
 
-    @OneToMany(mappedBy = "organizer", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "organizer")
     private List<Events>  events = new ArrayList<>();
 }

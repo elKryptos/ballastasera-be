@@ -280,8 +280,10 @@ public class EventsServiceImpl implements EventsService {
         objectStorageService.deleteEventFlyerFinal(event.getId());
     }
 
+    /** Si el organizer fue borrado, nadie puede reclamar ser el dueño vía esta implementación se deniega el update */
     private void assertOwnership(Events event, UUID requesterId) {
-        if (event.getOrganizer().getUser() == null || !event.getOrganizer().getUser().getId().equals(requesterId)) {
+        Organizers organizer = event.getOrganizer();
+        if (organizer == null || organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event");
         }
     }

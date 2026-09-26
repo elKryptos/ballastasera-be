@@ -73,7 +73,7 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
      */
     @Query("""
             SELECT DISTINCT e FROM Events e
-            JOIN FETCH e.organizer o
+            LEFT JOIN FETCH e.organizer o
             LEFT JOIN FETCH e.venue v
             LEFT JOIN FETCH e.danceStyles ds
             WHERE e.id IN :ids
@@ -82,7 +82,7 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
 
     @Query("""
             SELECT e FROM Events e
-            JOIN FETCH e.organizer o
+            LEFT JOIN FETCH e.organizer o
             LEFT JOIN FETCH e.venue v
             LEFT JOIN FETCH e.city c
             LEFT JOIN FETCH e.danceStyles ds
