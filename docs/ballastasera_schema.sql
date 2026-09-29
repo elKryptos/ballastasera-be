@@ -110,7 +110,6 @@ CREATE TABLE venues (
     organizer_id UUID REFERENCES organizers(id) ON DELETE SET NULL, -- se il locale ha un profilo proprio
     city_id      BIGINT NOT NULL REFERENCES cities(id),
     address      TEXT NOT NULL,                   -- via e numero civico
-    postal_code  TEXT,
     latitude     DOUBLE PRECISION NOT NULL,
     longitude    DOUBLE PRECISION NOT NULL,
     description  TEXT,

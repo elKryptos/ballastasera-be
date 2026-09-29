@@ -8,6 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.springframework.data.domain.Slice;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,6 +26,8 @@ import java.util.List;
 public interface EventsMapper {
 
     @Mapping(target = "seriesId", source = "series.id")
+    @Mapping(target = "organizerName", source = "organizer.name")
+    @Mapping(target = "organizerInstagram", source = "organizer.instagram")
     @Mapping(target = "venueName", source = "venue.name")
     @Mapping(target = "danceStyles", expression = "java(toStyleNames(event))")
     @Mapping(target = "liveNow",  expression = "java(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()))")
@@ -69,6 +72,14 @@ public interface EventsMapper {
     @Mapping(target = "eventAttendances", ignore = true)
     void updateEventEntityFromDto(EventUpdateDto dto, @MappingTarget Events event);
 
+    /** Respuesta del mapa: cards + truncated (hasNext del slice = se llego al limite). */
+    default MapEventsDto toMapEventsDto(Slice<Events> events) {
+        MapEventsDto dto = new MapEventsDto();
+        dto.setEvents(events.getContent().stream().map(this::toEventCardDto).toList());
+        dto.setTruncated(events.hasNext());
+        return dto;
+    }
+
     default List<String> toStyleNames(Events event) {
         return event.getDanceStyles().stream()
                 .map(DanceStyles::getName)
@@ -80,6 +91,6 @@ public interface EventsMapper {
         if (event.getInstagramUrl() != null) {
             return event.getInstagramUrl();
         }
-        return event.getOrganizer().getInstagram() != null ? event.getOrganizer().getInstagram() : null;
+        return event.getOrganizer() != null ? event.getOrganizer().getInstagram() : null;
     }
 }

@@ -35,9 +35,6 @@ public class Venues {
     @Column(name = "address", nullable = false)
     private String address;
 
-    @Column(name = "postal_code")
-    private String postalCode;
-
     @Column(name = "latitude", nullable = false)
     private Double latitude;
 

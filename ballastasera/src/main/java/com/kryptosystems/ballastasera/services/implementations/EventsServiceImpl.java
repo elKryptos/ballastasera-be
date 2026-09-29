@@ -13,12 +13,16 @@ import com.kryptosystems.ballastasera.services.manager.*;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,6 +39,9 @@ public class EventsServiceImpl implements EventsService {
     private final EventResolverService eventResolverService;
     private final ObjectStorageService objectStorageService;
     private final EventFlyerProcessingService eventFlyerProcessingService;
+
+    private static final Duration MAP_DURATION = Duration.ofDays(21);
+    private static final int MAP_LIMIT = 150;
 
     @Override
     public List<Events> findAll() {
@@ -85,19 +92,22 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public List<Events> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId) {
-        List<UUID> ids = eventsRepository.findActiveOrUpcomingIdsInBounds(minLat, maxLat, minLng, maxLng, cityId);
-        if (ids.isEmpty()) {
-            return List.of();
+    public Slice<Events> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId) {
+        OffsetDateTime to = OffsetDateTime.now().plus(MAP_DURATION);
+        Slice<UUID> ids = eventsRepository.findActiveOrUpcomingIdsInBounds(
+                minLat, maxLat, minLng, maxLng, cityId, to, PageRequest.of(0, MAP_LIMIT));
+        if (!ids.hasContent()) {
+            return new SliceImpl<>(List.of(), ids.getPageable(), false);
         }
 
-        Map<UUID, Events> eventsById = eventsRepository.findAllWithDetailsByIdIn(ids).stream()
+        Map<UUID, Events> eventsById = eventsRepository.findAllWithDetailsByIdIn(ids.getContent()).stream()
                 .collect(Collectors.toMap(Events::getId, e -> e));
 
-        return ids.stream()
+        List<Events> events = ids.stream()
                 .map(eventsById::get)
                 .filter(Objects::nonNull)
                 .toList();
+        return new SliceImpl<>(events, ids.getPageable(), ids.hasNext());
     }
 
     @Override

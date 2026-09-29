@@ -34,7 +34,8 @@ public class EventCardDto {
     private Double latitude;
     private Double longitude;
     private String address;
-    private OrganizerSummaryDto organizer;
+    private String organizerName;
+    private String organizerInstagram;
     private String venueName;
     private List<String> danceStyles;
     private long goingCount;

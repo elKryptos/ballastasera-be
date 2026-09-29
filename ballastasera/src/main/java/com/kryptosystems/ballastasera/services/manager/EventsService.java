@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Slice;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -20,8 +21,9 @@ public interface EventsService {
     Events save(Events event);
     void deleteById(UUID id);
 
-    /** Eventos en vivo o por empezar dentro del bounding box del mapa. */
-    List<Events> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId);
+    /** Eventos en vivo o por empezar (proximas 3 semanas) dentro del bounding box del mapa.
+     * hasNext() = true si se llego al limite y pueden faltar eventos lejanos. */
+    Slice<Events> findMapEvents(double minLat, double maxLat, double minLng, double maxLng, Long cityId);
 
     Events findByIdWithDetails(UUID id);
 

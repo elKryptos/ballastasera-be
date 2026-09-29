@@ -51,14 +51,15 @@ public class EventsController {
     private final EventsRepository eventsRepository;
     private final EventsMapper eventsMapper;
 
-    /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar,
-     * dentro del bounding box visible. Nunca devuelve eventos pasados. */
+    /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar en las
+     * proximas 3 semanas, dentro del bounding box visible. Nunca devuelve eventos pasados.
+     * truncated = true si se llego al limite (el FE sugiere acercar el zoom). */
     @GetMapping(GET_MAP_EVENTS)
-    public ResponseEntity<List<EventCardDto>> getMapEvents(@RequestParam double minLat, @RequestParam double maxLat,
-                                                           @RequestParam double minLng, @RequestParam double maxLng,
-                                                           @RequestParam(required = false) Long cityId) {
+    public ResponseEntity<MapEventsDto> getMapEvents(@RequestParam double minLat, @RequestParam double maxLat,
+                                                     @RequestParam double minLng, @RequestParam double maxLng,
+                                                     @RequestParam(required = false) Long cityId) {
         var events = eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId);
-        return ResponseEntity.ok(events.stream().map(eventsMapper::toEventCardDto).toList());
+        return ResponseEntity.ok(eventsMapper.toMapEventsDto(events));
     }
 
     /** Publico */
