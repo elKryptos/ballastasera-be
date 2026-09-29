@@ -14,9 +14,12 @@ public interface VenuesService {
     List<Venues> findByOrganizerId(UUID organizerId);
     Venues save(Venues venue);
     void deleteById(UUID id);
-    Venues create(UUID requesterId, VenueCreateDto dto);
+    /** Admin crea un venue del catalogo. organizerId opcional (perfil propio del lugar). */
     Venues createAsAdmin(UUID adminUserId, VenueCreateDto dto);
-    Venues update(UUID id, UUID requesterId, VenueUpdateDto dto);
+
+    /** Admin edita cualquier venue, sin chequeo de ownership. */
+    Venues updateAsAdmin(UUID id, VenueUpdateDto dto);
+
     void delete(UUID id);
     List<Venues> search(Long cityId, String query);
 }

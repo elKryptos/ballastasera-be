@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.VenueType;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Pattern;
@@ -17,6 +18,8 @@ public class VenueUpdateDto {
     @Size(max = 255)
     @Pattern(regexp = "(?s).*\\S.*")
     private String name;
+
+    private VenueType type;
 
     @Size(max = 255)
     @Pattern(regexp = "(?s).*\\S.*")

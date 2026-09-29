@@ -55,6 +55,7 @@ public class SecurityConfig {
                                 "/rest/dance-styles",
                                 "/rest/dance-styles/{id}",
                                 "/rest/venues",
+                                "/rest/venues/map",
                                 "/rest/venues/{id}",
                                 "/rest/event-series/{id}",
                                 "/rest/organizers",

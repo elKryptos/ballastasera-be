@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.models.mappers;
 
 import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
+import com.kryptosystems.ballastasera.models.dtos.VenueMapPinDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.VenuesSummaryDto;
 import com.kryptosystems.ballastasera.models.entities.Venues;
@@ -21,6 +22,8 @@ public interface VenuesMapper {
     @Mapping(target = "organizerId", source = "organizer.id")
     @Mapping(target = "organizerName", source = "organizer.name")
     VenueDetailDto toVenueDetailDto(Venues venues);
+
+    VenueMapPinDto toVenueMapPinDto(Venues venues);
 
     @Mapping(target = "organizer", ignore = true)
     @Mapping(target = "city", ignore = true)

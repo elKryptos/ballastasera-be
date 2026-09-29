@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.VenueType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,6 +11,7 @@ import java.util.UUID;
 public class VenuesSummaryDto {
     private UUID id;
     private String name;
+    private VenueType type;
     private String address;
     private String cityName;
     private Double latitude;

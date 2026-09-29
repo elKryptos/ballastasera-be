@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.VenueType;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ class VenueDtoValidationTest {
         dto.setOrganizerId(UUID.randomUUID());
         dto.setCityId(1L);
         dto.setName("Sala Central");
+        dto.setType(VenueType.CLUB);
         dto.setAddress("Calle Mayor 1");
         dto.setPostalCode("28001");
         dto.setLatitude(40.4168);
@@ -27,6 +29,34 @@ class VenueDtoValidationTest {
         dto.setDescription("Sala para eventos de baile");
 
         assertThat(validator.validate(dto)).isEmpty();
+    }
+
+    @Test
+    void acceptsVenueCreateDtoWithoutOrganizer() {
+        VenueCreateDto dto = new VenueCreateDto();
+        dto.setCityId(1L);
+        dto.setName("Sala Central");
+        dto.setType(VenueType.SCHOOL);
+        dto.setAddress("Calle Mayor 1");
+        dto.setLatitude(40.4168);
+        dto.setLongitude(-3.7038);
+
+        assertThat(validator.validate(dto)).isEmpty();
+    }
+
+    @Test
+    void rejectsVenueCreateDtoWithoutType() {
+        VenueCreateDto dto = new VenueCreateDto();
+        dto.setCityId(1L);
+        dto.setName("Sala Central");
+        dto.setAddress("Calle Mayor 1");
+        dto.setLatitude(40.4168);
+        dto.setLongitude(-3.7038);
+
+        assertThat(validator.validate(dto))
+                .extracting("propertyPath")
+                .extracting(Object::toString)
+                .containsExactly("type");
     }
 
     @Test

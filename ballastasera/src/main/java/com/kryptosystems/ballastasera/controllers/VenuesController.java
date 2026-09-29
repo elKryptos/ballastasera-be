@@ -1,32 +1,25 @@
 package com.kryptosystems.ballastasera.controllers;
 
-import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
-import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.VenueMapPinDto;
 import com.kryptosystems.ballastasera.models.dtos.VenuesSummaryDto;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
-import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.UUID;
 
 import static com.kryptosystems.ballastasera.utilities.RestConstants.VENUES;
 
+/** Solo lectura: los venues los crea y edita el admin (ver AdminController). */
 @RestController
 @RequestMapping(VENUES)
 @RequiredArgsConstructor
 public class VenuesController {
 
     private static final String GET_VENUES = "";
-    private static final String CREATE_VENUE = "";
-    private static final String UPDATE_VENUE = "/{id}";
+    private static final String GET_MAP_VENUES = "/map";
 
     private final VenuesService venuesService;
     private final VenuesMapper venuesMapper;
@@ -40,21 +33,14 @@ public class VenuesController {
                 .toList());
     }
 
-    /** Requiere estar autenticado. El organizerId tiene que estar verificado y el venue creado es reusable por todos los organizers. */
-    @PostMapping(CREATE_VENUE)
-    public ResponseEntity<VenueDetailDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
-                                                        @Valid @RequestBody VenueCreateDto body) {
-        var venue = venuesService.create(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(venuesMapper.toVenueDetailDto(venue));
-    }
-
-    /** Requiere estar autenticado y ser dueño del venue.... cambiar a que solo ADMIN puede hacer modificaciones */
-    @PatchMapping(UPDATE_VENUE)
-    public ResponseEntity<VenueDetailDto> updateVenue(@AuthenticationPrincipal UserPrincipal principal,
-                                                      @PathVariable UUID id,
-                                                      @Valid @RequestBody VenueUpdateDto body) {
-        var venue = venuesService.update(id, principal.getId(), body);
-        return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venue));
+    /** Público. Todos los venues de una ciudad para los pines del mapa.
+     * El FE lo llama solo cuando se activa la capa de lugares, y filtra por
+     * tipo y por area visible en memoria. */
+    @GetMapping(GET_MAP_VENUES)
+    public ResponseEntity<List<VenueMapPinDto>> getMapVenues(@RequestParam Long cityId) {
+        return ResponseEntity.ok(venuesService.findByCityId(cityId).stream()
+                .map(venuesMapper::toVenueMapPinDto)
+                .toList());
     }
 
 }

@@ -29,6 +29,7 @@ CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASS
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
 CREATE TYPE event_type        AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
+CREATE TYPE venue_type        AS ENUM ('SCHOOL', 'CLUB', 'BAR', 'OTHER');
 
 
 -- ============================================================================
@@ -107,6 +108,7 @@ CREATE INDEX idx_organizers_claimed ON organizers(claimed);
 CREATE TABLE venues (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name         TEXT NOT NULL,
+    type         venue_type NOT NULL DEFAULT 'OTHER', -- tipo proprio del luogo (non dipende dall'organizer)
     organizer_id UUID REFERENCES organizers(id) ON DELETE SET NULL, -- se il locale ha un profilo proprio
     city_id      BIGINT NOT NULL REFERENCES cities(id),
     address      TEXT NOT NULL,                   -- via e numero civico
@@ -119,6 +121,7 @@ CREATE TABLE venues (
 );
 CREATE INDEX idx_venues_city   ON venues(city_id);
 CREATE INDEX idx_venues_coords ON venues(latitude, longitude);
+CREATE INDEX idx_venues_city_type ON venues(city_id, type);
 
 
 -- ============================================================================

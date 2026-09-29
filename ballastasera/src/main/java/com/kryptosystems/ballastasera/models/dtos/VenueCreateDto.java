@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.VenueType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.DecimalMax;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Getter
 @Setter
 public class VenueCreateDto {
-    @NotNull
+    /** Opcional: solo si el lugar tiene perfil propio de organizer. */
     private UUID organizerId;
 
     @NotNull
@@ -24,6 +25,9 @@ public class VenueCreateDto {
     @NotBlank
     @Size(max = 255)
     private String name;
+
+    @NotNull
+    private VenueType type;
 
     @NotBlank
     @Size(max = 255)

@@ -20,7 +20,6 @@ import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -70,24 +69,13 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    public Venues create(UUID requesterId, VenueCreateDto dto) {
-        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
-                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
-        if (!organizer.getUser().getId().equals(requesterId)) {
-            throw new AccessDeniedException("Not the owner of this organizer");
-        }
-        if (!organizer.isVerified()) {
-            throw new AccessDeniedException("Organizer not verified yet");
-        }
-        return buildAndSaveVenue(organizer, organizer.getUser(), dto);
-    }
-
-    @Override
     public Venues createAsAdmin(UUID adminUserId, VenueCreateDto dto) {
-        Organizers organizer = organizersRepository.findById(dto.getOrganizerId())
-                .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
-        Users createdBy = organizer.getUser() != null ? organizer.getUser() : usersService.findById(adminUserId);
-        return buildAndSaveVenue(organizer, createdBy, dto);
+        Organizers organizer = null;
+        if (dto.getOrganizerId() != null) {
+            organizer = organizersRepository.findById(dto.getOrganizerId())
+                    .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId()));
+        }
+        return buildAndSaveVenue(organizer, usersService.findById(adminUserId), dto);
     }
 
     private Venues buildAndSaveVenue(Organizers organizer, Users user, VenueCreateDto dto) {
@@ -116,17 +104,17 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    public Venues update(UUID id, UUID requesterId, VenueUpdateDto dto) {
+    public Venues updateAsAdmin(UUID id, VenueUpdateDto dto) {
         Venues venue = findById(id);
-        assertOwnership(venue, requesterId);
         if (dto.getName() != null) {
             venuesRepository.findByCityIdAndNameIgnoreCaseAndIdNot(venue.getCity().getId(), dto.getName(), id)
                     .ifPresent(existing -> {
                         throw new DuplicateVenueException("A venue with name " + dto.getName() + " already exists in this city", existing.getId());
                     });
         }
-        venuesMapper.updateVenueEntityFromDto(dto, venue);
+        // Antes del mapper: despues venue.getAddress() ya tiene la direccion nueva y nunca detectaria el cambio.
         boolean addressChanged = dto.getAddress() != null && !dto.getAddress().equals(venue.getAddress());
+        venuesMapper.updateVenueEntityFromDto(dto, venue);
         boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
         if (addressChanged && !coordsProvidedByClient) {
             GeocodingService.GeoPoint point = geocodingService.geoCode(dto.getAddress(), venue.getCity().getName())
@@ -153,12 +141,5 @@ public class VenuesServiceImpl implements VenuesService {
             return venuesRepository.findByCityId(cityId);
         }
         return venuesRepository.findByCityIdAndNameContainingIgnoreCase(cityId, query);
-    }
-
-    private void assertOwnership(Venues venue, UUID requesterId) {
-        if (venue.getOrganizer() == null || venue.getOrganizer().getUser() == null
-                || !venue.getOrganizer().getUser().getId().equals(requesterId)) {
-            throw new AccessDeniedException("Not the owner of this venue");
-        }
     }
 }

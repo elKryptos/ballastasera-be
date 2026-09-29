@@ -45,6 +45,7 @@ public class AdminController {
     private static final String UPDATE_EVENT_SERIES_FLYER = "/event-series/{seriesId}/flyer";
     private static final String GENERATE_EVENT_SERIES_OCCURRENCES = "/event-series/{id}/occurrences";
     private static final String CREATE_VENUE = "/venues";
+    private static final String UPDATE_VENUE = "/venues/{id}";
     private static final String DELETE_VENUE = "/venues/{id}";
 
     private final OrganizersService organizersService;
@@ -159,12 +160,20 @@ public class AdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(occurrences.stream().map(eventsMapper::toEventCardDto).toList());
     }
 
-    /** Admin crea un venue para cualquier organizer, sin chequeo de ownership. */
+    /** Admin crea un venue del catalogo. organizerId opcional: solo si el lugar tiene perfil propio. */
     @PostMapping(CREATE_VENUE)
     public ResponseEntity<VenueDetailDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
                                                         @Valid @RequestBody VenueCreateDto body) {
         var venue = venuesService.createAsAdmin(principal.getId(), body);
         return ResponseEntity.status(HttpStatus.CREATED).body(venuesMapper.toVenueDetailDto(venue));
+    }
+
+    /** Admin edita cualquier venue del catalogo. */
+    @PatchMapping(UPDATE_VENUE)
+    public ResponseEntity<VenueDetailDto> updateVenue(@PathVariable UUID id,
+                                                      @Valid @RequestBody VenueUpdateDto body) {
+        var venue = venuesService.updateAsAdmin(id, body);
+        return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venue));
     }
 
     /** Borra un venue. Solo ADMIN — el service hace la validación que no tenga eventos activos. */

@@ -30,9 +30,9 @@ VALUES (
 -- ----------------------------------------------------------------------------
 -- Venue reutilizable
 -- ----------------------------------------------------------------------------
-INSERT INTO venues (id, name, organizer_id, city_id, address, latitude, longitude, description, created_by)
+INSERT INTO venues (id, name, type, organizer_id, city_id, address, latitude, longitude, description, created_by)
 VALUES (
-           '33333333-3333-3333-3333-333333333333', 'Sala Havana',
+           '33333333-3333-3333-3333-333333333333', 'Sala Havana', 'CLUB',
            '11111111-1111-1111-1111-111111111111',
            (SELECT id FROM cities WHERE slug = 'milano'),
            'Via Tortona 12', 45.4522, 9.1620,
