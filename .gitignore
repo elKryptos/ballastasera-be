@@ -19,6 +19,7 @@ ballastasera/.mvn/wrapper/maven-wrapper.jar
 *.iws
 *.iml
 *.ipr
+ballastasera/.mcp.json
 
 ### NetBeans ###
 /ballastasera/nbproject/private/
