@@ -62,7 +62,11 @@ CREATE TABLE users (
 	instagram    TEXT,
 	show_profile_public BOOLEAN NOT NULL DEFAULT FALSE,
     role         user_role   NOT NULL DEFAULT 'USER',
-    is_active    BOOLEAN     NOT NULL DEFAULT TRUE,
+    is_banned    BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_deleted   BOOLEAN     NOT NULL DEFAULT FALSE,
+    deleted_at   TIMESTAMPTZ,
+   	login_count  INTEGER     NOT NULL DEFAULT 0,
+   	last_login   TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -24,7 +24,7 @@ public class EventSeriesUpdateDto {
     private String instagramUrl;
     private String whatsappUrl;
 
-    private Boolean isFree;
+    private Boolean free;
 
     @DecimalMin(value = "0.0", inclusive = true)
     private BigDecimal price;

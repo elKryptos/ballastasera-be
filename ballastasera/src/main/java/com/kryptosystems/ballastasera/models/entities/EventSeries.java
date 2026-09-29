@@ -71,7 +71,7 @@ public class EventSeries {
     private String whatsappUrl;
 
     @Column(name = "is_free", nullable = false)
-    private boolean isFree = true;
+    private boolean free = true;
 
     @Column(name = "price", precision = 8, scale = 2)
     private BigDecimal price;

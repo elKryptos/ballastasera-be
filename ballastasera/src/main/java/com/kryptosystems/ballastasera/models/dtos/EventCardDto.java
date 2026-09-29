@@ -28,7 +28,7 @@ public class EventCardDto {
     private OffsetDateTime startAt;
     private OffsetDateTime endAt;
     private boolean liveNow;
-    private boolean isFree;
+    private boolean free;
     private BigDecimal price;
     private String currency;
     private Double latitude;

@@ -49,7 +49,6 @@ public interface EventSeriesMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "danceStyles", ignore = true)
     @Mapping(target = "events", ignore = true)
-    @Mapping(target = "free", source = "isFree")
     void updateEventSeriesEntityFromDto(EventSeriesUpdateDto eventSeriesUpdateDto, @MappingTarget EventSeries eventSeries);
 
     default List<String> toStyleNames(EventSeries eventSeries) {

@@ -5,8 +5,6 @@ import com.kryptosystems.ballastasera.validations.EventTimeRange;
 import com.kryptosystems.ballastasera.validations.ValidEventTiming;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -33,7 +31,7 @@ public class EventUpdateDto implements EventTimeRange {
     @Future
     private OffsetDateTime startAt;
     private OffsetDateTime endAt;
-    private Boolean isFree;
+    private Boolean free;
 
     @DecimalMin(value = "0.0", inclusive = true)
     private BigDecimal price;

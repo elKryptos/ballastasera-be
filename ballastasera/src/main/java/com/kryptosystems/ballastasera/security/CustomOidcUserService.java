@@ -6,8 +6,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
 
 @Slf4j
 @Service
@@ -35,13 +39,18 @@ public class CustomOidcUserService extends OidcUserService {
                                 }))
                 .orElse(new Users());
 
+        if (user.isDeleted()) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("account_deleted"));
+        }
+        if (user.isBanned()) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("account_banned"));
+        }
         user.setGoogleId(googleId);
         user.setEmail(email);
         user.setDisplayName(displayName);
         user.setAvatarUrl(avatarUrl);
-        if (user.getId() == null) {
-            user.setActive(true);
-        }
+        user.setLoginCount(user.getLoginCount() + 1);
+        user.setLastLogin(OffsetDateTime.now());
 
         Users saved = usersRepository.save(user);
 

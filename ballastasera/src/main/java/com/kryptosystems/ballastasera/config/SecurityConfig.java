@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.config;
 
 import com.kryptosystems.ballastasera.security.CustomOidcUserService;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
+import com.kryptosystems.ballastasera.security.OAuth2LoginFailureHandler;
 import com.kryptosystems.ballastasera.security.OAuth2LoginSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +27,7 @@ public class SecurityConfig {
 
     private final CustomOidcUserService customOidcUserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Value("${frontend.url}")
@@ -71,6 +73,7 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.oidcUserService(customOidcUserService))
                         .successHandler(oAuth2LoginSuccessHandler)
+                        .failureHandler(oAuth2LoginFailureHandler)
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

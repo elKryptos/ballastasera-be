@@ -47,8 +47,20 @@ public class Users {
     @Column(name = "role", nullable = false, columnDefinition = "user_role")
     private UserRole role = UserRole.USER;
 
-    @Column(name = "is_active",  nullable = false)
-    private boolean isActive = true;
+    @Column(name = "is_banned",  nullable = false)
+    private boolean isBanned = false;
+
+    @Column(name ="is_deleted", nullable = false)
+    private boolean isDeleted = false;
+
+    @Column(name ="deleted_at")
+    private OffsetDateTime deletedAt;
+
+    @Column(name = "login_count", nullable = false)
+    private int loginCount = 0;
+
+    @Column(name = "last_login")
+    private OffsetDateTime lastLogin;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

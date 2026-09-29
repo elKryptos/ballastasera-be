@@ -40,7 +40,7 @@ public class EventCreateDto implements EventTimeRange {
     private String instagramUrl;
     private String whatsappUrl;
 
-    private boolean isFree = true;
+    private boolean free = true;
 
     @DecimalMin(value = "0.0", inclusive = true)
     private BigDecimal price;

@@ -16,4 +16,5 @@ public class UserDto {
     private String avatarUrl;
     private String instagram;
     private boolean showProfilePublic;
+    private int loginCount;
 }
