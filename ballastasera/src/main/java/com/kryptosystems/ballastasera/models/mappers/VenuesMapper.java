@@ -37,4 +37,9 @@ public interface VenuesMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "events", ignore = true)
     void updateVenueEntityFromDto(VenueUpdateDto venueUpdateDto, @MappingTarget Venues venues);
+
+    /** MapStruct lo usa en cada propiedad String→String: "" o "   " se guardan como null y el resto sin espacios en los extremos. */
+    default String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
+    }
 }
