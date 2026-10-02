@@ -6,6 +6,7 @@ import com.kryptosystems.ballastasera.repositories.RevokedTokensRepository;
 import com.kryptosystems.ballastasera.security.CustomOidcUserService;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.JwtService;
+import com.kryptosystems.ballastasera.security.OAuth2LoginFailureHandler;
 import com.kryptosystems.ballastasera.security.OAuth2LoginSuccessHandler;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
@@ -65,6 +66,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+
+    @MockitoBean
+    private OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
     @MockitoBean
     private ClientRegistrationRepository clientRegistrationRepository;
