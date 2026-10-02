@@ -147,7 +147,7 @@ public class EventsServiceImpl implements EventsService {
         event.setDanceStyles(eventResolverService.resolveDanceStyles(dto.getDanceStyleIds()));
         event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
                 slug -> eventsRepository.findBySlug(slug).isPresent()));
-        event.setStatus(EventStatus.PENDING);
+        event.setStatus(EventStatus.PUBLISHED);
         /** Si el cliente no mando lat/lng las calculamos a partir de la dirección.
          * Es un Fallback para recalcular las coordenadas ahorramos una llamada a la API.
          * Actualmente el FE deberia enviar todos los datos desde la api de Photon, es solo de seguridad*/

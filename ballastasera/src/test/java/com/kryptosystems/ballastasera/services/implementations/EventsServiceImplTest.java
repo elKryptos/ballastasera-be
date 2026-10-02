@@ -81,7 +81,7 @@ class EventsServiceImplTest {
     private EventsServiceImpl eventsService;
 
     @Test
-    void createSavesPendingEventForVerifiedOrganizerOwner() {
+    void createSavesPublishedEventForVerifiedOrganizerOwner() {
         Organizers organizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
         EventCreateDto dto = createDto(ORGANIZER_ID);
         Events mappedEvent = mappedEvent();
@@ -96,7 +96,7 @@ class EventsServiceImplTest {
 
         assertSame(mappedEvent, result);
         assertSame(organizer, result.getOrganizer());
-        assertEquals(EventStatus.PENDING, result.getStatus());
+        assertEquals(EventStatus.PUBLISHED, result.getStatus());
         verify(eventsRepository).save(mappedEvent);
     }
 
