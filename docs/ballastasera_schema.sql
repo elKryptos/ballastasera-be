@@ -66,8 +66,8 @@ CREATE TABLE users (
     is_banned    BOOLEAN     NOT NULL DEFAULT FALSE,
     is_deleted   BOOLEAN     NOT NULL DEFAULT FALSE,
     deleted_at   TIMESTAMPTZ,
-   	login_count  INTEGER     NOT NULL DEFAULT 0,
-   	last_login   TIMESTAMPTZ,
+    login_count  INTEGER     NOT NULL DEFAULT 0,
+    last_login   TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -111,16 +111,23 @@ CREATE TABLE venues (
     type         venue_type NOT NULL DEFAULT 'OTHER', -- tipo proprio del luogo (non dipende dall'organizer)
     organizer_id UUID REFERENCES organizers(id) ON DELETE SET NULL, -- se il locale ha un profilo proprio
     city_id      BIGINT NOT NULL REFERENCES cities(id),
-    address      TEXT NOT NULL,                   -- via e numero civico
+    address      VARCHAR(150) NOT NULL,                   -- via e numero civico
     latitude     DOUBLE PRECISION NOT NULL,
     longitude    DOUBLE PRECISION NOT NULL,
     description  TEXT,
+    website      VARCHAR(100),                    -- opzionale
+    whatsapp     VARCHAR(20),                     -- formato E.164: +393331234567
+    email        VARCHAR(100),
+    facebook     VARCHAR(100),                    -- URL completo
+    instagram    VARCHAR(100),                    -- URL completo
+    youtube      VARCHAR(100),                    -- URL completo
+    tiktok       VARCHAR(100),                    -- URL completo
     created_by   UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),   
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_venues_city   ON venues(city_id);
-CREATE INDEX idx_venues_coords ON venues(latitude, longitude);
+CREATE INDEX idx_venues_city      ON venues(city_id);
+CREATE INDEX idx_venues_coords    ON venues(latitude, longitude);
 CREATE INDEX idx_venues_city_type ON venues(city_id, type);
 
 
@@ -154,7 +161,7 @@ CREATE TABLE event_series (
     title           TEXT NOT NULL,
 	active          BOOLEAN NOT NULL DEFAULT TRUE,
 	generated_until DATE,         -- cursor: hasta qué fecha ya se generaron occurrences en `events`
-	
+
     description     TEXT,
     flyer_url       TEXT,
 	instagram_url   TEXT,
@@ -319,8 +326,8 @@ SELECT
 FROM events e
 LEFT JOIN organizers o ON o.id = e.organizer_id
 JOIN cities     c ON c.id = e.city_id
-WHERE e.status = 'PUBLISHED'                                                                                                                                                                                                                                                                                                                                
-    AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > now()     
+WHERE e.status = 'PUBLISHED'
+    AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > now()
 ORDER BY e.start_at;
 
 
