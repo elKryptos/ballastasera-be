@@ -111,7 +111,7 @@ CREATE TABLE venues (
     type         venue_type NOT NULL DEFAULT 'OTHER', -- tipo proprio del luogo (non dipende dall'organizer)
     organizer_id UUID REFERENCES organizers(id) ON DELETE SET NULL, -- se il locale ha un profilo proprio
     city_id      BIGINT NOT NULL REFERENCES cities(id),
-    address      VARCHAR(150) NOT NULL,                   -- via e numero civico
+    address      VARCHAR(150) NOT NULL,           -- via e numero civico
     latitude     DOUBLE PRECISION NOT NULL,
     longitude    DOUBLE PRECISION NOT NULL,
     description  TEXT,
