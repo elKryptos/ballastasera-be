@@ -1,13 +1,10 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
 import com.kryptosystems.ballastasera.enums.VenueType;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.validator.constraints.URL;
 
 @Getter
 @Setter
@@ -15,18 +12,15 @@ public class VenueUpdateDto {
     @Positive
     private Long cityId;
 
-    @Size(max = 255)
+    @Size(max = 100)
     @Pattern(regexp = "(?s).*\\S.*")
     private String name;
 
     private VenueType type;
 
-    @Size(max = 255)
+    @Size(max = 150)
     @Pattern(regexp = "(?s).*\\S.*")
     private String address;
-
-    @Size(max = 255)
-    private String postalCode;
 
     @DecimalMin("-90.0")
     @DecimalMax("90.0")
@@ -36,6 +30,34 @@ public class VenueUpdateDto {
     @DecimalMax("180.0")
     private Double longitude;
 
-    @Size(max = 255)
+    @Size(max = 500)
     private String description;
+
+    /** Contactos opcionales: null o "" = sin valor (el mapper guarda "" como null). En el PATCH, "" borra el valor actual. */
+    @URL
+    @Size(max = 100)
+    private String website;
+
+    @Pattern(regexp = "^$|^\\+?[0-9]{6,15}$", message = "whatsapp must be a phone number with country code")
+    private String whatsapp;
+
+    @Email
+    @Size(max = 100)
+    private String email;
+
+    @Size(max = 100)
+    @Pattern(regexp = "^$|^https://(www\\.|m\\.)?facebook\\.com/.+", message = "must be a facebook.com URL")
+    private String facebook;
+
+    @Size(max = 100)
+    @Pattern(regexp = "^$|^https://(www\\.)?instagram\\.com/.+", message = "must be an instagram.com URL")
+    private String instagram;
+
+    @Size(max = 100)
+    @Pattern(regexp = "^$|^https://(www\\.)?youtube\\.com/.+", message = "must be a youtube.com URL")
+    private String youtube;
+
+    @Size(max = 100)
+    @Pattern(regexp = "^$|^https://(www\\.)?tiktok\\.com/@.+", message = "must be a tiktok.com URL")
+    private String tiktok;
 }

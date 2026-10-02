@@ -23,9 +23,9 @@ class VenueDtoValidationTest {
         dto.setName("Sala Central");
         dto.setType(VenueType.CLUB);
         dto.setAddress("Calle Mayor 1");
-        dto.setPostalCode("28001");
         dto.setLatitude(40.4168);
         dto.setLongitude(-3.7038);
+        dto.setWebsite("https://salacentral.it");
         dto.setDescription("Sala para eventos de baile");
 
         assertThat(validator.validate(dto)).isEmpty();
@@ -40,6 +40,20 @@ class VenueDtoValidationTest {
         dto.setAddress("Calle Mayor 1");
         dto.setLatitude(40.4168);
         dto.setLongitude(-3.7038);
+        dto.setWebsite("https://salacentral.it");
+
+        assertThat(validator.validate(dto)).isEmpty();
+    }
+
+    @Test
+    void acceptsVenueCreateDtoWithoutCoordinates() {
+        // Sin lat/lng el servicio geocodifica la direccion.
+        VenueCreateDto dto = new VenueCreateDto();
+        dto.setCityId(1L);
+        dto.setName("Sala Central");
+        dto.setType(VenueType.BAR);
+        dto.setAddress("Calle Mayor 1");
+        dto.setWebsite("https://salacentral.it");
 
         assertThat(validator.validate(dto)).isEmpty();
     }
@@ -52,11 +66,27 @@ class VenueDtoValidationTest {
         dto.setAddress("Calle Mayor 1");
         dto.setLatitude(40.4168);
         dto.setLongitude(-3.7038);
+        dto.setWebsite("https://salacentral.it");
 
         assertThat(validator.validate(dto))
                 .extracting("propertyPath")
                 .extracting(Object::toString)
                 .containsExactly("type");
+    }
+
+    @Test
+    void rejectsVenueCreateDtoWithoutWebsite() {
+        VenueCreateDto dto = new VenueCreateDto();
+        dto.setCityId(1L);
+        dto.setName("Sala Central");
+        dto.setType(VenueType.CLUB);
+        dto.setAddress("Calle Mayor 1");
+        dto.setWebsite("   ");
+
+        assertThat(validator.validate(dto))
+                .extracting("propertyPath")
+                .extracting(Object::toString)
+                .containsExactly("website");
     }
 
     @Test

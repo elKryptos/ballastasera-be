@@ -52,6 +52,27 @@ public class Venues {
     @Column(name = "description")
     private String description;
 
+    @Column(name = "website")
+    private String website;
+
+    @Column(name = "whatsapp")
+    private String whatsapp;
+
+    @Column(name = "email")
+    private String email;
+
+    @Column(name = "facebook")
+    private String facebook;
+
+    @Column(name = "instagram")
+    private String instagram;
+
+    @Column(name = "youtube")
+    private String youtube;
+
+    @Column(name = "tiktok")
+    private String tiktok;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private Users createdBy;
