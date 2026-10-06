@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueMapPinDto;
 import com.kryptosystems.ballastasera.models.dtos.VenuesSummaryDto;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 import static com.kryptosystems.ballastasera.utilities.RestConstants.VENUES;
 
@@ -20,6 +22,7 @@ public class VenuesController {
 
     private static final String GET_VENUES = "";
     private static final String GET_MAP_VENUES = "/map";
+    private static final String GET_VENUE_DETAIL = "/{id}";
 
     private final VenuesService venuesService;
     private final VenuesMapper venuesMapper;
@@ -41,6 +44,12 @@ public class VenuesController {
         return ResponseEntity.ok(venuesService.findByCityId(cityId).stream()
                 .map(venuesMapper::toVenueMapPinDto)
                 .toList());
+    }
+
+    @GetMapping(GET_VENUE_DETAIL)
+    public ResponseEntity<VenueDetailDto> getVenueDetail(@PathVariable UUID id) {
+        var venues = venuesService.findById(id);
+        return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venues));
     }
 
 }

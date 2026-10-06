@@ -30,7 +30,7 @@ public class VenueUpdateDto {
     @DecimalMax("180.0")
     private Double longitude;
 
-    @Size(max = 500)
+    @Size(max = 1000)
     private String description;
 
     /** Contactos opcionales: null o "" = sin valor (el mapper guarda "" como null). En el PATCH, "" borra el valor actual. */
@@ -49,8 +49,9 @@ public class VenueUpdateDto {
     @Pattern(regexp = "^$|^https://(www\\.|m\\.)?facebook\\.com/.+", message = "must be a facebook.com URL")
     private String facebook;
 
-    @Size(max = 100)
-    @Pattern(regexp = "^$|^https://(www\\.)?instagram\\.com/.+", message = "must be an instagram.com URL")
+    /** Solo el handle, sin @ ni URL (como en users y organizers); el link se arma en el front. */
+    @Size(max = 30)
+    @Pattern(regexp = "^$|^[A-Za-z0-9._]{1,30}$", message = "must be an Instagram handle")
     private String instagram;
 
     @Size(max = 100)
