@@ -13,6 +13,7 @@ public class VenueMapPinDto {
     private UUID id;
     private String name;
     private VenueType type;
+    private String logoUrl;
     private String address;
     private Double latitude;
     private Double longitude;

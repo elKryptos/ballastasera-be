@@ -11,4 +11,8 @@ public interface ObjectStorageService {
     void deleteEventFlyerRaw(UUID eventId);
 
     void deleteEventFlyerFinal(UUID eventId);
+
+    String uploadVenueLogo(UUID venueId, byte[] webpContent);
+
+    void deleteVenueLogo(String logoUrl);
 }

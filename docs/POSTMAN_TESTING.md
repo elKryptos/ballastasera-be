@@ -236,8 +236,8 @@ convierte el flyer a WebP y publica el resultado. Repetí el detalle hasta que e
 GET http://localhost:8081/rest/events/<id_del_evento_creado>
 ```
 
-Cuando esté listo, `flyerUrl` debe apuntar a `http://localhost/media/events/<id_del_evento_creado>`.
-Esa URL se sirve a través de nginx, que reenvía `/media/` a RustFS.
+Cuando esté listo, `flyerUrl` debe apuntar a `http://localhost/flyers/<id_del_evento_creado>`.
+Esa URL se sirve a través de nginx, que reenvía `/flyers/` al bucket `ballastasera-flyers` de RustFS.
 
 ### `PATCH /rest/admin/events/{id}/flyer` (solo ADMIN)
 
@@ -253,7 +253,7 @@ file: flyer.jpg
 
 **Esperado**: `200` con `flyerStatus: "PROCESSING"`. Consultá el detalle hasta obtener
 `flyerStatus: "READY"`; entonces `flyerUrl` debe ser
-`http://localhost/media/events/<id_del_evento>`.
+`http://localhost/flyers/<id_del_evento>`.
 
 ### `DELETE /rest/events/{id}`
 
@@ -390,6 +390,42 @@ Authorization: Bearer <tu token>
 
 **Esperado**: `403` — confirma que `hasRole("ADMIN")` en `SecurityConfig` bloquea a un
 usuario autenticado que no sea admin, aunque sea el dueño del venue.
+
+### `PATCH /rest/admin/venues/{id}/logo` (solo ADMIN)
+
+Volvé a promover tu usuario a `ADMIN` con el mismo `UPDATE users` del paso anterior.
+
+El archivo se envía como multipart en el campo **`logo`** (no `file` como en los flyers). Acepta
+JPG, PNG o WebP; el backend lo convierte a WebP (máximo 512px en el lado largo) de forma
+sincrónica, así que la respuesta ya trae la URL final.
+
+```
+PATCH http://localhost:8081/rest/admin/venues/33333333-3333-3333-3333-333333333333/logo
+Authorization: Bearer <token_de_admin>
+Content-Type: multipart/form-data
+
+logo: logo.png
+```
+
+**Esperado**: `200` con `VenueDetailDto` y
+`logoUrl: "http://localhost/logos/venues/33333333-3333-3333-3333-333333333333/logo-<uuid>.webp"`.
+Abrí esa URL en el navegador: nginx la sirve desde el bucket `ballastasera-logos`. Si subís otro
+logo, la URL cambia (uuid nuevo) y el anterior se borra del bucket; así el navegador nunca
+muestra un logo viejo cacheado.
+
+- Campo con otro nombre (por ejemplo `file`) → `400` con `"message": "Missing request part: logo"`.
+- Archivo que no es imagen (por ejemplo un `.gif` o un `.pdf`) → `415`.
+- `id` inexistente → `404` con `"message": "Venue not found with id ..."`.
+
+### `DELETE /rest/admin/venues/{id}/logo` (solo ADMIN)
+
+```
+DELETE http://localhost:8081/rest/admin/venues/33333333-3333-3333-3333-333333333333/logo
+Authorization: Bearer <token_de_admin>
+```
+
+**Esperado**: `204 No Content`. Un `GET /rest/venues/{id}` posterior devuelve `logoUrl: null` y
+el archivo ya no existe en el bucket.
 
 ---
 

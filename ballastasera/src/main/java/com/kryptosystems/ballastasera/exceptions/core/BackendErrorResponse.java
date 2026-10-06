@@ -13,6 +13,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -73,6 +74,20 @@ public class BackendErrorResponse {
                 "Missing request parameter: " + ex.getParameterName(),
                 request.getRequestURI(),
                 "Required parameter '" + ex.getParameterName() + "' of type " + ex.getParameterType() + " is missing",
+                HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    /** Multipart sin la parte esperada (ej. "file" en vez de "logo"). Sin este handler caia en el generico como 500. */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorDetails> handleMissingPart(MissingServletRequestPartException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Missing request part: " + ex.getRequestPartName(),
+                request.getRequestURI(),
+                "Required multipart part '" + ex.getRequestPartName() + "' is missing",
                 HttpStatus.BAD_REQUEST
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);

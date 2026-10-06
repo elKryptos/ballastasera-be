@@ -28,9 +28,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class S3ObjectStorageServiceImplTest {
 
     private static final byte[] JPEG_BYTES = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0};
-    private static final String RAW_BUCKET = "ballastasera-media-raw";
-    private static final String FINAL_BUCKET = "ballastasera-media";
-    private static final String PUBLIC_BASE_URL = "http://localhost:8081/media";
+    private static final String RAW_BUCKET = "ballastasera-raw-flyers";
+    private static final String FLYERS_BUCKET = "ballastasera-flyers";
+    private static final String FLYERS_PUBLIC_BASE_URL = "http://localhost/flyers";
+    private static final String LOGOS_BUCKET = "ballastasera-logos";
+    private static final String LOGOS_PUBLIC_BASE_URL = "http://localhost/logos";
 
     @Mock
     private S3Client s3Client;
@@ -41,8 +43,10 @@ class S3ObjectStorageServiceImplTest {
     void setUp() {
         service = new S3ObjectStorageServiceImpl(s3Client);
         ReflectionTestUtils.setField(service, "rawBucket", RAW_BUCKET);
-        ReflectionTestUtils.setField(service, "finalBucket", FINAL_BUCKET);
-        ReflectionTestUtils.setField(service, "publicBaseUrl", PUBLIC_BASE_URL);
+        ReflectionTestUtils.setField(service, "flyersBucket", FLYERS_BUCKET);
+        ReflectionTestUtils.setField(service, "flyersPublicBaseUrl", FLYERS_PUBLIC_BASE_URL);
+        ReflectionTestUtils.setField(service, "logosBucket", LOGOS_BUCKET);
+        ReflectionTestUtils.setField(service, "logosPublicBaseUrl", LOGOS_PUBLIC_BASE_URL);
     }
 
     @Test
@@ -76,7 +80,7 @@ class S3ObjectStorageServiceImplTest {
     }
 
     @Test
-    void uploadEventFlyerFinalStoresWebpInFinalBucketAndReturnsPublicUrl() {
+    void uploadEventFlyerFinalStoresWebpInFlyersBucketAndReturnsPublicUrl() {
         UUID eventId = UUID.randomUUID();
         byte[] webpBytes = {1, 2, 3};
 
@@ -85,10 +89,10 @@ class S3ObjectStorageServiceImplTest {
         ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
         PutObjectRequest request = requestCaptor.getValue();
-        assertThat(request.bucket()).isEqualTo(FINAL_BUCKET);
+        assertThat(request.bucket()).isEqualTo(FLYERS_BUCKET);
         assertThat(request.key()).isEqualTo(eventId.toString());
         assertThat(request.contentType()).isEqualTo("image/webp");
-        assertThat(url).isEqualTo(PUBLIC_BASE_URL + "/" + eventId);
+        assertThat(url).isEqualTo(FLYERS_PUBLIC_BASE_URL + "/" + eventId);
     }
 
     @Test
@@ -122,14 +126,14 @@ class S3ObjectStorageServiceImplTest {
     }
 
     @Test
-    void deleteEventFlyerFinalRemovesObjectFromFinalBucket() {
+    void deleteEventFlyerFinalRemovesObjectFromFlyersBucket() {
         UUID eventId = UUID.randomUUID();
 
         service.deleteEventFlyerFinal(eventId);
 
         ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
         verify(s3Client).deleteObject(captor.capture());
-        assertThat(captor.getValue().bucket()).isEqualTo(FINAL_BUCKET);
+        assertThat(captor.getValue().bucket()).isEqualTo(FLYERS_BUCKET);
         assertThat(captor.getValue().key()).isEqualTo(eventId.toString());
     }
 
@@ -139,6 +143,70 @@ class S3ObjectStorageServiceImplTest {
                 .when(s3Client).deleteObject(any(DeleteObjectRequest.class));
 
         assertThatThrownBy(() -> service.deleteEventFlyerFinal(UUID.randomUUID()))
+                .isInstanceOf(MediaStorageException.class);
+    }
+
+    @Test
+    void uploadVenueLogoStoresWebpInLogosBucketUnderVenuePrefixAndReturnsPublicUrl() {
+        UUID venueId = UUID.randomUUID();
+
+        String url = service.uploadVenueLogo(venueId, new byte[]{1, 2, 3});
+
+        ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
+        PutObjectRequest request = requestCaptor.getValue();
+        assertThat(request.bucket()).isEqualTo(LOGOS_BUCKET);
+        assertThat(request.key()).matches("venues/" + venueId + "/logo-[0-9a-f-]{36}\\.webp");
+        assertThat(request.contentType()).isEqualTo("image/webp");
+        assertThat(url).isEqualTo(LOGOS_PUBLIC_BASE_URL + "/" + request.key());
+    }
+
+    @Test
+    void uploadVenueLogoUsesNewKeyOnEachUpload() {
+        UUID venueId = UUID.randomUUID();
+
+        String firstUrl = service.uploadVenueLogo(venueId, new byte[]{1});
+        String secondUrl = service.uploadVenueLogo(venueId, new byte[]{2});
+
+        assertThat(secondUrl).isNotEqualTo(firstUrl);
+    }
+
+    @Test
+    void uploadVenueLogoWrapsS3FailuresAsMediaStorageException() {
+        doThrow(S3Exception.builder().message("boom").build())
+                .when(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+
+        assertThatThrownBy(() -> service.uploadVenueLogo(UUID.randomUUID(), new byte[]{1, 2, 3}))
+                .isInstanceOf(MediaStorageException.class);
+    }
+
+    @Test
+    void deleteVenueLogoRemovesObjectFromLogosBucket() {
+        String key = "venues/" + UUID.randomUUID() + "/logo-" + UUID.randomUUID() + ".webp";
+
+        service.deleteVenueLogo(LOGOS_PUBLIC_BASE_URL + "/" + key);
+
+        ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(s3Client).deleteObject(captor.capture());
+        assertThat(captor.getValue().bucket()).isEqualTo(LOGOS_BUCKET);
+        assertThat(captor.getValue().key()).isEqualTo(key);
+    }
+
+    @Test
+    void deleteVenueLogoIgnoresUrlsOutsideLogosBucket() {
+        service.deleteVenueLogo("https://scontent.cdninstagram.com/logo.jpg");
+        service.deleteVenueLogo(FLYERS_PUBLIC_BASE_URL + "/" + UUID.randomUUID());
+        service.deleteVenueLogo(null);
+
+        verifyNoInteractions(s3Client);
+    }
+
+    @Test
+    void deleteVenueLogoWrapsS3FailuresAsMediaStorageException() {
+        doThrow(S3Exception.builder().message("boom").build())
+                .when(s3Client).deleteObject(any(DeleteObjectRequest.class));
+
+        assertThatThrownBy(() -> service.deleteVenueLogo(LOGOS_PUBLIC_BASE_URL + "/venues/x/logo-y.webp"))
                 .isInstanceOf(MediaStorageException.class);
     }
 }

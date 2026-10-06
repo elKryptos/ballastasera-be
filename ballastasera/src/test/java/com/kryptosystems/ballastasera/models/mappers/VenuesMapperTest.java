@@ -49,4 +49,26 @@ class VenuesMapperTest {
         assertThat(venue.getInstagram()).isNull();
     }
 
+    @Test
+    void detailSummaryAndPinExposeLogoUrl() {
+        Venues venue = new Venues();
+        venue.setLogoUrl("http://localhost/logos/venues/1/logo-a.webp");
+
+        assertThat(mapper.toVenueDetailDto(venue).getLogoUrl()).isEqualTo(venue.getLogoUrl());
+        assertThat(mapper.toVenueSummaryDto(venue).getLogoUrl()).isEqualTo(venue.getLogoUrl());
+        assertThat(mapper.toVenueMapPinDto(venue).getLogoUrl()).isEqualTo(venue.getLogoUrl());
+    }
+
+    @Test
+    void updateKeepsLogoUrl() {
+        Venues venue = new Venues();
+        venue.setLogoUrl("http://localhost/logos/venues/1/logo-a.webp");
+        VenueUpdateDto dto = new VenueUpdateDto();
+        dto.setName("Sala Havana");
+
+        mapper.updateVenueEntityFromDto(dto, venue);
+
+        assertThat(venue.getLogoUrl()).isEqualTo("http://localhost/logos/venues/1/logo-a.webp");
+    }
+
 }

@@ -25,16 +25,24 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
             "png", "image/png",
             "webp", "image/webp");
 
+    private static final String VENUE_LOGO_PREFIX = "venues/";
+
     private final S3Client s3Client;
 
     @Value("${storage.raw-bucket}")
     private String rawBucket;
 
-    @Value("${storage.bucket}")
-    private String finalBucket;
+    @Value("${storage.flyers-bucket}")
+    private String flyersBucket;
 
-    @Value("${storage.public-base-url}")
-    private String publicBaseUrl;
+    @Value("${storage.flyers-public-base-url}")
+    private String flyersPublicBaseUrl;
+
+    @Value("${storage.logos-bucket}")
+    private String logosBucket;
+
+    @Value("${storage.logos-public-base-url}")
+    private String logosPublicBaseUrl;
 
     @Override
     public void uploadEventFlyerRaw(UUID eventId, byte[] content) {
@@ -44,8 +52,8 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
 
     @Override
     public String uploadEventFlyerFinal(UUID eventId, byte[] webpContent) {
-        putObject(finalBucket, eventId.toString(), webpContent, "image/webp");
-        return UriComponentsBuilder.fromUriString(publicBaseUrl)
+        putObject(flyersBucket, eventId.toString(), webpContent, "image/webp");
+        return UriComponentsBuilder.fromUriString(flyersPublicBaseUrl)
                 .path("/{id}")
                 .buildAndExpand(eventId)
                 .toUriString();
@@ -58,7 +66,25 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
 
     @Override
     public void deleteEventFlyerFinal(UUID eventId) {
-        delete(finalBucket, eventId.toString());
+        delete(flyersBucket, eventId.toString());
+    }
+
+    @Override
+    public String uploadVenueLogo(UUID venueId, byte[] webpContent) {
+        // Clave nueva en cada subida: nginx sirve /logos como "immutable" (1 año),
+        // si se pisara la misma clave el navegador seguiria mostrando el logo viejo.
+        String key = VENUE_LOGO_PREFIX + venueId + "/logo-" + UUID.randomUUID() + ".webp";
+        putObject(logosBucket, key, webpContent, "image/webp");
+        return logosPublicBaseUrl + "/" + key;
+    }
+
+    @Override
+    public void deleteVenueLogo(String logoUrl) {
+        String base = logosPublicBaseUrl + "/";
+        // Solo borra URLs generadas por uploadVenueLogo: una URL externa se ignora.
+        if (logoUrl != null && logoUrl.startsWith(base)) {
+            delete(logosBucket, logoUrl.substring(base.length()));
+        }
     }
 
     private void putObject(String targetBucket, String key, byte[] content, String contentType) {

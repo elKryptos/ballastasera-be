@@ -28,6 +28,7 @@ public class VenueDetailDto {
     private String instagram;
     private String youtube;
     private String tiktok;
+    private String logoUrl;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

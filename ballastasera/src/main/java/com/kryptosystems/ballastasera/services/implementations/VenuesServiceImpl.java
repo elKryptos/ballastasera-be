@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
 import com.kryptosystems.ballastasera.exceptions.DuplicateVenueException;
+import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.exceptions.VenueHasActiveEventsException;
 import com.kryptosystems.ballastasera.models.dtos.VenueCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
@@ -15,19 +16,24 @@ import com.kryptosystems.ballastasera.repositories.CitiesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.repositories.VenuesRepository;
-import com.kryptosystems.ballastasera.services.manager.GeocodingService;
-import com.kryptosystems.ballastasera.services.manager.UsersService;
-import com.kryptosystems.ballastasera.services.manager.VenuesService;
+import com.kryptosystems.ballastasera.services.manager.*;
+import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class VenuesServiceImpl implements VenuesService {
+
+    private static final int LOGO_MAX_LONG_EDGE = 512;
 
     private final VenuesRepository venuesRepository;
     private final OrganizersRepository organizersRepository;
@@ -36,6 +42,8 @@ public class VenuesServiceImpl implements VenuesService {
     private final GeocodingService geocodingService;
     private final VenuesMapper venuesMapper;
     private final UsersService usersService;
+    private final ObjectStorageService objectStorageService;
+    private final WebpConverterService webpConverterService;
 
     @Override
     public List<Venues> findAll() {
@@ -69,7 +77,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    public Venues createAsAdmin(UUID adminUserId, VenueCreateDto dto) {
+    public Venues createVenueAsAdmin(UUID adminUserId, VenueCreateDto dto) {
         Organizers organizer = null;
         if (dto.getOrganizerId() != null) {
             organizer = organizersRepository.findById(dto.getOrganizerId())
@@ -104,7 +112,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    public Venues updateAsAdmin(UUID id, VenueUpdateDto dto) {
+    public Venues updateVenueAsAdmin(UUID id, VenueUpdateDto dto) {
         Venues venue = findById(id);
         if (dto.getName() != null) {
             venuesRepository.findByCityIdAndNameIgnoreCaseAndIdNot(venue.getCity().getId(), dto.getName(), id)
@@ -127,12 +135,41 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    public void delete(UUID id) {
+    public Venues updateLogoAsAdmin(UUID id, MultipartFile file) {
+        Venues venue = findById(id);
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Failed to read logo file", e);
+        }
+        ImageTypeValidator.detectExtension(content);
+        byte[] webpContent = webpConverterService.convertToWebp(content, LOGO_MAX_LONG_EDGE);
+        String previousLogoUrl = venue.getLogoUrl();
+        venue.setLogoUrl(objectStorageService.uploadVenueLogo(id, webpContent));
+        Venues savedVenue = venuesRepository.save(venue);
+        deleteLogoQuietly(previousLogoUrl);
+        return savedVenue;
+    }
+
+    @Override
+    public Venues deleteLogoAsAdmin(UUID id) {
+        Venues venue = findById(id);
+        String previousLogoUrl = venue.getLogoUrl();
+        venue.setLogoUrl(null);
+        Venues savedVenue = venuesRepository.save(venue);
+        deleteLogoQuietly(previousLogoUrl);
+        return savedVenue;
+    }
+
+    @Override
+    public void deleteVenue(UUID id) {
         Venues venue = findById(id);
         if (eventsRepository.existsByVenueIdAndStatusNot(id, EventStatus.CANCELLED)) {
             throw new VenueHasActiveEventsException("Venue " + id + " has active events and cannot be deleted");
         }
         venuesRepository.delete(venue);
+        deleteLogoQuietly(venue.getLogoUrl());
     }
 
     @Override
@@ -141,5 +178,16 @@ public class VenuesServiceImpl implements VenuesService {
             return venuesRepository.findByCityId(cityId);
         }
         return venuesRepository.findByCityIdAndNameContainingIgnoreCase(cityId, query);
+    }
+
+    private void deleteLogoQuietly(String logoUrl) {
+        if (logoUrl == null) {
+            return;
+        }
+        try {
+            objectStorageService.deleteVenueLogo(logoUrl);
+        } catch (MediaStorageException e) {
+            log.warn("Failed to delete venue logo: {}", logoUrl, e);
+        }
     }
 }

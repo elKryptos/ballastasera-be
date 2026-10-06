@@ -27,6 +27,7 @@ public interface VenuesMapper {
 
     @Mapping(target = "organizer", ignore = true)
     @Mapping(target = "city", ignore = true)
+    @Mapping(target = "logoUrl", ignore = true)
     Venues toVenueEntity(VenueCreateDto venueCreateDto);
 
     @Mapping(target = "id", ignore = true)
@@ -36,6 +37,7 @@ public interface VenuesMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "events", ignore = true)
+    @Mapping(target = "logoUrl", ignore = true)
     void updateVenueEntityFromDto(VenueUpdateDto venueUpdateDto, @MappingTarget Venues venues);
 
     /** MapStruct lo usa en cada propiedad String→String: "" o "   " se guardan como null y el resto sin espacios en los extremos. */

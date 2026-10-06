@@ -12,6 +12,7 @@ public class VenuesSummaryDto {
     private UUID id;
     private String name;
     private VenueType type;
+    private String logoUrl;
     private String address;
     private String cityName;
     private Double latitude;

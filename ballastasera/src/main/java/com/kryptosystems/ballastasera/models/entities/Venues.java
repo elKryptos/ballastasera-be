@@ -73,6 +73,9 @@ public class Venues {
     @Column(name = "tiktok")
     private String tiktok;
 
+    @Column(name = "logo_url")
+    private String logoUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     private Users createdBy;

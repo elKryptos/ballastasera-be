@@ -122,6 +122,7 @@ CREATE TABLE venues (
     instagram    VARCHAR(100),                    -- URL completo
     youtube      VARCHAR(100),                    -- URL completo
     tiktok       VARCHAR(100),                    -- URL completo
+    logo_url     TEXT,                            -- URL pubblica del logo (webp, upload gestito da backend)
     created_by   UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),   
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()

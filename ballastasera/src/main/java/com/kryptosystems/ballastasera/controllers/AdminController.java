@@ -47,6 +47,8 @@ public class AdminController {
     private static final String CREATE_VENUE = "/venues";
     private static final String UPDATE_VENUE = "/venues/{id}";
     private static final String DELETE_VENUE = "/venues/{id}";
+    private static final String UPDATE_VENUE_LOGO = "/venues/{id}/logo";
+    private static final String DELETE_VENUE_LOGO = "/venues/{id}/logo";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -145,7 +147,7 @@ public class AdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(eventSeriesService.toEventSeriesDetailDto(series));
     }
 
-    /** Admin sube o reemplaza el flyer de la serie una sola vez; las ocurrencias generadas despues lo heredan. */
+    /** Admin sube o reemplaza el flyer de la serie una sola vez; las ocurrencias generadas después lo heredan. */
     @PatchMapping(value = UPDATE_EVENT_SERIES_FLYER, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventSeriesDetailDto> updateEventSeriesFlyer(@PathVariable UUID seriesId,
                                                                        @RequestParam("file") MultipartFile file) {
@@ -164,7 +166,7 @@ public class AdminController {
     @PostMapping(CREATE_VENUE)
     public ResponseEntity<VenueDetailDto> createVenue(@AuthenticationPrincipal UserPrincipal principal,
                                                         @Valid @RequestBody VenueCreateDto body) {
-        var venue = venuesService.createAsAdmin(principal.getId(), body);
+        var venue = venuesService.createVenueAsAdmin(principal.getId(), body);
         return ResponseEntity.status(HttpStatus.CREATED).body(venuesMapper.toVenueDetailDto(venue));
     }
 
@@ -172,14 +174,29 @@ public class AdminController {
     @PatchMapping(UPDATE_VENUE)
     public ResponseEntity<VenueDetailDto> updateVenue(@PathVariable UUID id,
                                                       @Valid @RequestBody VenueUpdateDto body) {
-        var venue = venuesService.updateAsAdmin(id, body);
+        var venue = venuesService.updateVenueAsAdmin(id, body);
         return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venue));
     }
 
     /** Borra un venue. Solo ADMIN — el service hace la validación que no tenga eventos activos. */
     @DeleteMapping(DELETE_VENUE)
     public ResponseEntity<Void> deleteVenue(@PathVariable UUID id) {
-        venuesService.delete(id);
+        venuesService.deleteVenue(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Admin sube o reemplaza el logo de un venue. */
+    @PatchMapping(value = UPDATE_VENUE_LOGO, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<VenueDetailDto> updateVenueLogo(@PathVariable UUID id,
+                                                           @RequestParam("logo") MultipartFile file) {
+        var venue = venuesService.updateLogoAsAdmin(id, file);
+        return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venue));
+    }
+
+    /** Admin elimina el logo de un venue. */
+    @DeleteMapping(DELETE_VENUE_LOGO)
+    public ResponseEntity<Void> deleteVenueLogo(@PathVariable UUID id) {
+        venuesService.deleteLogoAsAdmin(id);
         return ResponseEntity.noContent().build();
     }
 

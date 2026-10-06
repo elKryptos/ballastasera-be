@@ -26,6 +26,11 @@ public class WebpConverterServiceImpl implements WebpConverterService {
      * subproceso, nunca la JVM de Spring Boot. */
     @Override
     public byte[] convertToWebp(byte[] content) {
+        return convertToWebp(content, MAX_LONG_EDGE);
+    }
+
+    @Override
+    public byte[] convertToWebp(byte[] content, int maxLongEdge) {
         Path inputFile = null;
         Path outputFile = null;
         try {
@@ -35,7 +40,7 @@ public class WebpConverterServiceImpl implements WebpConverterService {
 
             List<String> command = new ArrayList<>(List.of(
                     "cwebp", "-q", String.valueOf(QUALITY), "-m", String.valueOf(COMPRESSION_EFFORT)));
-            addResizeIfNeeded(command, content);
+            addResizeIfNeeded(command, content, maxLongEdge);
             command.add(inputFile.toString());
             command.add("-o");
             command.add(outputFile.toString());
@@ -70,23 +75,23 @@ public class WebpConverterServiceImpl implements WebpConverterService {
      * para jpg/png; un input .webp no tiene reader registrado sin plugins
      * extra, asi que en ese caso se omite el cap de tamaño y solo se
      * recomprime a la calidad configurada. */
-    private void addResizeIfNeeded(List<String> command, byte[] content) throws IOException {
+    private void addResizeIfNeeded(List<String> command, byte[] content, int maxLongEdge) throws IOException {
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(content));
         if (image == null) {
             return;
         }
         int width = image.getWidth();
         int height = image.getHeight();
-        if (Math.max(width, height) <= MAX_LONG_EDGE) {
+        if (Math.max(width, height) <= maxLongEdge) {
             return;
         }
         command.add("-resize");
         if (width >= height) {
-            command.add(String.valueOf(MAX_LONG_EDGE));
+            command.add(String.valueOf(maxLongEdge));
             command.add("0");
         } else {
             command.add("0");
-            command.add(String.valueOf(MAX_LONG_EDGE));
+            command.add(String.valueOf(maxLongEdge));
         }
     }
 
