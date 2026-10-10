@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.models.dtos.AttendeeDto;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
@@ -10,6 +11,7 @@ import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -59,6 +61,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void addAttendance(UUID userId, UUID eventId) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
@@ -78,6 +81,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void removeAttendance(UUID userId, UUID eventId) {
         UserEventId id = new UserEventId();
         id.setUserId(userId);

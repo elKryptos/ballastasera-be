@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.UserRole;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
@@ -10,6 +11,7 @@ import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -53,6 +55,7 @@ public class UsersServiceImpl implements UsersService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public void deleteById(UUID id) {
         List<UUID> favoriteEventIds = favoritesRepository.findEventIdsByUserId(id);
         if (!favoriteEventIds.isEmpty()) {

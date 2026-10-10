@@ -10,9 +10,13 @@ import java.time.OffsetDateTime;
 public class EventTimingUtils {
 
     public static boolean isLiveNow(Events event, OffsetDateTime now) {
-        OffsetDateTime effectiveEnd = event.getEndAt() != null
-                ? event.getEndAt()
-                : event.getStartAt().plusHours(4);
-        return !now.isBefore(event.getStartAt()) && now.isBefore(effectiveEnd);
+        return isLiveNow(event.getStartAt(), event.getEndAt(), now);
+    }
+
+    public static boolean isLiveNow(OffsetDateTime startAt, OffsetDateTime endAt, OffsetDateTime now) {
+        OffsetDateTime effectiveEnd = endAt != null
+                ? endAt
+                : startAt.plusHours(4);
+        return !now.isBefore(startAt) && now.isBefore(effectiveEnd);
     }
 }

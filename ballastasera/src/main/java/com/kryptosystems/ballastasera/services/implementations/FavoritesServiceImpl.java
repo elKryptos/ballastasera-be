@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.models.entities.Favorites;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
@@ -9,6 +10,7 @@ import com.kryptosystems.ballastasera.services.manager.FavoritesService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -34,6 +36,7 @@ public class FavoritesServiceImpl implements FavoritesService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void addFavorite(UUID userId, UUID eventId) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
@@ -53,6 +56,7 @@ public class FavoritesServiceImpl implements FavoritesService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void removeFavorite(UUID userId, UUID eventId) {
         UserEventId id = new UserEventId();
         id.setUserId(userId);

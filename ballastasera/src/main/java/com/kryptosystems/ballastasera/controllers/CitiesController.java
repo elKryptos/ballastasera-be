@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.CitiesCache;
 import com.kryptosystems.ballastasera.models.dtos.CityDto;
 import com.kryptosystems.ballastasera.models.mappers.CitiesMapper;
 import com.kryptosystems.ballastasera.services.manager.CitiesService;
@@ -24,15 +25,11 @@ public class CitiesController {
 
     private final CitiesService citiesService;
     private final CitiesMapper citiesMapper;
+    private final CitiesCache citiesCache;
 
     @GetMapping(GET_CITIES)
     public ResponseEntity<List<CityDto>> getCities() {
-        List<CityDto> cities = citiesService.findActive()
-                .stream()
-                .map(citiesMapper::toDto)
-                .toList();
-
-        return ResponseEntity.ok(cities);
+        return ResponseEntity.ok(citiesCache.findActive());
     }
 
     @GetMapping(GET_CITY)

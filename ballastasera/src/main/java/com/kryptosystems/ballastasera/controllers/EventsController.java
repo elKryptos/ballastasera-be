@@ -1,12 +1,13 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.EventsCache;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
-import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.FavoritesService;
+import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,8 +50,8 @@ public class EventsController {
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
-    private final EventsRepository eventsRepository;
     private final EventsMapper eventsMapper;
+    private final EventsCache eventsCache;
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar en las
      * proximas 3 semanas, dentro del bounding box visible. Nunca devuelve eventos pasados.
@@ -65,8 +67,10 @@ public class EventsController {
     /** Publico */
     @GetMapping(GET_EVENT_DETAIL)
     public ResponseEntity<EventDetailDto> getEventDetail(@PathVariable UUID id) {
-        var event = eventsService.findByIdWithDetails(id);
-        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+        var event = eventsCache.findByIdWithDetails(id);
+        /** liveNow depende de la hora: se recalcula en cada request, no se toma del cache. */
+        event.setLiveNow(EventTimingUtils.isLiveNow(event.getStartAt(), event.getEndAt(), OffsetDateTime.now()));
+        return ResponseEntity.ok(event);
     }
 
     /** Requiere estar autenticado. El organizerId del body debe pertenecer al

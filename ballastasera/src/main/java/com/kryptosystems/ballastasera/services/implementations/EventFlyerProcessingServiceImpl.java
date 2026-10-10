@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
@@ -8,6 +9,7 @@ import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
 import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +26,7 @@ public class EventFlyerProcessingServiceImpl implements EventFlyerProcessingServ
 
     @Async
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void convertAndPublish(UUID eventId, byte[] rawContent) {
         byte[] webpContent;
         try {

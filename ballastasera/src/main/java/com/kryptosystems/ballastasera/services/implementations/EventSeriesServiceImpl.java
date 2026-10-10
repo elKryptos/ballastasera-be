@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.EventSeriesInactiveException;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
@@ -22,6 +23,7 @@ import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -154,6 +156,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public void delete(UUID id, UUID requesterId) {
         EventSeries series = findById(id);
         assertOwnership(series, requesterId);

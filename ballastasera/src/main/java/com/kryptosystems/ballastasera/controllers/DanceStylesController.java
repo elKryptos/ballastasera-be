@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.DanceStylesCache;
 import com.kryptosystems.ballastasera.models.dtos.DanceStyleDto;
 import com.kryptosystems.ballastasera.models.mappers.DanceStylesMapper;
 import com.kryptosystems.ballastasera.services.manager.DanceStylesService;
@@ -24,14 +25,11 @@ public class DanceStylesController {
 
     private final DanceStylesService danceStylesService;
     private final DanceStylesMapper danceStylesMapper;
+    private final DanceStylesCache danceStylesCache;
 
     @GetMapping(GET_ALL_DANCE_STYLES)
     public ResponseEntity<List<DanceStyleDto>> getAllDanceStyles() {
-        List<DanceStyleDto> danceStyle = danceStylesService.findAll()
-                .stream()
-                .map(danceStylesMapper::toDto)
-                .toList();
-        return ResponseEntity.ok(danceStyle);
+        return ResponseEntity.ok(danceStylesCache.getAllDanceStyles());
     }
 
     @GetMapping(GET_DANCE_STYLE)

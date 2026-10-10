@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.DanceStylesCache;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.mappers.DanceStylesMapperImpl;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
@@ -21,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(DanceStylesController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(DanceStylesMapperImpl.class)
+@Import({DanceStylesMapperImpl.class, DanceStylesCache.class})
 class DanceStylesControllerTest {
 
     @Autowired

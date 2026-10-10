@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.CitiesCache;
 import com.kryptosystems.ballastasera.models.entities.Cities;
 import com.kryptosystems.ballastasera.models.mappers.CitiesMapperImpl;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
@@ -21,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(CitiesController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(CitiesMapperImpl.class)
+@Import({CitiesMapperImpl.class, CitiesCache.class})
 class CitiesControllerTest {
 
     @Autowired

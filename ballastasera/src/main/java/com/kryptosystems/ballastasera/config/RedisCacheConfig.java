@@ -1,7 +1,6 @@
 package com.kryptosystems.ballastasera.config;
 
-import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.VenuesSummaryDto;
+import com.kryptosystems.ballastasera.models.dtos.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.cache.autoconfigure.RedisCacheManagerBuilderCustomizer;
 import org.springframework.cache.annotation.CachingConfigurer;
@@ -25,21 +24,35 @@ public class RedisCacheConfig implements CachingConfigurer {
 
     public static final String VENUE_DETAIL = "venueDetail";
     public static final String VENUE_BY_CITY = "venueByCity";
+    public static final String VENUE_MAP_BY_CITY = "venueMapByCity";
+    public static final String EVENT_DETAIL = "eventDetail";
+    public static final String CITY_LIST = "cityList";
+    public static final String DANCE_STYLE_LIST = "danceStyleList";
 
     @Value("${app.cache.venues-ttl}")
     private Duration venuesTtl;
+
+    @Value("${app.cache.events-ttl}")
+    private Duration eventsTtl;
+
+    @Value("${app.cache.catalogs-ttl}")
+    private Duration catalogsTtl;
 
     @Bean
     public RedisCacheManagerBuilderCustomizer venuesCacheCustomizer(JsonMapper jsonMapper) {
         var typeFactory = jsonMapper.getTypeFactory();
         return builder -> builder
-                .withCacheConfiguration(VENUE_DETAIL, jsonCache(jsonMapper, typeFactory.constructType(VenueDetailDto.class)))
-                .withCacheConfiguration(VENUE_BY_CITY, jsonCache(jsonMapper, typeFactory.constructCollectionType(List.class, VenuesSummaryDto.class)));
+                .withCacheConfiguration(VENUE_DETAIL, jsonCache(jsonMapper, typeFactory.constructType(VenueDetailDto.class), venuesTtl))
+                .withCacheConfiguration(VENUE_BY_CITY, jsonCache(jsonMapper, typeFactory.constructCollectionType(List.class, VenuesSummaryDto.class), venuesTtl))
+                .withCacheConfiguration(VENUE_MAP_BY_CITY, jsonCache(jsonMapper, typeFactory.constructCollectionType(List.class, VenueMapPinDto.class), venuesTtl))
+                .withCacheConfiguration(EVENT_DETAIL, jsonCache(jsonMapper, typeFactory.constructType(EventDetailDto.class), eventsTtl))
+                .withCacheConfiguration(CITY_LIST, jsonCache(jsonMapper, typeFactory.constructCollectionType(List.class, CityDto.class), catalogsTtl))
+                .withCacheConfiguration(DANCE_STYLE_LIST, jsonCache(jsonMapper, typeFactory.constructCollectionType(List.class, DanceStyleDto.class), catalogsTtl));
     }
 
-    private RedisCacheConfiguration jsonCache(JsonMapper jsonMapper, JavaType type) {
+    private RedisCacheConfiguration jsonCache(JsonMapper jsonMapper, JavaType type, Duration ttl) {
         return RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(venuesTtl)
+                .entryTtl(ttl)
                 .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(
                         new JacksonJsonRedisSerializer<>(jsonMapper, type)

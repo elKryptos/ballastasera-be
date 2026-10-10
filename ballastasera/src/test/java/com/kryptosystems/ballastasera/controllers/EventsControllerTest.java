@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.EventsCache;
 import com.kryptosystems.ballastasera.exceptions.core.BackendErrorResponse;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
@@ -7,7 +8,6 @@ import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
-import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
@@ -29,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -66,10 +68,10 @@ class EventsControllerTest {
     private FavoritesService favoritesService;
 
     @MockitoBean
-    private EventsRepository eventsRepository;
+    private EventsMapper eventsMapper;
 
     @MockitoBean
-    private EventsMapper eventsMapper;
+    private EventsCache eventsCache;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -82,6 +84,45 @@ class EventsControllerTest {
     @AfterEach
     void clearAuthentication() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void getEventDetailRecalculatesLiveNowWhenCachedEventHasStarted() throws Exception {
+        EventDetailDto cached = detail("Salsa Night");
+        cached.setStartAt(OffsetDateTime.now().minusHours(1));
+        cached.setEndAt(OffsetDateTime.now().plusHours(1));
+        cached.setLiveNow(false);   // se guardo en cache antes de que empezara
+
+        when(eventsCache.findByIdWithDetails(EVENT_ID)).thenReturn(cached);
+
+        mockMvc.perform(get("/rest/events/{id}", EVENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Salsa Night"))
+                .andExpect(jsonPath("$.liveNow").value(true));
+    }
+
+    @Test
+    void getEventDetailRecalculatesLiveNowWhenCachedEventHasEnded() throws Exception {
+        EventDetailDto cached = detail("Salsa Night");
+        cached.setStartAt(OffsetDateTime.now().minusHours(5));
+        cached.setEndAt(OffsetDateTime.now().minusHours(1));
+        cached.setLiveNow(true);   // se guardo en cache mientras estaba en vivo
+
+        when(eventsCache.findByIdWithDetails(EVENT_ID)).thenReturn(cached);
+
+        mockMvc.perform(get("/rest/events/{id}", EVENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.liveNow").value(false));
+    }
+
+    @Test
+    void getEventDetailReturnsNotFoundWhenEventDoesNotExist() throws Exception {
+        when(eventsCache.findByIdWithDetails(EVENT_ID))
+                .thenThrow(new EntityNotFoundException("Event not found with id " + EVENT_ID));
+
+        mockMvc.perform(get("/rest/events/{id}", EVENT_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Event not found with id " + EVENT_ID));
     }
 
     @Test

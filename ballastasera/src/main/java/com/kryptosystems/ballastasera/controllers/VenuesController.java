@@ -4,8 +4,6 @@ import com.kryptosystems.ballastasera.cache.VenuesCache;
 import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueMapPinDto;
 import com.kryptosystems.ballastasera.models.dtos.VenuesSummaryDto;
-import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
-import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,14 +23,12 @@ public class VenuesController {
     private static final String GET_MAP_VENUES = "/map";
     private static final String GET_VENUE_DETAIL = "/{id}";
 
-    private final VenuesService venuesService;
-    private final VenuesMapper venuesMapper;
     private final VenuesCache venuesCache;
 
     /** Público. Busca si el venue existe en la base de datos. Si está hace autocomplete (FE)*/
     @GetMapping(GET_VENUES)
     public ResponseEntity<List<VenuesSummaryDto>> getVenues(@RequestParam Long cityId,
-                                                           @RequestParam(required = false) String search) {
+                                                            @RequestParam(required = false) String search) {
         return ResponseEntity.ok(venuesCache.search(cityId, search));
     }
 
@@ -41,9 +37,7 @@ public class VenuesController {
      * tipo y por area visible en memoria. */
     @GetMapping(GET_MAP_VENUES)
     public ResponseEntity<List<VenueMapPinDto>> getMapVenues(@RequestParam Long cityId) {
-        return ResponseEntity.ok(venuesService.findByCityId(cityId).stream()
-                .map(venuesMapper::toVenueMapPinDto)
-                .toList());
+        return ResponseEntity.ok(venuesCache.findByCityId(cityId));
     }
 
     @GetMapping(GET_VENUE_DETAIL)

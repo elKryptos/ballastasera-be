@@ -71,7 +71,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
@@ -80,7 +80,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Organizers updateAsAdmin(UUID id, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         organizerMapper.updateOrganizerFromDto(dto, organizer);
@@ -88,7 +88,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public void delete(UUID id, UUID requesterId){
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
@@ -96,7 +96,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public void deleteAsAdmin(UUID id) {
         organizersRepository.deleteById(id);
     }
@@ -125,6 +125,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public Organizers claim(UUID organizerId, UUID userId) {
         Organizers organizer = findById(organizerId);
         if (organizer.isClaimed()) {
@@ -145,6 +146,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public Organizers verify(UUID id) {
         Organizers organizer = findById(id);
         organizer.setVerified(true);

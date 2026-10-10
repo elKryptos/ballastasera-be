@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
@@ -13,6 +14,7 @@ import com.kryptosystems.ballastasera.services.manager.*;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -161,6 +163,7 @@ public class EventsServiceImpl implements EventsService {
 
     @Override
     @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
@@ -202,6 +205,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public Events updateStatus(UUID requesterId, UUID id, EventStatus status) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
@@ -210,6 +214,7 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public Events updateFlyer(UUID id, UUID requesterId, MultipartFile file) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
@@ -217,11 +222,13 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public Events updateFlyerAsAdmin(UUID id, MultipartFile file) {
         return applyFlyer(findById(id), file);
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public Events deleteFlyer(UUID id, UUID requesterId) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
@@ -229,11 +236,13 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public Events deleteFlyerAsAdmin(UUID id) {
         return removeFlyer(findById(id));
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public void delete(UUID id, UUID requesterId) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
@@ -241,11 +250,13 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
     public void deleteAsAdmin(UUID id) {
         deleteEvent(findById(id));
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public Events removeVenue(UUID eventId, UUID requesterId) {
         Events event = findById(eventId);
         assertOwnership(event, requesterId);

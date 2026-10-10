@@ -79,7 +79,8 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY,
+            RedisCacheConfig.VENUE_MAP_BY_CITY}, allEntries = true)
     public Venues createVenueAsAdmin(UUID adminUserId, VenueCreateDto dto) {
         Organizers organizer = null;
         if (dto.getOrganizerId() != null) {
@@ -115,7 +116,8 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY,
+            RedisCacheConfig.VENUE_MAP_BY_CITY, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Venues updateVenueAsAdmin(UUID id, VenueUpdateDto dto) {
         Venues venue = findById(id);
         if (dto.getName() != null) {
@@ -139,7 +141,8 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY,
+            RedisCacheConfig.VENUE_MAP_BY_CITY, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Venues updateLogoAsAdmin(UUID id, MultipartFile file) {
         Venues venue = findById(id);
         byte[] content;
@@ -158,7 +161,8 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY,
+            RedisCacheConfig.VENUE_MAP_BY_CITY, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Venues deleteLogoAsAdmin(UUID id) {
         Venues venue = findById(id);
         String previousLogoUrl = venue.getLogoUrl();
@@ -169,7 +173,8 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
-    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY,
+            RedisCacheConfig.VENUE_MAP_BY_CITY, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public void deleteVenue(UUID id) {
         Venues venue = findById(id);
         if (eventsRepository.existsByVenueIdAndStatusNot(id, EventStatus.CANCELLED)) {
