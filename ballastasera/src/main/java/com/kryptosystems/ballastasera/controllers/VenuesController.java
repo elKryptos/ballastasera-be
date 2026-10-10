@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.cache.VenuesCache;
 import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueMapPinDto;
 import com.kryptosystems.ballastasera.models.dtos.VenuesSummaryDto;
@@ -26,14 +27,13 @@ public class VenuesController {
 
     private final VenuesService venuesService;
     private final VenuesMapper venuesMapper;
+    private final VenuesCache venuesCache;
 
     /** Público. Busca si el venue existe en la base de datos. Si está hace autocomplete (FE)*/
     @GetMapping(GET_VENUES)
     public ResponseEntity<List<VenuesSummaryDto>> getVenues(@RequestParam Long cityId,
                                                            @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(venuesService.search(cityId, search).stream()
-                .map(venuesMapper::toVenueSummaryDto)
-                .toList());
+        return ResponseEntity.ok(venuesCache.search(cityId, search));
     }
 
     /** Público. Todos los venues de una ciudad para los pines del mapa.
@@ -48,8 +48,7 @@ public class VenuesController {
 
     @GetMapping(GET_VENUE_DETAIL)
     public ResponseEntity<VenueDetailDto> getVenueDetail(@PathVariable UUID id) {
-        var venues = venuesService.findById(id);
-        return ResponseEntity.ok(venuesMapper.toVenueDetailDto(venues));
+        return ResponseEntity.ok(venuesCache.findById(id));
     }
 
 }

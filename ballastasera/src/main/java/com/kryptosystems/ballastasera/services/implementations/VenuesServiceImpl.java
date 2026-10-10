@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.exceptions.AddressNotFoundException;
 import com.kryptosystems.ballastasera.exceptions.DuplicateVenueException;
@@ -21,6 +22,7 @@ import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -77,6 +79,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
     public Venues createVenueAsAdmin(UUID adminUserId, VenueCreateDto dto) {
         Organizers organizer = null;
         if (dto.getOrganizerId() != null) {
@@ -112,6 +115,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
     public Venues updateVenueAsAdmin(UUID id, VenueUpdateDto dto) {
         Venues venue = findById(id);
         if (dto.getName() != null) {
@@ -135,6 +139,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
     public Venues updateLogoAsAdmin(UUID id, MultipartFile file) {
         Venues venue = findById(id);
         byte[] content;
@@ -153,6 +158,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
     public Venues deleteLogoAsAdmin(UUID id) {
         Venues venue = findById(id);
         String previousLogoUrl = venue.getLogoUrl();
@@ -163,6 +169,7 @@ public class VenuesServiceImpl implements VenuesService {
     }
 
     @Override
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY}, allEntries = true)
     public void deleteVenue(UUID id) {
         Venues venue = findById(id);
         if (eventsRepository.existsByVenueIdAndStatusNot(id, EventStatus.CANCELLED)) {

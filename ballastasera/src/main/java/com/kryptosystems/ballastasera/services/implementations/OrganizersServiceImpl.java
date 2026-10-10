@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
@@ -13,6 +14,7 @@ import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -69,6 +71,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
     public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
@@ -77,6 +80,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
     public Organizers updateAsAdmin(UUID id, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         organizerMapper.updateOrganizerFromDto(dto, organizer);
@@ -84,6 +88,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
     public void delete(UUID id, UUID requesterId){
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
@@ -91,6 +96,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.VENUE_DETAIL, allEntries = true)
     public void deleteAsAdmin(UUID id) {
         organizersRepository.deleteById(id);
     }
