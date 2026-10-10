@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.UserRole;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
@@ -23,6 +24,7 @@ public class UsersServiceImpl implements UsersService {
 
     private final UsersRepository usersRepository;
     private final FavoritesRepository favoritesRepository;
+    private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
 
     @Override
@@ -60,6 +62,10 @@ public class UsersServiceImpl implements UsersService {
         List<UUID> favoriteEventIds = favoritesRepository.findEventIdsByUserId(id);
         if (!favoriteEventIds.isEmpty()) {
             eventsRepository.decrementLikesCountForEvents(favoriteEventIds);
+        }
+        List<UUID> attendedEventIds = eventAttendanceRepository.findEventIdsByUserId(id);
+        if (!attendedEventIds.isEmpty()) {
+            eventsRepository.decrementGoingCountForEvents(attendedEventIds);
         }
         usersRepository.deleteById(id);
     }
