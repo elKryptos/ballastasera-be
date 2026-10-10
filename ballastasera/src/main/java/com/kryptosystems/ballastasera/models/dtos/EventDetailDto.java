@@ -38,7 +38,7 @@ public class EventDetailDto {
     private Long likesCount;
 
     private OrganizerDetailDto organizer;
-    private String venueName;
+    private VenueDetailDto venue;
     private List<String> danceStyles;
 
     private long goingCount;

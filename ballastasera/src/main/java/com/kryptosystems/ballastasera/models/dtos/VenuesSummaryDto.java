@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.enums.VenueType;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Getter
@@ -17,4 +18,6 @@ public class VenuesSummaryDto {
     private String cityName;
     private Double latitude;
     private Double longitude;
+    /** Para ordenar la lista del admin por fecha de creación. */
+    private OffsetDateTime createdAt;
 }
