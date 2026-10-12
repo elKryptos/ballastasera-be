@@ -4,5 +4,6 @@ public enum VenueType {
     SCHOOL,
     CLUB,
     BAR,
+    RESTAURANT,
     OTHER
 }

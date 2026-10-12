@@ -28,8 +28,8 @@ CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
 CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
-CREATE TYPE event_type        AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR');
-CREATE TYPE venue_type        AS ENUM ('SCHOOL', 'CLUB', 'BAR', 'OTHER');
+CREATE TYPE event_type        AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR', 'RESTAURANT');
+CREATE TYPE venue_type        AS ENUM ('SCHOOL', 'CLUB', 'BAR', 'RESTAURANT', 'OTHER');
 
 
 -- ============================================================================

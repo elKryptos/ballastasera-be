@@ -4,5 +4,6 @@ public enum EventType {
     EVENT,
     SCHOOL,
     CLUB,
-    BAR
+    BAR,
+    RESTAURANT
 }
