@@ -59,11 +59,11 @@ public class UsersServiceImpl implements UsersService {
     @Transactional
     @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public void deleteById(UUID id) {
-        List<UUID> favoriteEventIds = favoritesRepository.findEventIdsByUserId(id);
+        List<UUID> favoriteEventIds = favoritesRepository.findEventsIdsByUserId(id);
         if (!favoriteEventIds.isEmpty()) {
             eventsRepository.decrementLikesCountForEvents(favoriteEventIds);
         }
-        List<UUID> attendedEventIds = eventAttendanceRepository.findEventIdsByUserId(id);
+        List<UUID> attendedEventIds = eventAttendanceRepository.findEventsIdsByUserId(id);
         if (!attendedEventIds.isEmpty()) {
             eventsRepository.decrementGoingCountForEvents(attendedEventIds);
         }

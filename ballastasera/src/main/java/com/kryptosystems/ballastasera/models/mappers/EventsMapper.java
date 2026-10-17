@@ -79,6 +79,19 @@ public interface EventsMapper {
         return dto;
     }
 
+    default CursorPageDto<EventCardDto> toEventCardCursorPage(Slice<Events> events, long total) {
+        List<EventCardDto> items = events.getContent().stream().map(this::toEventCardDto).toList();
+        CursorPageDto<EventCardDto> dto = new CursorPageDto<>();
+        dto.setItems(items);
+        dto.setTotal(total);
+        if (events.hasNext() && !items.isEmpty()) {
+            EventCardDto last = items.get(items.size() - 1);
+            dto.setNextCursorStartAt(last.getStartAt());
+            dto.setNextCursorId(last.getId());
+        }
+        return dto;
+    }
+
     default List<String> toStyleNames(Events event) {
         return event.getDanceStyles().stream()
                 .map(DanceStyles::getName)

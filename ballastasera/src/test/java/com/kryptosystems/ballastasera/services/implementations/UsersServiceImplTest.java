@@ -46,8 +46,8 @@ class UsersServiceImplTest {
      * ya borro en cascada sus favoritos y asistencias y no se sabe a que eventos restar. */
     @Test
     void deleteByIdDecrementsLikesAndGoingCountsBeforeDeletingUser() {
-        when(favoritesRepository.findEventIdsByUserId(USER_ID)).thenReturn(List.of(EVENT_ID));
-        when(eventAttendanceRepository.findEventIdsByUserId(USER_ID)).thenReturn(List.of(EVENT_ID, OTHER_EVENT_ID));
+        when(favoritesRepository.findEventsIdsByUserId(USER_ID)).thenReturn(List.of(EVENT_ID));
+        when(eventAttendanceRepository.findEventsIdsByUserId(USER_ID)).thenReturn(List.of(EVENT_ID, OTHER_EVENT_ID));
 
         usersService.deleteById(USER_ID);
 
