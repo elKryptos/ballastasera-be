@@ -24,6 +24,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EventAttendanceServiceImpl implements EventAttendanceService {
 
+    private static final int AVATAR_PREVIEW_LIMIT = 3;
+
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
     private final UsersRepository usersRepository;
@@ -98,5 +100,13 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
         id.setUserId(userId);
         id.setEventId(eventId);
         return eventAttendanceRepository.existsById(id);
+    }
+
+    @Override
+    public List<EventAttendance> findAvatarPreviews(List<UUID> eventIds) {
+        if (eventIds.isEmpty()) {
+            return List.of();
+        }
+        return eventAttendanceRepository.findAvatarPreviewsByEventIdIn(eventIds, AVATAR_PREVIEW_LIMIT);
     }
 }

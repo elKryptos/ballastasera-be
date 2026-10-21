@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.cache.EventsCache;
 import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
@@ -61,7 +62,8 @@ public class EventsController {
                                                      @RequestParam double minLng, @RequestParam double maxLng,
                                                      @RequestParam(required = false) Long cityId) {
         var events = eventsService.findMapEvents(minLat, maxLat, minLng, maxLng, cityId);
-        return ResponseEntity.ok(eventsMapper.toMapEventsDto(events));
+        var previews = eventAttendanceService.findAvatarPreviews(events.map(Events::getId).getContent());
+        return ResponseEntity.ok(eventsMapper.toMapEventsDto(events, previews));
     }
 
     /** Publico */

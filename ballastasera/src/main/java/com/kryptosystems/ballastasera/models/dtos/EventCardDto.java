@@ -38,6 +38,7 @@ public class EventCardDto {
     private String organizerInstagram;
     private String venueName;
     private List<String> danceStyles;
+    private List<String> goingAvatars = List.of();
     private long goingCount;
     private long likesCount;
 }

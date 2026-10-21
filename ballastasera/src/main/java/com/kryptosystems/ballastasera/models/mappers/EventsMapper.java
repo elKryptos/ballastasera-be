@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.models.mappers;
 
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
+import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import org.mapstruct.Mapper;
@@ -12,6 +13,9 @@ import org.springframework.data.domain.Slice;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Mapea entidades a los DTOs de lectura del mapa/detalle de eventos.
@@ -25,6 +29,7 @@ import java.util.List;
         imports = {EventTimingUtils.class, OffsetDateTime.class})
 public interface EventsMapper {
 
+    @Mapping(target = "goingAvatars", ignore = true)
     @Mapping(target = "seriesId", source = "series.id")
     @Mapping(target = "organizerName", source = "organizer.name")
     @Mapping(target = "organizerInstagram", source = "organizer.instagram")
@@ -72,9 +77,18 @@ public interface EventsMapper {
     void updateEventEntityFromDto(EventUpdateDto dto, @MappingTarget Events event);
 
     /** Respuesta del mapa: cards + truncated (hasNext del slice = se llego al limite). */
-    default MapEventsDto toMapEventsDto(Slice<Events> events) {
+    default MapEventsDto toMapEventsDto(Slice<Events> events, List<EventAttendance> previews) {
+        Map<UUID, List<String>> avatarsByEventId = previews.stream()
+                .collect(Collectors.groupingBy(ea -> ea.getId().getEventId(),
+                        Collectors.mapping(ea -> ea.getUser().getAvatarUrl(), Collectors.toList())));
         MapEventsDto dto = new MapEventsDto();
-        dto.setEvents(events.getContent().stream().map(this::toEventCardDto).toList());
+        dto.setEvents(events.getContent().stream()
+                .map(event -> {
+                    EventCardDto card = toEventCardDto(event);
+                    card.setGoingAvatars(avatarsByEventId.getOrDefault(event.getId(), List.of()));
+                    return card;
+                })
+                .toList());
         dto.setTruncated(events.hasNext());
         return dto;
     }

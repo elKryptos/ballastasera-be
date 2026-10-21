@@ -25,4 +25,7 @@ public interface EventAttendanceService {
     void removeAttendance(UUID userId, UUID eventId);
 
     boolean isGoing(UUID userId, UUID eventId);
+
+    /** Primeros asistentes publicos con foto de cada evento (caritas del mapa/lista). */
+    List<EventAttendance> findAvatarPreviews(List<UUID> eventIds);
 }

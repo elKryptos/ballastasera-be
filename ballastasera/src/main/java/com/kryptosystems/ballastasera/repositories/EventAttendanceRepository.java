@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -76,4 +77,21 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') <= now()
             """, nativeQuery = true)
     long countPastByUserId(@Param("userId") UUID userId);
+
+    /** Primeros asistentes publicos con foto de cada evento, para las caritas
+     * del mapa y la lista. Mismo filtro de privacidad que findByEventIdAndStatus... */
+    @Query(value = """
+            SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u
+            WHERE ea.id.eventId IN :eventIds
+            AND u.showProfilePublic = true AND u.avatarUrl IS NOT NULL
+            AND u.isDeleted = false AND u.isBanned = false
+            AND (SELECT COUNT(ea2) FROM EventAttendance ea2 JOIN ea2.user u2
+               WHERE ea2.id.eventId = ea.id.eventId
+               AND u2.showProfilePublic = true AND u2.avatarUrl IS NOT NULL
+               AND u2.isDeleted = false AND u2.isBanned = false
+               AND ea2.createdAt < ea.createdAt) < :perEvent
+          ORDER BY ea.createdAt ASC
+          """)
+    List<EventAttendance> findAvatarPreviewsByEventIdIn(@Param("eventIds") Collection<UUID> eventIds,
+                                                        @Param("perEvent") long perEvent);
 }
