@@ -3,10 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.UserRole;
 import com.kryptosystems.ballastasera.models.entities.Users;
-import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
-import com.kryptosystems.ballastasera.repositories.EventsRepository;
-import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
-import com.kryptosystems.ballastasera.repositories.UsersRepository;
+import com.kryptosystems.ballastasera.repositories.*;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,6 +23,7 @@ public class UsersServiceImpl implements UsersService {
     private final FavoritesRepository favoritesRepository;
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
+    private final OrganizersRepository organizersRepository;
 
     @Override
     public List<Users> findAll() {
@@ -91,11 +89,10 @@ public class UsersServiceImpl implements UsersService {
 
     @Override
     public Users demoteToUser(UUID userId) {
-        return null;
-    }
-
-    @Override
-    public Users becomeOrganizer(UUID userId) {
-        return null;
+        Users user = findById(userId);
+        if (user.getRole() == UserRole.ORGANIZER && organizersRepository.countByUserId(userId) == 0) {
+            user.setRole(UserRole.USER);
+        }
+        return usersRepository.save(user);
     }
 }

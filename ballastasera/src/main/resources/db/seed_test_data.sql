@@ -134,3 +134,61 @@ INSERT INTO event_attendance (user_id, event_id) VALUES
 -- ----------------------------------------------------------------------------
 INSERT INTO favorites (user_id, event_id) VALUES
     ('44444444-4444-4444-4444-444444444444', 'cccccccc-cccc-cccc-cccc-cccccccccccc');
+
+
+-- ----------------------------------------------------------------------------
+-- Diventa organizzatore (docs/organizer-requests-plan.md §3.2d)
+--   88888888 = pagina senza dueño (SCHOOL) creada por el admin
+--   99999999 = su venue, ya enlazado (D11)
+--   ab000000-…-0X = solicitudes, ver la tabla del plan
+-- ----------------------------------------------------------------------------
+INSERT INTO users (id, google_id, email, display_name, avatar_url, instagram, show_profile_public, role)
+VALUES ('77777777-7777-7777-7777-777777777777', 'seed-google-dario',
+        'dario.seed@ballastasera.test', 'Dario', NULL, 'tropicalclub.mi', false, 'USER');
+
+INSERT INTO organizers (id, user_id, name, slug, type, description, contact_email, instagram, is_verified, claimed)
+VALUES ('88888888-8888-8888-8888-888888888888', NULL,
+        'Salsa Loca Milano', 'salsa-loca-milano', 'SCHOOL',
+        'Scuola di salsa e bachata in zona Isola. Corsi tutte le sere, social il venerdì.',
+        'info@salsaloca.it', 'salsaloca.milano', true, false);
+
+INSERT INTO venues (id, name, type, organizer_id, city_id, address, latitude, longitude, description, created_by)
+VALUES ('99999999-9999-9999-9999-999999999999', 'Salsa Loca · Sala Isola', 'SCHOOL',
+        '88888888-8888-8888-8888-888888888888',
+        (SELECT id FROM cities WHERE slug = 'milano'),
+        'Via Borsieri 12', 45.4889, 9.1890,
+        'La sala della scuola Salsa Loca.', NULL);
+
+INSERT INTO organizer_requests (id, user_id, type, status, organizer_id, contact_email, instagram,
+                                message, terms_accepted_at, submitted_at)
+VALUES
+    ('ab000000-0000-0000-0000-000000000001', '44444444-4444-4444-4444-444444444444',
+     'CLAIM', 'PENDING', '88888888-8888-8888-8888-888888888888',
+     'ana.seed@ballastasera.test', 'salsaloca.milano',
+     'Sono la titolare, mi trovate in sala il martedì.', now() - INTERVAL '1 day', now() - INTERVAL '1 day'),
+    ('ab000000-0000-0000-0000-000000000002', '55555555-5555-5555-5555-555555555555',
+     'CLAIM', 'PENDING', '88888888-8888-8888-8888-888888888888',
+     'marco2.seed@ballastasera.test', 'marco_salsero',
+     NULL, now() - INTERVAL '3 hours', now() - INTERVAL '3 hours');
+
+INSERT INTO organizer_requests (id, user_id, type, status, name, organizer_type, description,
+                                contact_email, instagram, terms_accepted_at, submitted_at,
+                                rejection_reason, rejection_message, reviewed_at)
+VALUES
+    ('ab000000-0000-0000-0000-000000000003', '66666666-6666-6666-6666-666666666666',
+     'NEW', 'REJECTED', 'Lucia Bachata', 'PERSON', 'Insegnante di bachata sensual.',
+     'lucia.seed@ballastasera.test', 'lucia.bachata.mi', now() - INTERVAL '4 days', now() - INTERVAL '4 days',
+     'INSTAGRAM_NOT_FOUND', 'Non troviamo @lucia.bachata.mi: controlla il nome.', now() - INTERVAL '2 days'),
+    ('ab000000-0000-0000-0000-000000000004', '66666666-6666-6666-6666-666666666666',
+     'NEW', 'PENDING', 'Lucia Bachata', 'PERSON', 'Insegnante di bachata sensual.',
+     'lucia.seed@ballastasera.test', 'luciabachata', now() - INTERVAL '1 hour', now() - INTERVAL '1 hour',
+     NULL, NULL, NULL);
+
+INSERT INTO organizer_requests (id, user_id, type, status, name, organizer_type, description,
+                                venue_address, venue_city_id,
+                                contact_email, instagram, terms_accepted_at, submitted_at)
+VALUES ('ab000000-0000-0000-0000-000000000005', '77777777-7777-7777-7777-777777777777',
+        'NEW', 'PENDING', 'Tropical Club Navigli', 'CLUB',
+        'Serate latine il giovedì e il sabato, due sale: salsa e bachata.',
+        'Via Gola 12', (SELECT id FROM cities WHERE slug = 'milano'),
+        'info@tropicalclub.it', 'tropicalclub.mi', now() - INTERVAL '30 minutes', now() - INTERVAL '30 minutes');

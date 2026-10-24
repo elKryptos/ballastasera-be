@@ -225,4 +225,19 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
 
+    /** La página ya tiene dueño. code para que el frontend traduzca el mensaje (organizer-requests-plan.md §4.6). */
+    @ExceptionHandler(OrganizerAlreadyClaimedException.class)
+    public ResponseEntity<ErrorDetails> handleOrganizerAlreadyClaimed(OrganizerAlreadyClaimedException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Organizer already claimed",
+                HttpStatus.CONFLICT,
+                Map.of("code", "ORGANIZER_ALREADY_CLAIMED")
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
 }

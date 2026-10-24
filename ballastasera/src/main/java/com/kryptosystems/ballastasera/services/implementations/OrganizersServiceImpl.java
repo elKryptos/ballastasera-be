@@ -1,16 +1,21 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
+import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
+import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
+import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
+import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EmailService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -31,6 +37,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     private final UsersService usersService;
     private final EmailService emailService;
     private final OrganizerMapper organizerMapper;
+    private final OrganizerRequestsRepository organizerRequestsRepository;
 
     @Override
     public List<Organizers> findAll() {
@@ -76,6 +83,7 @@ public class OrganizersServiceImpl implements OrganizersService {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
         organizerMapper.updateOrganizerFromDto(dto, organizer);
+        organizer.setInstagram(InstagramUtils.normalizeHandle(organizer.getInstagram()));
         return organizersRepository.save(organizer);
     }
 
@@ -84,21 +92,37 @@ public class OrganizersServiceImpl implements OrganizersService {
     public Organizers updateAsAdmin(UUID id, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         organizerMapper.updateOrganizerFromDto(dto, organizer);
+        organizer.setInstagram(InstagramUtils.normalizeHandle(organizer.getInstagram()));
         return organizersRepository.save(organizer);
     }
 
     @Override
+    @Transactional
     @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public void delete(UUID id, UUID requesterId){
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
         organizersRepository.delete(organizer);
+        usersService.demoteToUser(requesterId);
     }
 
     @Override
+    @Transactional
     @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public void deleteAsAdmin(UUID id) {
-        organizersRepository.deleteById(id);
+        Organizers organizer = findById(id);
+        Users owner = organizer.getUser();
+
+        List<OrganizerRequests> pendingClaims = organizerRequestsRepository
+                .findByOrganizerIdAndTypeAndStatus(id, OrganizerRequestType.CLAIM, OrganizerRequestStatus.PENDING);
+        for (OrganizerRequests claim : pendingClaims) {
+            claim.setStatus(OrganizerRequestStatus.CANCELLED);
+            claim.setRejectionMessage("La pagina è stata rimossa.");
+        }
+        organizersRepository.delete(organizer);
+        if (owner != null) {
+            usersService.demoteToUser(owner.getId());
+        }
     }
 
     @Override
@@ -117,6 +141,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     @Override
     public Organizers createUnclaimed(OrganizerCreateDto dto) {
         Organizers organizer = organizerMapper.toOrganizerEntity(dto);
+        organizer.setInstagram(InstagramUtils.normalizeHandle(organizer.getInstagram()));
         organizer.setSlug(SlugUtils.uniqueSlug(dto.getName(),
                 slug -> organizersRepository.findBySlug(slug).isPresent()));
         organizer.setVerified(true);

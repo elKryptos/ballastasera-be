@@ -81,4 +81,7 @@ public class Users {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Favorites> favorites = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user")
+    private List<OrganizerRequests> organizerRequests = new ArrayList<>();
 }

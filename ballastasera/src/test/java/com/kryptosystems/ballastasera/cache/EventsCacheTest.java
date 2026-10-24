@@ -6,45 +6,11 @@ import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueUpdateDto;
-import com.kryptosystems.ballastasera.models.entities.EventSeries;
-import com.kryptosystems.ballastasera.models.entities.Events;
-import com.kryptosystems.ballastasera.models.entities.Organizers;
-import com.kryptosystems.ballastasera.models.entities.Users;
-import com.kryptosystems.ballastasera.models.entities.Venues;
-import com.kryptosystems.ballastasera.models.mappers.AttendeeMapper;
-import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
-import com.kryptosystems.ballastasera.models.mappers.EventsMapperImpl;
-import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
-import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
-import com.kryptosystems.ballastasera.repositories.CitiesRepository;
-import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
-import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
-import com.kryptosystems.ballastasera.repositories.EventsRepository;
-import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
-import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
-import com.kryptosystems.ballastasera.repositories.UsersRepository;
-import com.kryptosystems.ballastasera.repositories.VenuesRepository;
-import com.kryptosystems.ballastasera.services.implementations.EventAttendanceServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.EventFlyerProcessingServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.EventSeriesServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.EventsServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.FavoritesServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.OrganizersServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.UsersServiceImpl;
-import com.kryptosystems.ballastasera.services.implementations.VenuesServiceImpl;
-import com.kryptosystems.ballastasera.services.manager.EmailService;
-import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
-import com.kryptosystems.ballastasera.services.manager.EventFlyerProcessingService;
-import com.kryptosystems.ballastasera.services.manager.EventResolverService;
-import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
-import com.kryptosystems.ballastasera.services.manager.EventsService;
-import com.kryptosystems.ballastasera.services.manager.FavoritesService;
-import com.kryptosystems.ballastasera.services.manager.GeocodingService;
-import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
-import com.kryptosystems.ballastasera.services.manager.OrganizersService;
-import com.kryptosystems.ballastasera.services.manager.UsersService;
-import com.kryptosystems.ballastasera.services.manager.VenuesService;
-import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
+import com.kryptosystems.ballastasera.models.entities.*;
+import com.kryptosystems.ballastasera.models.mappers.*;
+import com.kryptosystems.ballastasera.repositories.*;
+import com.kryptosystems.ballastasera.services.implementations.*;
+import com.kryptosystems.ballastasera.services.manager.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,10 +37,7 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Cache del detalle de evento con un cache en memoria en vez de Redis: la segunda lectura no
@@ -83,7 +46,7 @@ import static org.mockito.Mockito.when;
  * contando las llamadas a eventsRepository.findByIdWithDetails.
  */
 @SpringJUnitConfig
-@MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class,
+@MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class, OrganizerRequestsRepository.class,
         EventResolverService.class, ObjectStorageService.class, WebpConverterService.class, GeocodingService.class,
         EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class})
 class EventsCacheTest {

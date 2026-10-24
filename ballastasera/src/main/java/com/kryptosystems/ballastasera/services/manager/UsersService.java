@@ -20,8 +20,4 @@ public interface UsersService {
     Users promoteToOrganizer(UUID userId);
 
     Users demoteToUser(UUID userId);
-
-    Users becomeOrganizer(UUID userId);
-
-
 }

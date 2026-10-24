@@ -22,4 +22,9 @@ public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
 
     Page<Organizers> findByIsVerifiedTrue(Pageable pageable);
 
+    long countByUserId(UUID userId); //cuántos organizadores tiene el usuario (límite MAX_ORGANIZERS_PER_USER)
+
+    List<Organizers> findTop10ByIsVerifiedTrueAndClaimedFalseAndNameContainingIgnoreCaseOrderByNameAsc(String name);
+
+
 }

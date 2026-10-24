@@ -1,8 +1,11 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
+import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,13 +15,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UsersServiceImplTest {
@@ -38,6 +40,9 @@ class UsersServiceImplTest {
 
     @Mock
     private EventsRepository eventsRepository;
+
+    @Mock
+    private OrganizersRepository organizersRepository;
 
     @InjectMocks
     private UsersServiceImpl usersService;
@@ -64,5 +69,47 @@ class UsersServiceImplTest {
         verify(eventsRepository, never()).decrementLikesCountForEvents(any());
         verify(eventsRepository, never()).decrementGoingCountForEvents(any());
         verify(usersRepository).deleteById(USER_ID);
+    }
+
+    @Test
+    void demoteToUserSetsUserRoleWhenOrganizerHasNoOrganizersLeft() {
+        Users user = user(UserRole.ORGANIZER);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(organizersRepository.countByUserId(USER_ID)).thenReturn(0L);
+
+        usersService.demoteToUser(USER_ID);
+
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+        verify(usersRepository).save(user);
+    }
+
+    @Test
+    void demoteToUserKeepsOrganizerRoleWhileUserStillOwnsAnOrganizer() {
+        Users user = user(UserRole.ORGANIZER);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(organizersRepository.countByUserId(USER_ID)).thenReturn(1L);
+
+        usersService.demoteToUser(USER_ID);
+
+        assertThat(user.getRole()).isEqualTo(UserRole.ORGANIZER);
+    }
+
+    /** Un ADMIN no se toca: ni siquiera se cuentan sus organizadores (el && corta antes). */
+    @Test
+    void demoteToUserNeverDemotesAnAdmin() {
+        Users user = user(UserRole.ADMIN);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        usersService.demoteToUser(USER_ID);
+
+        assertThat(user.getRole()).isEqualTo(UserRole.ADMIN);
+        verify(organizersRepository, never()).countByUserId(any());
+    }
+
+    private static Users user(UserRole role) {
+        Users user = new Users();
+        user.setId(USER_ID);
+        user.setRole(role);
+        return user;
     }
 }

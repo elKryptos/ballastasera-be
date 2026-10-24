@@ -6,9 +6,16 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.validator.constraints.URL;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 public class VenueUpdateDto {
+
+    /** Opcional: enlaza el venue a su organizador (D11). null = no cambia el enlace actual.
+     *  Lo usa el admin para conectar venues que ya existen antes de abrir «Diventa organizzatore». */
+    private UUID organizerId;
+
     @Positive
     private Long cityId;
 

@@ -126,9 +126,13 @@ public class VenuesServiceImpl implements VenuesService {
                         throw new DuplicateVenueException("A venue with name " + dto.getName() + " already exists in this city", existing.getId());
                     });
         }
-        // Antes del mapper: despues venue.getAddress() ya tiene la direccion nueva y nunca detectaria el cambio.
+        // Antes del mapper: después venue.getAddress() ya tiene la dirección nueva y nunca detectaría el cambio.
         boolean addressChanged = dto.getAddress() != null && !dto.getAddress().equals(venue.getAddress());
         venuesMapper.updateVenueEntityFromDto(dto, venue);
+        if (dto.getOrganizerId() != null) {
+            venue.setOrganizer(organizersRepository.findById(dto.getOrganizerId())
+                    .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + dto.getOrganizerId())));
+        }
         boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
         if (addressChanged && !coordsProvidedByClient) {
             GeocodingService.GeoPoint point = geocodingService.geoCode(dto.getAddress(), venue.getCity().getName())
