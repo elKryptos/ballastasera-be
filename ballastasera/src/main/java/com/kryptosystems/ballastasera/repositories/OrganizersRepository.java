@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.models.entities.Organizers;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,7 +25,9 @@ public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
 
     long countByUserId(UUID userId); //cuántos organizadores tiene el usuario (límite MAX_ORGANIZERS_PER_USER)
 
-    List<Organizers> findTop10ByIsVerifiedTrueAndClaimedFalseAndNameContainingIgnoreCaseOrderByNameAsc(String name);
-
+    /** Buscador del wizard (CLAIM). UserIsNull además de ClaimedFalse: un organizador creado por su dueño y
+     * verificado sigue con claimed=false. Containing escapa % y _ del texto del usuario. */
+    List<Organizers> findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(String name,
+                                                                                                             Limit limit);
 
 }

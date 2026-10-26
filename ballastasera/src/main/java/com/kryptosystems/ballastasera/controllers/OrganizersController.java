@@ -11,10 +11,12 @@ import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -29,9 +31,9 @@ import static com.kryptosystems.ballastasera.utilities.RestConstants.ORGANIZERS;
 @RequiredArgsConstructor
 public class OrganizersController {
 
-    private static final String CREATE = "";
     private static final String GET_BY_SLUG = "/{slug}";
     private static final String GET_MY_ORGANIZERS = "/me";
+    private static final String GET_CLAIMABLE = "/claimable";
     private static final String UPDATE = "/{id}";
     private static final String GET_ORGANIZERS_LIST = "";
     private static final String GET_ORGANIZER_EVENTS = "/{id}/events";
@@ -48,15 +50,6 @@ public class OrganizersController {
     private final EventSeriesService eventSeriesService;
     private final EventSeriesMapper eventSeriesMapper;
 
-    /** Requiere estar autenticado. Crea el perfil de organizador. Queda pendiente (isVerified=false) hasta
-     * que un admin lo apruebe; solo entonces se pueden publicar eventos. */
-    @PostMapping(CREATE)
-    public ResponseEntity<OrganizerDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
-                                                     @Valid @RequestBody OrganizerCreateDto body) {
-        var organizer = organizersService.createForUser(principal.getId(), body);
-        return ResponseEntity.status(HttpStatus.CREATED).body(organizerMapper.toOrganizerDetailDto(organizer));
-    }
-
     /** Público, nadie necesita loguearse. Sirve para la página de perfil del organizador
      * que esté verificado que ve cualquier visitante (como el detalle de un evento). */
     @GetMapping(GET_BY_SLUG)
@@ -71,6 +64,18 @@ public class OrganizersController {
     public ResponseEntity<List<OrganizerDetailDto>> getMyOrganizers(@AuthenticationPrincipal UserPrincipal principal) {
         var organizers = organizersService.findByUserId(principal.getId());
         return ResponseEntity.ok(organizers.stream().map(organizerMapper::toOrganizerDetailDto).toList());
+    }
+
+    /** Público. Buscador del wizard «Diventa organizzatore» (CLAIM): páginas verificadas y sin dueño que el
+     * usuario puede pedir. name mínimo 3 caracteres, limit máximo 10 (400 si no). La ruta literal /claimable
+     * gana a /{slug}, no hay conflicto. */
+    @GetMapping(GET_CLAIMABLE)
+    public ResponseEntity<List<OrganizerSummaryDto>> getClaimable(@RequestParam @Size(min = 3, max = 120) String name,
+                                                                  @RequestParam(defaultValue = "5") @Min(1) @Max(10) int limit) {
+        var organizers = organizersService.findClaimable(name, limit).stream()
+                .map(organizerMapper::toOrganizerSummaryDto)
+                .toList();
+        return ResponseEntity.ok(organizers);
     }
 
     /** Requiere estar autenticado. Editar el propio perfil de organizador. No estoy actulizando

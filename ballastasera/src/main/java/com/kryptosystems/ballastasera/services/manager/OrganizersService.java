@@ -16,9 +16,6 @@ public interface OrganizersService {
     List<Organizers> findByUserId(UUID userId);
     Organizers save(Organizers organizer);
 
-    /** Crea el perfil, isVerified=false por defecto: queda pendiente de aprobacion. */
-    Organizers createForUser(UUID userId, OrganizerCreateDto dto);
-
     /** Actualiza datos del organizador que posee un usuario. */
     Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto);
 
@@ -45,4 +42,7 @@ public interface OrganizersService {
 
     /** Admin asigna el organizer a un usuario real: user=userId, claimed=true, promueve el rol y notifica por email. */
     Organizers claim(UUID organizerId, UUID userId);
+
+    /** Buscador del wizard (CLAIM): páginas verificadas y sin dueño cuyo nombre contiene name, por orden alfabético. */
+    List<Organizers> findClaimable(String name, int limit);
 }

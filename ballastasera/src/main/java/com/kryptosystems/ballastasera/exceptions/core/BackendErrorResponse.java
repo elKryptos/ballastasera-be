@@ -8,10 +8,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterValidationResult;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -47,6 +50,26 @@ public class BackendErrorResponse {
                 "Validation failed",
                 request.getRequestURI(),
                 "One or more fields are invalid",
+                HttpStatus.BAD_REQUEST,
+                errors
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    /** @RequestParam/@PathVariable con @Size, @Min, @Max...: Spring los valida sin @Validated y lanza esta
+     * excepción. Sin este handler acabaría en el genérico como 500. Mismo formato que handleValidation. */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorDetails> handleMethodValidation(HandlerMethodValidationException ex, HttpServletRequest request) {
+        Map<String, String> errors = new HashMap<>();
+        for (ParameterValidationResult result : ex.getParameterValidationResults()) {
+            errors.put(result.getMethodParameter().getParameterName(),
+                    result.getResolvableErrors().getFirst().getDefaultMessage());
+        }
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Validation failed",
+                request.getRequestURI(),
+                "One or more parameters are invalid",
                 HttpStatus.BAD_REQUEST,
                 errors
         );
@@ -91,6 +114,22 @@ public class BackendErrorResponse {
                 HttpStatus.BAD_REQUEST
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    /** Ruta que existe pero no con ese método (ej. POST /rest/organizers, borrado en D10). Sin este handler
+     * caia en el generico como 500. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorDetails> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        String supported = ex.getSupportedMethods() != null ? String.join(", ", ex.getSupportedMethods()) : "none";
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Method " + ex.getMethod() + " not supported",
+                request.getRequestURI(),
+                "Supported methods: " + supported,
+                HttpStatus.METHOD_NOT_ALLOWED
+        );
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(errorDetails);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

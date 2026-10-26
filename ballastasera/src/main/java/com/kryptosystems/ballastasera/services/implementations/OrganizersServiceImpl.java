@@ -20,6 +20,7 @@ import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -63,17 +64,6 @@ public class OrganizersServiceImpl implements OrganizersService {
 
     @Override
     public Organizers save(Organizers organizer) {
-        return organizersRepository.save(organizer);
-    }
-
-    @Override
-    public Organizers createForUser(UUID userId, OrganizerCreateDto dto) {
-        Users user = usersService.findById(userId);
-        Organizers organizer = organizerMapper.toOrganizerEntity(dto);
-        organizer.setUser(user);
-        organizer.setSlug(SlugUtils.uniqueSlug(dto.getName(),
-                slug -> organizersRepository.findBySlug(slug).isPresent()));
-        organizer.setVerified(false);
         return organizersRepository.save(organizer);
     }
 
@@ -187,6 +177,13 @@ public class OrganizersServiceImpl implements OrganizersService {
     @Override
     public Page<Organizers> findVerified(Pageable pageable) {
         return organizersRepository.findByIsVerifiedTrue(pageable);
+    }
+
+    @Override
+    public List<Organizers> findClaimable(String name, int limit) {
+        // name (mín. 3) y limit (1-10) ya los valida el controller
+        return organizersRepository.findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(
+                name.trim(), Limit.of(limit));
     }
 
     private void assertOwnership(Organizers organizer, UUID requesterId){

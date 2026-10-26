@@ -60,6 +60,7 @@ public class SecurityConfig {
                                 "/rest/venues/{id}",
                                 "/rest/event-series/{id}",
                                 "/rest/organizers",
+                                "/rest/organizers/claimable",
                                 "/rest/organizers/{slug}",
                                 "/rest/organizers/{id}/events",
                                 "/rest/organizers/{id}/venues",

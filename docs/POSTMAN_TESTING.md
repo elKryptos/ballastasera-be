@@ -703,3 +703,55 @@ Content-Type: application/json
 body no lleva `name`). Sin `targetOrganizerId`: `400`. Con un UUID inventado o una página sin
 verificar: `404` con el mismo mensaje en los dos casos. Si la página ya tiene dueño: `409`
 `ORGANIZER_ALREADY_CLAIMED`. Cancelarla al terminar.
+
+### `GET /rest/organizers/claimable` (público, buscador del wizard para CLAIM)
+
+Devuelve solo las páginas verificadas, sin reclamar y **sin dueño** (`user_id` NULL), por orden
+alfabético. `name` mínimo 3 caracteres; `limit` entre 1 y 10, por defecto 5.
+
+```
+GET http://localhost:8081/rest/organizers/claimable?name=sal
+```
+
+**Esperado**: `200` con `[Salsa Loca Milano]` (`OrganizerSummaryDto`).
+
+```
+GET http://localhost:8081/rest/organizers/claimable?name=tro
+```
+
+**Esperado**: `200` con `[]`. *Tropical Milano* está verificado pero tiene dueño (`claimed` sigue en
+`false` porque lo creó su dueño y lo verificó el admin): no tiene que salir.
+
+```
+GET http://localhost:8081/rest/organizers/claimable?name=sa
+```
+
+**Esperado**: `400` con `errors.name` (menos de 3 caracteres).
+
+```
+GET http://localhost:8081/rest/organizers/claimable?name=sal&limit=20
+```
+
+**Esperado**: `400` con `errors.limit` (máximo 10).
+
+```
+GET http://localhost:8081/rest/organizers/claimable
+```
+
+**Esperado**: `400` (falta el parámetro `name`).
+
+### `POST /rest/organizers` ya no existe (D10)
+
+El perfil de organizador se pide ahora con `POST /rest/organizer-requests`.
+
+```
+POST http://localhost:8081/rest/organizers
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{ "name": "Prueba" }
+```
+
+**Esperado**: `405` con `message: "Method POST not supported"` y `details: "Supported methods: GET"`
+(la ruta existe solo para el listado público). Antes del handler de
+`HttpRequestMethodNotSupportedException` en `BackendErrorResponse` daba `500`.
