@@ -240,4 +240,19 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
 
+    /** Conflictos de las solicitudes de organizador. code para que el frontend traduzca el mensaje (§4.6). */
+    @ExceptionHandler(OrganizerRequestConflictException.class)
+    public ResponseEntity<ErrorDetails> handleOrganizerRequestConflict(OrganizerRequestConflictException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Organizer request conflict",
+                HttpStatus.CONFLICT,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
 }

@@ -11,5 +11,6 @@ public class RestConstants {
     public static final String EVENTS = "/rest/events";
     public static final String EVENT_SERIES = "/rest/event-series";
     public static final String ORGANIZERS = "/rest/organizers";
+    public static final String ORGANIZER_REQUESTS = "/rest/organizer-requests";
     public static final String HEALTH = "/rest/health";
 }

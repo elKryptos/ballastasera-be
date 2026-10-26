@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.models.dtos;
 
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.enums.OrganizerType;
+import com.kryptosystems.ballastasera.validations.ValidOrganizerRequest;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,10 +15,11 @@ import java.util.UUID;
  * NEW: perfil nuevo (name + organizerType obligatorios; dirección si el tipo tiene local, D11).
  * CLAIM: pide una página que ya existe (targetOrganizerId obligatorio); solo lleva datos de prueba (D6),
  * así que name, organizerType, description, website, facebook y la dirección se ignoran.
- * Las reglas que dependen del tipo las valida @ValidOrganizerRequest (fase 2).
+ * Las reglas que dependen del tipo las valida @ValidOrganizerRequest.
  */
 @Getter
 @Setter
+@ValidOrganizerRequest
 public class OrganizerRequestCreateDto {
 
     @NotNull

@@ -531,3 +531,175 @@ Authorization: Bearer <tu token>
 ```
 
 **Esperado**: `204 No Content`. Un `GET` posterior al mismo `id` debe dar `404`.
+
+## 7. Solicitudes «Diventa organizzatore» (usuario autenticado)
+
+Plan: `organizer-requests-plan.md` (fase 2). Hay que hacer login con un **USER sin organizador**: si
+ya tiene uno, todos los `POST` dan `409` `ORGANIZER_LIMIT_REACHED` (D3, máximo 1). Solo puede haber
+una solicitud `PENDING` por usuario: cancela la anterior antes de crear otra. `venueCityId: 1` es
+Milano (compruébalo con `GET /rest/cities`). Los `409` traen el motivo en `errors.code`.
+
+### `POST /rest/organizer-requests` — NEW de tipo PERSON
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "name": "DJ Kryptos",
+  "organizerType": "PERSON",
+  "description": "DJ di salsa e bachata a Milano.",
+  "instagram": "@dj.kryptos",
+  "contactEmail": "dj.kryptos@example.com",
+  "phone": "+39 333 1234567",
+  "website": "https://djkryptos.it",
+  "message": "Suono ogni venerdì in zona Navigli.",
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `201` + `OrganizerRequestDto` con `status: "PENDING"` e `instagram: "dj.kryptos"`
+(sin `@`, lo normaliza `InstagramUtils`). Guardate el `id` (`<request_id>`).
+
+Repetir el mismo `POST` → **Esperado**: `409` con `errors.code = "PENDING_REQUEST_EXISTS"`.
+
+### `GET /rest/organizer-requests/me`
+
+```
+GET http://localhost:8081/rest/organizer-requests/me
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `200` con la solicitud más reciente (la `PENDING` del paso anterior). Con un usuario
+que nunca ha pedido nada: `204 No Content`.
+
+### `PATCH /rest/organizer-requests/{id}/acknowledge`
+
+```
+PATCH http://localhost:8081/rest/organizer-requests/<request_id>/acknowledge
+Authorization: Bearer <tu token>
+```
+
+**Esperado** con la solicitud todavía `PENDING`: `409` con `errors.code = "REQUEST_STILL_PENDING"`.
+Una vez aprobada o rechazada (fase 3): `200` con `acknowledgedAt` relleno; si se llama otra vez, la
+fecha no cambia (idempotente). Con el token de otro usuario: `403`.
+
+### `DELETE /rest/organizer-requests/{id}`
+
+```
+DELETE http://localhost:8081/rest/organizer-requests/<request_id>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `204 No Content`. Después `GET /me` devuelve `status: "CANCELLED"` con `acknowledgedAt`
+relleno (la canceló el propio usuario, no hay aviso que enseñarle). Un segundo `DELETE` da `409`
+`REQUEST_NOT_PENDING`. Con el token de otro usuario: `403`. Con un id inventado: `404`.
+
+### Reglas de `@ValidOrganizerRequest` (D11: dirección del local)
+
+NEW de tipo CLUB sin dirección:
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "name": "Club Caliente",
+  "organizerType": "CLUB",
+  "instagram": "clubcaliente.mi",
+  "contactEmail": "info@clubcaliente.it",
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `400` con `errors.venueAddress = "venueAddress is required for this organizer type"`.
+
+NEW de tipo CLUB con dirección:
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "name": "Club Caliente",
+  "organizerType": "CLUB",
+  "instagram": "clubcaliente.mi",
+  "contactEmail": "info@clubcaliente.it",
+  "venueAddress": "Via Tortona 27",
+  "venueCityId": 1,
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `201` con `venueAddress` y `venueCityName: "Milano"`. Con un `venueCityId` que no
+existe: `404`. Cancelarla después (`DELETE`) para seguir probando.
+
+NEW de tipo PERSON con dirección:
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "name": "DJ Kryptos",
+  "organizerType": "PERSON",
+  "instagram": "dj.kryptos",
+  "contactEmail": "dj.kryptos@example.com",
+  "venueAddress": "Via Tortona 27",
+  "venueCityId": 1,
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `400` con `errors.venueAddress = "venueAddress is not allowed for this organizer type"`.
+Si llega solo `venueAddress` o solo `venueCityId`: `400` con `"venueAddress and venueCityId go together"`.
+
+Varios errores en una sola petición:
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "instagram": "nome con spazi",
+  "contactEmail": "non-email",
+  "termsAccepted": false
+}
+```
+
+**Esperado**: `400` con `errors` que incluye `name`, `organizerType`, `instagram`, `contactEmail` y
+`termsAccepted`.
+
+### `POST /rest/organizer-requests` — CLAIM de una página que ya existe
+
+Usa *Salsa Loca Milano* del seed (verificada y sin dueño).
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "CLAIM",
+  "targetOrganizerId": "88888888-8888-8888-8888-888888888888",
+  "instagram": "salsaloca.milano",
+  "contactEmail": "titolare@salsaloca.it",
+  "message": "Sono la titolare, scrivetemi pure.",
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `201` con `type: "CLAIM"` y `organizerName: "Salsa Loca Milano"` (sale de la página, el
+body no lleva `name`). Sin `targetOrganizerId`: `400`. Con un UUID inventado o una página sin
+verificar: `404` con el mismo mensaje en los dos casos. Si la página ya tiene dueño: `409`
+`ORGANIZER_ALREADY_CLAIMED`. Cancelarla al terminar.
