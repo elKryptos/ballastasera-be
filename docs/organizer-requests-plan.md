@@ -15,6 +15,57 @@ Convención de estado (la misma que `ROADMAP.md`):
 - `[~]` en progreso (dejar nota de qué falta)
 - `[x]` hecho y probado (tests + Postman)
 
+## ▶ Dónde retomar (actualizado 27/10/2026)
+
+Rama `feature/organizer-requests`. El push lo hace el usuario.
+- Ya en el remoto: `c17df90` fases 0 + 1 · `fdfd05e` fase 2, endpoints del usuario · `03f0b29` fase 2,
+  claimable + borrado de `POST /rest/organizers` + handlers 400/405.
+- **Pendientes de push (27/10):** `5462714` 403 en vez de 401 para `/rest/admin/**` · `c3127b0` fase 3,
+  lista y detalle del admin · `25006f4` doc Postman §8 · `77664a7` emails después del commit · `c9e4e40`
+  approve · `9142869` doc Postman del approve · `3242ef5` «organizador» en vez de «página» en comentarios.
+
+Suite: 165 tests en verde.
+
+| Fase | Estado |
+|---|---|
+| 0 — Arreglos | Código hecho. Faltan 3 comprobaciones en Postman (ver fase 0) |
+| 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
+| 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos, aplazados |
+| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve. **← SIGUIENTE: `reject`** |
+| 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
+| 5a/5b — Frontend | No empezado |
+| 6/7 — Docs y despliegue | No empezado |
+
+**Siguiente paso: `reject`** (fase 3). Ya existe todo lo que necesita:
+`OrganizerRequestsServiceImpl.findPending` (404 / 409 `REQUEST_NOT_PENDING`),
+`OrganizerRequestReviewedEvent.rejected(...)` y `EmailService.sendOrganizerRejectedEmail`. Falta:
+`reject(requestId, adminId, dto)` en el servicio (`OTHER` sin mensaje → 400; mensaje con trim, null si
+vacío; `reviewedBy`, `reviewedAt`, `status = REJECTED`; publicar el evento) y
+`PATCH /rest/admin/organizer-requests/{id}/reject` en `AdminController` con `@Valid OrganizerRequestRejectDto`.
+Después, por orden: handler 409 `CONCURRENT_UPDATE` → D13 → D12 → borrar `pending`/`verify` (D10).
+
+**Lo hecho el 27/10 que no estaba en el plan:**
+- `SecurityConfig`: `dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()`. Sin esto, el 403 de
+  `hasRole("ADMIN")` se reenviaba a `/error` sin JWT y salía como 401.
+- Emails después del commit hechos con eventos (paquete `events/`): `OrganizerClaimedEvent`,
+  `OrganizerRequestReviewedEvent` (`approved()` / `rejected()`) y `OrganizerEmailListener`
+  (`@TransactionalEventListener(AFTER_COMMIT)`). `claim()` también publica su evento y ahora es
+  `@Transactional`: **no queda deuda en `ROADMAP.md`** por el email de `claim()`.
+- `claim()` comprueba también `user != null`, además de `claimed`: un organizador creado por su dueño y
+  verificado tiene `claimed = false` y antes se le podía cambiar el dueño.
+- Los emails convierten con `HtmlUtils.htmlEscape` el nombre del organizador y el mensaje del admin.
+- `approve` rechaza **todas** las CLAIM PENDING del mismo organizador, no solo una (probado con dos).
+
+**Forma de trabajar en el backend:** Claude escribe archivo por archivo, el usuario aprueba cada diff en
+IntelliJ (con el modo auto desactivado); después compilar, `mvnw test`, probar en Postman. Claude
+actualiza `POSTMAN_TESTING.md` directamente. Commit con una sola línea en inglés, sin referencia a Claude.
+
+**Decisiones abiertas:**
+- Logos (D7, §5.3): `PATCH /rest/organizer-requests/{id}/logo`, `PATCH /rest/organizers/{id}/logo` y
+  `ObjectStorageService.uploadOrganizerLogo/deleteOrganizerLogo` aplazados. Al recuperarlos: copiar el
+  `logoUrl` de la REJECTED al reenviar (hay un `TODO 5.3` en `OrganizerRequestsServiceImpl.create`).
+- D13 **confirmada el 27/10** (ver la tabla de decisiones): queda implementarla en la fase 3.
+
 ---
 
 ## 1. Qué estamos haciendo y por qué
@@ -67,7 +118,7 @@ USER ──Diventa organizzatore──► PENDING ──approve──► APPROVE
 | D10 | **Los endpoints viejos se borran en la misma entrega** (`POST /rest/organizers`, `pending` y `verify`), y backend y frontend se despliegan juntos | En prod no hay ninguna solicitud ni ningún organizador con dueño (sección 3.2), así que no hay nada que mantener en paralelo |
 | D11 | **Organizador y venue los enlaza siempre el admin.** `CLUB`, `VENUE` y `SCHOOL` necesitan al menos un venue para aprobarse (`OrganizerType.requiresVenue()`). **CLAIM**: el admin ya creó el organizador con su venue enlazado (`createVenueAsAdmin` + `organizerId`). El usuario lo ve en el wizard y no elige nada · **NEW**: la solicitud lleva dirección + ciudad del local. El admin crea el venue con el endpoint que ya existe y pasa su id en el approve. Los usuarios nunca eligen ni crean venues | El usuario ve su local desde la solicitud, sin búsquedas ni venues «libres» que se puedan pedir dos veces. El admin controla qué entra en el mapa y con quién está enlazado |
 | D12 | **CLUB y VENUE solo publican en sus venues.** Al crear o editar un evento o una serie como organizador, `venueId` es obligatorio y tiene que estar en `findByOrganizerId(org.id)` (`OrganizerType.isVenueBound()`). `SCHOOL`, `PERSON` y `ASSOCIATION` siguen eligiendo cualquier venue (o ninguno), como hoy. `createAsAdmin` no cambia | Un club no puede publicar en la otra punta de la ciudad. Un DJ, una asociación o una escuela que hace un stage en otro local sí tienen que poder hacerlo |
-| D13 | **⏳ PENDIENTE (24/10/2026). El dueño no puede borrar un organizador que creó el admin.** `DELETE /rest/organizers/{id}` → 403 si el organizador no viene de una solicitud NEW aprobada de ese usuario (o sea: llegó por una CLAIM, o el admin se lo asignó con `PATCH /admin/organizers/{id}/claim`). Solo lo borra el admin (`deleteAsAdmin`). Los organizadores de una NEW sí los puede borrar su dueño, como hoy. Preferencia actual: esta. Alternativa por ahora descartada: «soltarlo» (`user = null`, `claimed = false`, el usuario baja a USER) | El organizador, su venue y sus eventos los puso el admin: un usuario no tiene que poder hacerlos desaparecer. Hoy, si lo borra, se pierde el perfil y el venue y los eventos quedan sin organizador (`ON DELETE SET NULL`) |
+| D13 | **✅ CONFIRMADA (27/10/2026). El dueño no puede borrar un organizador que creó el admin.** Propuesta para implementarla: 403 `AccessDeniedException`; el frontend oculta «Elimina» deduciéndolo de `GET /rest/organizer-requests/me` (sin campo `deletable`); sin `unclaim` por ahora. `DELETE /rest/organizers/{id}` → 403 si el organizador no viene de una solicitud NEW aprobada de ese usuario (o sea: llegó por una CLAIM, o el admin se lo asignó con `PATCH /admin/organizers/{id}/claim`). Solo lo borra el admin (`deleteAsAdmin`). Los organizadores de una NEW sí los puede borrar su dueño, como hoy. Preferencia actual: esta. Alternativa por ahora descartada: «soltarlo» (`user = null`, `claimed = false`, el usuario baja a USER) | El organizador, su venue y sus eventos los puso el admin: un usuario no tiene que poder hacerlos desaparecer. Hoy, si lo borra, se pierde el perfil y el venue y los eventos quedan sin organizador (`ON DELETE SET NULL`) |
 
 ### Problemas en el código actual que se arreglan aquí
 
@@ -762,10 +813,14 @@ public class OrganizerRequestApproveDto {
 | `VENUE_ALREADY_LINKED` | Al aprobar: el venue que pasa el admin ya está conectado a otro organizador |
 | `VENUE_REQUIRED` | Al aprobar: el tipo exige venue (D11), el organizador no tiene ninguno y el body del approve no trae `venueId` |
 | `REQUEST_NOT_PENDING` | Se intenta aprobar, rechazar, cancelar o subir logo a una solicitud que ya no está PENDING |
+| `REQUEST_STILL_PENDING` | `acknowledge` sobre una solicitud que sigue PENDING: todavía no hay resultado que ver (añadido 26/10/2026) |
 | `CONCURRENT_UPDATE` | Optimistic lock: otro admin la revisó a la vez |
 
 Excepción nueva: `exceptions/OrganizerRequestConflictException(String code, String message)` con su
-`@ExceptionHandler` en `BackendErrorResponse` → 409. También hay que mapear
+`@ExceptionHandler` en `BackendErrorResponse` → 409. Los códigos son constantes de la propia excepción
+(`PENDING_REQUEST_EXISTS`, `ORGANIZER_LIMIT_REACHED`, `REQUEST_NOT_PENDING`, `REQUEST_STILL_PENDING`);
+los de la fase 3 (`VENUE_*`, `CONCURRENT_UPDATE`) se añaden ahí. `ORGANIZER_ALREADY_CLAIMED` tiene su
+propia excepción desde la fase 0. También hay que mapear
 `ObjectOptimisticLockingFailureException` → 409 `CONCURRENT_UPDATE` y, en el servicio, capturar
 `DataIntegrityViolationException` al guardar → `PENDING_REQUEST_EXISTS`.
 
@@ -903,37 +958,50 @@ REJECTED por `reviewedAt DESC`. El contador «In attesa · 2» es el `totalEleme
 
 ### Fase 0 — Arreglos en el código existente (lun 19, mañana)
 
-- [ ] `BackendErrorResponse`: handler de `OrganizerAlreadyClaimedException` → 409 (con `code`
+Estado 26/10/2026: todo el código hecho (`c17df90`) con 10 tests unitarios. `[~]` = falta la
+comprobación en Postman.
+
+- [x] `BackendErrorResponse`: handler de `OrganizerAlreadyClaimedException` → 409 (con `code`
       `ORGANIZER_ALREADY_CLAIMED`, igual que la sección 4.6).
-- [ ] `UsersServiceImpl.demoteToUser(userId)`: si el rol es `ORGANIZER` y
+- [~] `UsersServiceImpl.demoteToUser(userId)`: si el rol es `ORGANIZER` y
       `organizersRepository.countByUserId(userId) == 0` → `USER`. Nunca baja a un ADMIN.
-- [ ] Llamar a `demoteToUser` desde `OrganizersServiceImpl.delete` y desde `deleteAsAdmin`. Hoy
+      *Falta Postman: degradar a los usuarios A/B/C.*
+- [~] Llamar a `demoteToUser` desde `OrganizersServiceImpl.delete` y desde `deleteAsAdmin`. Hoy
       `deleteAsAdmin` hace `deleteById`: primero hay que cargar el organizador para saber su `user`.
-- [ ] Borrar `UsersService.becomeOrganizer` y su implementación vacía (la sustituye la fase 3).
-- [ ] `OrganizerCreateDto` y `OrganizerUpdateDto`: `@Email` + `@Size(max = 100)` en `contactEmail`, descripción `@Size(max = 2000)` en los dos (D8).
-- [ ] `OrganizersServiceImpl.createUnclaimed`, `update` y `updateAsAdmin`: normalizar `instagram` con
+      *Falta Postman: `DELETE` del organizador del seed 88888888 y volver a cargar el seed.*
+- [x] Borrar `UsersService.becomeOrganizer` y su implementación vacía (la sustituye la fase 3).
+- [x] `OrganizerCreateDto` y `OrganizerUpdateDto`: `@Email` + `@Size(max = 100)` en `contactEmail`, descripción `@Size(max = 2000)` en los dos (D8).
+- [x] `OrganizersServiceImpl.createUnclaimed`, `update` y `updateAsAdmin`: normalizar `instagram` con
       `InstagramUtils.normalizeHandle` (como ya hace `updateSocialProfile`).
-- [ ] `SlugUtils`: palabras reservadas `me` y `claimable`.
-- [ ] `OrganizersRepository`: `long countByUserId(UUID userId)`.
-- [ ] `VenueUpdateDto` + `updateVenueAsAdmin`: `organizerId` opcional para enlazar a su organizador un
+- [x] `SlugUtils`: palabras reservadas `me` y `claimable`.
+- [x] `OrganizersRepository`: `long countByUserId(UUID userId)`.
+- [~] `VenueUpdateDto` + `updateVenueAsAdmin`: `organizerId` opcional para enlazar a su organizador un
       venue que ya existe (hoy solo se puede al crearlo). Hace falta para preparar en prod los
       organizadores CLUB/VENUE/SCHOOL antes de abrir el flujo (D11, fase 7).
+      *Falta Postman: `PATCH` de un venue con `organizerId`.*
 
 **Terminado cuando:** `mvn test` en verde y `DELETE /rest/organizers/{id}` del último organizador deja
 al usuario como USER (comprobado en Postman).
 
 ### Fase 1 — Modelo (lun 19, tarde)
 
-- [ ] Tipos y tabla en `docs/ballastasera_schema.sql` (sección 3.1: tipos arriba, tabla después de `venues`).
-- [ ] `docs/migrations/2026-10-organizer-requests.sql` (sección 3.2) y ejecutarlo en develop.
-- [ ] Ejecutar la comprobación 3.2b en develop: los 6 `OK`.
+Estado 26/10/2026: código hecho (`c17df90`) y la tabla ya existe en la base local. El esquema y el
+script de migración están **aplazados por decisión** (prod no tiene datos que migrar): hacerlos antes
+de la fase 6/7.
+
+- [ ] Tipos y tabla en `docs/ballastasera_schema.sql` (sección 3.1: tipos arriba, tabla después de `venues`). *Aplazado.*
+- [ ] `docs/migrations/2026-10-organizer-requests.sql` (sección 3.2) y ejecutarlo en develop. *Aplazado.*
+- [~] Ejecutar la comprobación 3.2b en develop: los 6 `OK`. *Pasada en local; falta develop.*
 - [ ] Probar en local: `down -v` + `up` (esquema limpio + seed) y, por separado, el script 3.2 sobre una
       base con el esquema viejo + el seed viejo (tiene que crear la tabla sin errores).
-- [ ] Añadir el bloque 3.2d al final de `seed_test_data.sql`.
-- [ ] Enums `OrganizerRequestType`, `OrganizerRequestStatus` y `OrganizerRejectReason`, más
+- [x] Añadir el bloque 3.2d al final de `seed_test_data.sql`.
+- [x] Enums `OrganizerRequestType`, `OrganizerRequestStatus` y `OrganizerRejectReason`, más
       `requiresVenue()` / `isVenueBound()` en `OrganizerType` (sección 3.3).
-- [ ] Entidad `OrganizerRequests` + relación inversa en `Users`.
-- [ ] `repositories/OrganizerRequestsRepository`:
+- [x] Entidad `OrganizerRequests` + relación inversa en `Users`.
+- [x] `repositories/OrganizerRequestsRepository`. *Hecho con `@Query` + `LEFT JOIN FETCH` en vez de
+      `@EntityGraph` (convención del proyecto): `findLatestByUserIdWithDetails`,
+      `findByStatusWithDetails` (con `countQuery`) y `findByIdWithDetails`. El bloque de abajo es el
+      diseño original:*
 
 ```java
 public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequests, UUID> {
@@ -953,7 +1021,7 @@ public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequ
 }
 ```
 
-- [ ] `VenuesRepository`:
+- [x] `VenuesRepository`:
 
 ```java
 /** D11: conecta solo si el venue sigue libre. Devuelve 0 si ya tiene organizador. */
@@ -962,10 +1030,12 @@ public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequ
 int linkOrganizerIfFree(@Param("venueId") UUID venueId, @Param("organizer") Organizers organizer);
 ```
 
-- [ ] `OrganizersRepository`:
-      `List<Organizers> findTop10ByIsVerifiedTrueAndClaimedFalseAndNameContainingIgnoreCaseOrderByNameAsc(String name)`
-      (el servicio recorta a `limit`).
-- [ ] `models/mappers/OrganizerRequestMapper` (MapStruct, `componentModel = "spring"`):
+- [x] `OrganizersRepository`:
+      `List<Organizers> findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(String name, Limit limit)`.
+      *Cambiado en la fase 2 (`03f0b29`): el `findTop10…` original no filtraba `UserIsNull`, y un
+      organizador creado por su dueño y verificado sigue con `claimed=false` (ej. Tropical Milano).
+      Con `Limit` la base devuelve solo `limit` filas.*
+- [x] `models/mappers/OrganizerRequestMapper` (MapStruct, `componentModel = "spring"`):
       `toDto`, `toAdminDto`, `toEntity(OrganizerRequestCreateDto)`. Mappings: `organizerName` (`name`
       en NEW, `organizer.name` en CLAIM, con `@AfterMapping` o una expresión), `organizerId`,
       `organizerSlug`, `requester` desde `user`, `reviewedByName` desde `reviewedBy.displayName`,
@@ -981,7 +1051,22 @@ de Postgres coinciden) y el script de migración pasa en local.
 Servicio `services/manager/OrganizerRequestsService` + `services/implementations/OrganizerRequestsServiceImpl`.
 Controller `controllers/OrganizerRequestsController` con `RestConstants.ORGANIZER_REQUESTS = "/rest/organizer-requests"`.
 
-- [ ] **`create(userId, dto)`**, `@Transactional`:
+Estado 26/10/2026: **hecha y probada en Postman** (`fdfd05e` + `03f0b29`; pruebas en
+`POSTMAN_TESTING.md` §7), menos los logos, que quedan aplazados. Decisiones tomadas al implementarla:
+- Solicitud de otro usuario → 403 `AccessDeniedException` (como `assertOwnership` de organizadores).
+- Página de la CLAIM inexistente **o sin verificar** → 404 con el mismo mensaje, para no revelar borradores.
+- `acknowledge` sobre PENDING → 409 `REQUEST_STILL_PENDING` (código nuevo, §4.6).
+- `cancel` también rellena `acknowledgedAt`: lo canceló el propio usuario, no hay resultado que enseñarle.
+- `MAX_ORGANIZERS_PER_USER = 1` es una constante privada de `OrganizerRequestsServiceImpl`.
+- `saveAndFlush` en `create`: con `save` el INSERT sale en el commit y el `catch` no vería la violación.
+  Solo la violación de `uq_org_requests_one_pending` se convierte en `PENDING_REQUEST_EXISTS`; cualquier
+  otra se relanza.
+- `claimable` se valida con `@Size`/`@Min`/`@Max` en el `@RequestParam` (Spring Boot 4 no necesita
+  `@Validated`); handler 400 nuevo para `HandlerMethodValidationException`, que antes daba 500.
+- Handler 405 nuevo para `HttpRequestMethodNotSupportedException` (el `POST /rest/organizers` borrado
+  daba 500).
+
+- [x] **`create(userId, dto)`**, `@Transactional`:
   1. `user = usersService.findById(userId)`; si `isBanned` → `AccessDeniedException`.
   2. Si `existsByUserIdAndStatus(userId, PENDING)` → 409 `PENDING_REQUEST_EXISTS`.
   3. Si `organizersRepository.countByUserId(userId) >= MAX_ORGANIZERS_PER_USER` → 409 `ORGANIZER_LIMIT_REACHED`.
@@ -990,29 +1075,31 @@ Controller `controllers/OrganizerRequestsController` con `RestConstants.ORGANIZE
      `isVerified` → 404; si `claimed` o `user != null` → 409 `ORGANIZER_ALREADY_CLAIMED`.
      `request.organizer = target`; no se copian los campos de perfil.
   5. NEW: copiar `name`, `organizerType`, `description`, `website` y `facebook`. Además, si existe una
-     REJECTED previa con logo, copiar su `logoUrl` (reenviar mantiene el logo).
+     REJECTED previa con logo, copiar su `logoUrl` (reenviar mantiene el logo). *Copiar el logo queda
+     aplazado con los logos: `TODO 5.3` en el código.*
   6. Los dos tipos: `instagram` normalizado, `contactEmail`, `phone`, `message`,
      `termsAcceptedAt = now()`, `status = PENDING`.
   7. **Local (D11), solo NEW.** Las reglas de tipo ya las aplicó `@ValidOrganizerRequest`. Si llega
      `venueCityId`, la ciudad tiene que existir (404). `venueAddress` y `venueCity` se guardan tal cual.
      En CLAIM no se guarda nada: el local es el que el admin ya enlazó al organizador.
   8. `save`; capturar `DataIntegrityViolationException` → 409 `PENDING_REQUEST_EXISTS`.
-- [ ] **`findMyLatest(userId)`** → `Optional`; el controller devuelve 204 si está vacío.
+- [x] **`findMyLatest(userId)`** → `Optional`; el controller devuelve 204 si está vacío.
 - [ ] **`updateLogo(requestId, userId, file)`**: ownership (`request.user.id == userId`, si no → 403),
       `status == PENDING` (si no → 409 `REQUEST_NOT_PENDING`), luego la tubería de la sección 5.3.
-- [ ] **`cancel(requestId, userId)`**: ownership + PENDING → `CANCELLED`.
-- [ ] **`acknowledge(requestId, userId)`**: ownership; si está `PENDING` → 409; si no,
+      *Aplazado (logos).*
+- [x] **`cancel(requestId, userId)`**: ownership + PENDING → `CANCELLED` (+ `acknowledgedAt = now()`).
+- [x] **`acknowledge(requestId, userId)`**: ownership; si está `PENDING` → 409 `REQUEST_STILL_PENDING`; si no,
       `acknowledgedAt = now()` (idempotente: si ya tiene fecha, no se toca).
-- [ ] **`findClaimable(name, limit)`** en `OrganizersService`: `name.trim()`, mínimo 3 → si no, 400
-      (`IllegalArgumentException` → hace falta su handler 400, o validar con `@Size(min = 3)` +
-      `@Validated` en el controller, que es más limpio). `limit` entre 1 y 10.
-      Endpoint `GET /rest/organizers/claimable` en `OrganizersController`.- [ ] **`OrganizersService.updateLogo(id, requesterId, file)`** + `PATCH /rest/organizers/{id}/logo`
-      (ownership con el `assertOwnership` que ya existe). `@CacheEvict` igual que `update`.
-- [ ] `ObjectStorageService.uploadOrganizerLogo` / `deleteOrganizerLogo` (sección 5.3).
-- [ ] `SecurityConfig`: `GET /rest/organizers/claimable` en `permitAll`.
-- [ ] Javadoc corto en cada endpoint, con el estilo del controller (quién puede llamarlo y para qué pantalla).
-- [ ] Borrar `POST /rest/organizers` (`OrganizersController.create`), `OrganizersService.createForUser`
-      y su implementación (D10).
+- [x] **`findClaimable(name, limit)`** en `OrganizersService`: `name.trim()`. El controller valida
+      `@Size(min = 3, max = 120)` en `name` y `@Min(1) @Max(10)` en `limit` (por defecto 5) → 400.
+      Endpoint `GET /rest/organizers/claimable` en `OrganizersController`.
+- [ ] **`OrganizersService.updateLogo(id, requesterId, file)`** + `PATCH /rest/organizers/{id}/logo`
+      (ownership con el `assertOwnership` que ya existe). `@CacheEvict` igual que `update`. *Aplazado (logos).*
+- [ ] `ObjectStorageService.uploadOrganizerLogo` / `deleteOrganizerLogo` (sección 5.3). *Aplazado (logos).*
+- [x] `SecurityConfig`: `GET /rest/organizers/claimable` en `permitAll`.
+- [x] Javadoc corto en cada endpoint, con el estilo del controller (quién puede llamarlo y para qué pantalla).
+- [x] Borrar `POST /rest/organizers` (`OrganizersController.create`), `OrganizersService.createForUser`
+      y su implementación (D10). Ahora devuelve 405.
 
 **Terminado cuando:** en Postman, con el token de un USER: crear NEW → `me` devuelve PENDING → segundo
 create da 409 → subir logo → cancelar → crear CLAIM sobre una página sin reclamar → `claimable?name=sal`
@@ -1024,12 +1111,16 @@ la devuelve y `organizers/{id}/venues` devuelve su local → cancelar → crear 
 En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"`, etc.) y en el mismo
 `OrganizerRequestsService`.
 
-- [ ] **`findByStatus(status, pageable)`**: el `Sort` lo decide el servicio según el estado (sección 5.1).
+- [x] **`findByStatus(status, pageable)`**: el `Sort` lo decide el servicio según el estado (sección 5.1).
       `previousRejections` = `countByUserIdAndStatus(userId, REJECTED)`, sin contar la fila actual si es
       REJECTED. Con `size` ≤ 50 el coste es aceptable (una query por fila). Si molesta, se hace una sola
-      query agrupada por `user_id`.
-- [ ] **`findById(id)`** con `findWithDetailsById`.
-- [ ] **`approve(id, adminId, dto)`**, `@Transactional` (`dto` puede ser null):
+      query agrupada por `user_id`. *(`c3127b0`. CANCELLED va por `updatedAt` DESC. `previousRejections` y los
+      venues del organizador pedido los junta un método privado de `AdminController`, en la lista y en el detalle.)*
+- [x] **`findById(id)`** con `findByIdWithDetails` *(`c3127b0`)*.
+- [x] **`approve(id, adminId, dto)`**, `@Transactional` (`dto` puede ser null). *(`c9e4e40`, probado en
+      Postman §8. Diferencias con lo de abajo: los emails van por eventos después del commit; el
+      `@CacheEvict` va siempre en `approve`, no solo si se enlaza un venue; `linkVenue` distingue 404
+      (venue inexistente) de 409 `VENUE_ALREADY_LINKED`.)*
   1. Cargar; si no está PENDING → 409 `REQUEST_NOT_PENDING`.
   2. `organizersRepository.countByUserId(user) >= MAX` → 409 `ORGANIZER_LIMIT_REACHED`. El admin tendrá
      que rechazarla; es un caso raro, solo pasa si se le asignó una página por la vía directa mientras tanto.
@@ -1057,23 +1148,32 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
 - [ ] **`reject(id, adminId, dto)`**, `@Transactional`: PENDING o 409; si `reason == OTHER` y el mensaje
       está vacío → 400; guardar `rejectionReason`, `rejectionMessage` (trim, null si está vacío),
       `reviewedBy`, `reviewedAt`, `status = REJECTED`; email de rechazo.
-- [ ] **`EmailService.sendOrganizerRejectedEmail(toEmail, organizerName, reasonLabel, message)`**, en
+- [x] *(`77664a7`. Recibe el enum `OrganizerRejectReason`, no la etiqueta: el `switch` con las etiquetas
+      está en `EmailServiceImpl`. También se convierte el nombre del organizador. Probado con un email real
+      en el rechazo automático del approve.)*
+      **`EmailService.sendOrganizerRejectedEmail(toEmail, organizerName, reasonLabel, message)`**, en
       italiano, como los otros dos. Etiquetas: el texto de la pantalla del admin («Instagram non
       trovato»…). **Escapar el mensaje del admin con `HtmlUtils.htmlEscape`** antes de meterlo en el
       HTML. Enlace al menú: `frontendUrl`.
-- [ ] **Emails después del commit.** Hoy `verify` y `claim` llaman al `@Async` dentro de la transacción:
+- [x] **Emails después del commit.** Hoy `verify` y `claim` llaman al `@Async` dentro de la transacción:
       si el commit falla, el email sale igual. En los métodos nuevos, publicar un evento
       (`OrganizerRequestReviewedEvent`) y mandar el email desde un
-      `@TransactionalEventListener(phase = AFTER_COMMIT)`. `claim()` se llama dentro de `approve`, así
-      que su email se queda como está esta semana (anotarlo como deuda técnica en `ROADMAP.md`).
-- [ ] Handlers 409 de la sección 4.6 (`OrganizerRequestConflictException`,
-      `ObjectOptimisticLockingFailureException`).
-- [ ] **`OrganizersServiceImpl.deleteAsAdmin`** (problema 9): antes de borrar, pasar a CANCELLED las
+      `@TransactionalEventListener(phase = AFTER_COMMIT)`. ~~`claim()` se llama dentro de `approve`, así
+      que su email se queda como está esta semana (anotarlo como deuda técnica en `ROADMAP.md`).~~
+      *(`77664a7`. Al final `claim()` también: publica `OrganizerClaimedEvent` y pasa a `@Transactional`,
+      así que no hay deuda que anotar. Sin transacción el evento se descarta: quien publica tiene que ser
+      `@Transactional`. `verify` se queda como está porque se borra en esta fase, D10.)*
+- [~] Handlers 409 de la sección 4.6 (`OrganizerRequestConflictException`,
+      `ObjectOptimisticLockingFailureException`). *El de `OrganizerRequestConflictException` ya está
+      (fase 2); falta `ObjectOptimisticLockingFailureException` → `CONCURRENT_UPDATE`.*
+- [x] **`OrganizersServiceImpl.deleteAsAdmin`** (problema 9) *(adelantado en `c17df90`)*: antes de borrar, pasar a CANCELLED las
       CLAIM PENDING de ese organizador (`findByOrganizerIdAndTypeAndStatus(id, CLAIM, PENDING)`), con
       `rejectionMessage = "La pagina è stata rimossa."`. Así `ON DELETE SET NULL` no rompe
       `chk_org_request_claim`.
-- [ ] **D13 (pendiente de confirmar): el dueño no borra un organizador creado por el admin.** Antes de
-      implementarlo, cerrar estas preguntas:
+- [ ] **D13 (confirmada el 27/10): el dueño no borra un organizador creado por el admin.** Propuesta para
+      las preguntas de abajo: criterio con `existsByOrganizerIdAndUserIdAndTypeAndStatus`, 403
+      `AccessDeniedException`, el frontend lo deduce de `GET /organizer-requests/me` y sin `unclaim`.
+      Preguntas originales:
   - **Cómo saberlo.** `claimed` no sirve: el approve de una NEW también pone `claimed = true`. Criterio
     propuesto: `delete` solo deja borrar si existe una solicitud NEW APPROVED de ese usuario con ese
     `organizer_id` (método nuevo `existsByOrganizerIdAndUserIdAndTypeAndStatus`). Así quedan protegidos
