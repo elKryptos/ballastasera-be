@@ -755,3 +755,59 @@ Content-Type: application/json
 **Esperado**: `405` con `message: "Method POST not supported"` y `details: "Supported methods: GET"`
 (la ruta existe solo para el listado público). Antes del handler de
 `HttpRequestMethodNotSupportedException` en `BackendErrorResponse` daba `500`.
+
+## 8. Solicitudes «Diventa organizzatore» (admin)
+
+Plan: `organizer-requests-plan.md` (fase 3). Todo con el **token de un ADMIN**. Para tener datos,
+crea antes desde la sección 7 una NEW y una CLAIM (con dos usuarios distintos: solo una `PENDING`
+por usuario).
+
+### `GET /rest/admin/organizer-requests` — cola por estado
+
+`status` es obligatorio (`PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`); `page` desde 0; `size`
+entre 1 y 50, por defecto 20. El orden lo decide el servicio según el estado.
+
+```
+GET http://localhost:8081/rest/admin/organizer-requests?status=PENDING
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200` con `Page<OrganizerRequestAdminDto>`, la más antigua primero (`submittedAt` ASC).
+`totalElements` es el contador «In attesa · N». Cada fila trae `requester` (quien la pidió) y
+`previousRejections`. En una CLAIM: `targetOrganizer` con la página pedida y `targetOrganizerVenues`
+con sus venues; en una NEW: `targetOrganizer` vacío y `targetOrganizerVenues: []`.
+
+```
+GET http://localhost:8081/rest/admin/organizer-requests?status=REJECTED
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200`, la última revisada primero (`reviewedAt` DESC), igual que `APPROVED`.
+`previousRejections` no cuenta la propia fila: un usuario con un solo rechazo sale con `0`.
+`CANCELLED` va por `updatedAt` DESC (no tiene `reviewedAt`).
+
+```
+GET http://localhost:8081/rest/admin/organizer-requests?status=FOO
+GET http://localhost:8081/rest/admin/organizer-requests
+GET http://localhost:8081/rest/admin/organizer-requests?status=PENDING&size=51
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `400` en los tres (estado que no existe, falta `status`, `size` mayor que 50).
+
+### `GET /rest/admin/organizer-requests/{id}` — detalle
+
+```
+GET http://localhost:8081/rest/admin/organizer-requests/<request_id>
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200` con el mismo `OrganizerRequestAdminDto` que en la lista. Con un id inventado: `404`.
+
+### Sin ser ADMIN
+
+Las mismas peticiones con el token de un USER → **Esperado**: `403`. Sin token: `401`.
+
+*Hasta el commit `5462714` un USER recibía `401`: el `403` de `hasRole("ADMIN")` se reenvía a
+`/error`, ese reenvío no lleva el JWT y Spring lo trataba como anónimo. Ahora `SecurityConfig` deja
+pasar el dispatch `ERROR` y el `403` llega tal cual. Vale para todo `/rest/admin/**`.*
