@@ -8,10 +8,12 @@ import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
+import com.kryptosystems.ballastasera.models.mappers.OrganizerRequestMapper;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
+import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.persistence.EntityNotFoundException;
@@ -70,6 +72,12 @@ class AdminControllerTest {
 
     @MockitoBean
     private VenuesMapper venuesMapper;
+
+    @MockitoBean
+    private OrganizerRequestsService organizerRequestsService;
+
+    @MockitoBean
+    private OrganizerRequestMapper organizerRequestMapper;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;

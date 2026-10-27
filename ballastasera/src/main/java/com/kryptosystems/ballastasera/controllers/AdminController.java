@@ -1,15 +1,23 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
+import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.models.dtos.*;
+import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
+import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
+import com.kryptosystems.ballastasera.models.mappers.OrganizerRequestMapper;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
+import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,6 +57,8 @@ public class AdminController {
     private static final String DELETE_VENUE = "/venues/{id}";
     private static final String UPDATE_VENUE_LOGO = "/venues/{id}/logo";
     private static final String DELETE_VENUE_LOGO = "/venues/{id}/logo";
+    private static final String GET_ORGANIZER_REQUESTS = "/organizer-requests";
+    private static final String GET_ORGANIZER_REQUEST_BY_ID = "/organizer-requests/{id}";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -57,6 +67,8 @@ public class AdminController {
     private final EventsService eventsService;
     private final EventsMapper eventsMapper;
     private final EventSeriesService eventSeriesService;
+    private final OrganizerRequestsService organizerRequestsService;
+    private final OrganizerRequestMapper organizerRequestMapper;
 
     /** Lista de organizadores pendientes de verificacion por un admin. */
     @GetMapping(GET_ORGANIZER_PENDING)
@@ -198,6 +210,34 @@ public class AdminController {
     public ResponseEntity<Void> deleteVenueLogo(@PathVariable UUID id) {
         venuesService.deleteLogoAsAdmin(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Cola de solicitudes «Diventa organizzatore» por estado: tabs «In attesa» / «Approvate» / «Rifiutate».
+     * totalElements es el contador «In attesa · N». */
+    @GetMapping(GET_ORGANIZER_REQUESTS)
+    public ResponseEntity<Page<OrganizerRequestAdminDto>> getOrganizerRequests(@RequestParam OrganizerRequestStatus status,
+                                                                              @RequestParam(defaultValue = "0") @Min(0) int page,
+                                                                              @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+        Page<OrganizerRequestAdminDto> result = organizerRequestsService
+                .findByStatus(status, PageRequest.of(page, size))
+                .map(this::toOrganizerRequestAdminDto);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping(GET_ORGANIZER_REQUEST_BY_ID)
+    public ResponseEntity<OrganizerRequestAdminDto> getOrganizerRequestById(@PathVariable UUID id) {
+        return ResponseEntity.ok(toOrganizerRequestAdminDto(organizerRequestsService.findById(id)));
+    }
+
+    /** Rellena lo que necesita queries: rechazos anteriores y, en CLAIM, los venues de la página pedida.
+     * Hasta dos queries por fila: aceptable con size ≤ 50. organizer puede ser null en una CLAIM
+     * CANCELLED por deleteAsAdmin (ON DELETE SET NULL). */
+    private OrganizerRequestAdminDto toOrganizerRequestAdminDto(OrganizerRequests request) {
+        List<Venues> targetVenues = request.getType() == OrganizerRequestType.CLAIM && request.getOrganizer() != null
+                ? venuesService.findByOrganizerId(request.getOrganizer().getId())
+                : List.of();
+        return organizerRequestMapper.toOrganizerRequestAdminDto(request,
+                organizerRequestsService.countPreviousRejections(request), targetVenues);
     }
 
 }

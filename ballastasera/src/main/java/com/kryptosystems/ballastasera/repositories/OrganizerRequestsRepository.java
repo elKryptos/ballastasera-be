@@ -34,7 +34,8 @@ public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequ
         """)
     Optional<OrganizerRequests> findLatestByUserIdWithDetails(UUID userId);
 
-    /** Cola del admin: las más antiguas primero. countQuery aparte porque el count no admite JOIN FETCH. */
+    /** Cola del admin. El orden llega en el Pageable: lo decide el servicio según el estado.
+     * countQuery aparte porque el count no admite JOIN FETCH. */
     @Query(value = """
         SELECT r FROM OrganizerRequests r JOIN FETCH r.user u
         LEFT JOIN FETCH r.organizer o
@@ -42,7 +43,6 @@ public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequ
         LEFT JOIN FETCH r.venue v
         LEFT JOIN FETCH r.venueCity c
         WHERE r.status = :status
-        ORDER BY r.submittedAt ASC
         """, countQuery = "SELECT COUNT(r) FROM OrganizerRequests r WHERE r.status = :status")
     Page<OrganizerRequests> findByStatusWithDetails(OrganizerRequestStatus status,
                                                     Pageable pageable);

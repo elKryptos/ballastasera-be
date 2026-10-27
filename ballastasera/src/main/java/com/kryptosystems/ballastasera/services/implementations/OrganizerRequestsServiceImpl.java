@@ -18,6 +18,10 @@ import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -123,6 +127,34 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
             request.setAcknowledgedAt(OffsetDateTime.now());
         }
         return request;
+    }
+
+    @Override
+    public Page<OrganizerRequests> findByStatus(OrganizerRequestStatus status, Pageable pageable) {
+        Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sortFor(status));
+        return organizerRequestsRepository.findByStatusWithDetails(status, sorted);
+    }
+
+    @Override
+    public OrganizerRequests findById(UUID requestId) {
+        return organizerRequestsRepository.findByIdWithDetails(requestId)
+                .orElseThrow(() -> new EntityNotFoundException("Organizer request not found with id " + requestId));
+    }
+
+    @Override
+    public long countPreviousRejections(OrganizerRequests request) {
+        long rejections = organizerRequestsRepository.countByUserIdAndStatus(request.getUser().getId(), OrganizerRequestStatus.REJECTED);
+        return request.getStatus() == OrganizerRequestStatus.REJECTED ? rejections - 1 : rejections;
+    }
+
+    /** PENDING por llegada (la más antigua primero); APPROVED y REJECTED, la última revisada primero.
+     * CANCELLED no tiene reviewedAt (la cancela el usuario o deleteAsAdmin): va por updatedAt. */
+    private Sort sortFor(OrganizerRequestStatus status) {
+        return switch (status) {
+            case PENDING -> Sort.by(Sort.Direction.ASC, "submittedAt");
+            case APPROVED, REJECTED -> Sort.by(Sort.Direction.DESC, "reviewedAt");
+            case CANCELLED -> Sort.by(Sort.Direction.DESC, "updatedAt");
+        };
     }
 
     /** Página de una CLAIM. Sin verificar cuenta como inexistente: mismo mensaje, para no revelar borradores. */
