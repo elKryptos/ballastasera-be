@@ -758,9 +758,39 @@ Content-Type: application/json
 
 ## 8. Solicitudes «Diventa organizzatore» (admin)
 
-Plan: `organizer-requests-plan.md` (fase 3). Todo con el **token de un ADMIN**. Para tener datos,
-crea antes desde la sección 7 una NEW y una CLAIM (con dos usuarios distintos: solo una `PENDING`
-por usuario).
+Plan: `organizer-requests-plan.md` (fase 3). Todo con el **token de un ADMIN**: no hace falta el token
+de los usuarios que piden. Los datos están en `src/main/resources/db/seed_test_data.sql` (plan §3.2d):
+
+| Solicitud | Usuario | Caso |
+|---|---|---|
+| `ab000000-0000-0000-0000-000000000001` | Ana | CLAIM PENDING de *Salsa Loca Milano* (`88888888-…`, SCHOOL, con su venue `99999999-…`) |
+| `ab000000-0000-0000-0000-000000000002` | Marco | CLAIM PENDING de la misma página: la que se rechaza sola al aprobar la de Ana |
+| `ab000000-0000-0000-0000-000000000003` | Lucia | NEW PERSON REJECTED |
+| `ab000000-0000-0000-0000-000000000004` | Lucia | NEW PERSON PENDING: «2º intento» (`previousRejections: 1`) |
+| `ab000000-0000-0000-0000-000000000005` | Dario | NEW CLUB PENDING con dirección (Via Gola 12, Milano) |
+
+Antes de empezar, comprueba que la base está como la deja el seed (las pruebas de la sección 7 y
+el claim directo tocan *Salsa Loca*). Si algo no cuadra, recarga el seed:
+
+```sql
+-- 01, 02, 04 y 05 PENDING; 03 REJECTED
+SELECT r.id, u.display_name, r.type, r.status
+FROM organizer_requests r JOIN users u ON u.id = r.user_id
+WHERE r.id::text LIKE 'ab000000%' ORDER BY r.id;
+
+-- Salsa Loca sin dueño: user_id NULL, claimed false
+SELECT id, user_id, claimed FROM organizers WHERE id = '88888888-8888-8888-8888-888888888888';
+
+-- Vacía: ninguno de los cuatro tiene organizador (si no, 409 ORGANIZER_LIMIT_REACHED)
+SELECT user_id, count(*) FROM organizers
+WHERE user_id IN ('44444444-4444-4444-4444-444444444444', '55555555-5555-5555-5555-555555555555',
+                  '66666666-6666-6666-6666-666666666666', '77777777-7777-7777-7777-777777777777')
+GROUP BY user_id;
+```
+
+Los usuarios del seed tienen correos `@ballastasera.test`, que no existen. Para recibir los emails,
+cámbialos por alias de tu Gmail (`tu_correo+ana@gmail.com`, `+marco`, `+lucia`, `+dario`) con un
+`UPDATE users SET email = …`; si no, se ven en el panel de Resend.
 
 ### `GET /rest/admin/organizer-requests` — cola por estado
 
@@ -803,6 +833,84 @@ Authorization: Bearer <token admin>
 ```
 
 **Esperado**: `200` con el mismo `OrganizerRequestAdminDto` que en la lista. Con un id inventado: `404`.
+
+### `PATCH /rest/admin/organizer-requests/{id}/approve`
+
+Body opcional: `{ "venueId": "<uuid>" }`, solo para una NEW de tipo local (D11). Si algo falla (`409`,
+`404`), la transacción hace rollback: no se crea el organizador, el rol no cambia y no sale ningún
+email. Los emails salen solo después del commit.
+
+**NEW de tipo PERSON (Lucia)**
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000004/approve
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200` con `status: "APPROVED"`, `organizerId`, `organizerSlug: "lucia-bachata"`,
+`reviewedByName` y `reviewedAt`. Lucia queda con `role = 'ORGANIZER'` en `users` y le llega el email
+«Il tuo profilo organizzatore è stato approvato».
+
+Repetir el mismo `PATCH` → **Esperado**: `409` con `errors.code = "REQUEST_NOT_PENDING"`.
+
+**NEW de tipo CLUB con dirección (Dario)**
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000005/approve
+Authorization: Bearer <token admin>
+```
+
+**Esperado** sin body: `409` con `errors.code = "VENUE_REQUIRED"` (un CLUB necesita venue). No existe el
+organizador «Tropical Club Navigli», Dario sigue siendo `USER` y no sale ningún email.
+
+Con el venue de *Salsa Loca*, que ya tiene organizador:
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000005/approve
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "venueId": "99999999-9999-9999-9999-999999999999" }
+```
+
+**Esperado**: `409` con `errors.code = "VENUE_ALREADY_LINKED"`. Con un `venueId` inventado: `404`.
+
+Crear el venue con la dirección de la solicitud (sin `organizerId`) y aprobar con su id:
+
+```
+POST http://localhost:8081/rest/admin/venues
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "cityId": 1, "name": "Tropical Club Navigli", "type": "CLUB", "address": "Via Gola 12" }
+```
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000005/approve
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "venueId": "<id del venue creado>" }
+```
+
+**Esperado**: `200` con `venueId` y `venueName`. `GET /rest/venues/<id del venue>` muestra el organizador.
+
+**CLAIM con otra CLAIM que compite (Ana gana, Marco pierde)**
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000001/approve
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200`. *Salsa Loca* queda con Ana como dueña (`claimed = true`), Ana pasa a `ORGANIZER` y
+le llega el email «Il profilo organizzatore ti è stato assegnato». No hace falta `venueId`: la página
+ya tiene su venue.
+
+Después, `GET /rest/admin/organizer-requests?status=REJECTED`: la de Marco sale con
+`rejectionReason: "DUPLICATE"`, `rejectionMessage: "La pagina è stata assegnata a un altro utente."`,
+`reviewedByName` y el mismo `reviewedAt` que la aprobación. A Marco le llega el email de rechazo
+(«Motivo: Doppione.» + el mensaje). Se rechazan **todas** las CLAIM PENDING de esa página: si quedó
+alguna de la sección 7, también sale aquí (probado el 27/10 con dos a la vez).
 
 ### Sin ser ADMIN
 
