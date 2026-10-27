@@ -33,7 +33,7 @@ public interface OrganizerRequestsService {
     /** Rechazos anteriores del autor, sin contar esta solicitud si es REJECTED («2º intento»). */
     long countPreviousRejections(OrganizerRequests request);
 
-    /** El admin aprueba una solicitud PENDING. NEW: crea el organizador · CLAIM: asigna la página y rechaza
-     * las otras CLAIM PENDING de esa página. dto puede ser null; dto.venueId enlaza el local (D11). */
+    /** El admin aprueba una solicitud PENDING. NEW: crea el organizador · CLAIM: asigna el organizador y rechaza
+     * las otras CLAIM PENDING de ese organizador. dto puede ser null; dto.venueId enlaza el local (D11). */
     OrganizerRequests approve(UUID requestId, UUID adminId, OrganizerRequestApproveDto dto);
 }

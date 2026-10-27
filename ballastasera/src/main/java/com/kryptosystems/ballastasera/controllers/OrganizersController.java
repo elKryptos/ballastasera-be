@@ -66,7 +66,7 @@ public class OrganizersController {
         return ResponseEntity.ok(organizers.stream().map(organizerMapper::toOrganizerDetailDto).toList());
     }
 
-    /** Público. Buscador del wizard «Diventa organizzatore» (CLAIM): páginas verificadas y sin dueño que el
+    /** Público. Buscador del wizard «Diventa organizzatore» (CLAIM): organizadores verificados y sin dueño que el
      * usuario puede pedir. name mínimo 3 caracteres, limit máximo 10 (400 si no). La ruta literal /claimable
      * gana a /{slug}, no hay conflicto. */
     @GetMapping(GET_CLAIMABLE)

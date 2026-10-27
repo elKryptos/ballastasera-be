@@ -43,6 +43,6 @@ public interface OrganizersService {
     /** Admin asigna el organizer a un usuario real: user=userId, claimed=true, promueve el rol y notifica por email. */
     Organizers claim(UUID organizerId, UUID userId);
 
-    /** Buscador del wizard (CLAIM): páginas verificadas y sin dueño cuyo nombre contiene name, por orden alfabético. */
+    /** Buscador del wizard (CLAIM): organizadores verificados y sin dueño cuyo nombre contiene name, por orden alfabético. */
     List<Organizers> findClaimable(String name, int limit);
 }

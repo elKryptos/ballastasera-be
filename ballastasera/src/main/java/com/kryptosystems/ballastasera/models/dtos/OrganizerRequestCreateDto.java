@@ -13,7 +13,7 @@ import java.util.UUID;
 /**
  * Body de POST /rest/organizer-requests: el wizard «Diventa organizzatore».
  * NEW: perfil nuevo (name + organizerType obligatorios; dirección si el tipo tiene local, D11).
- * CLAIM: pide una página que ya existe (targetOrganizerId obligatorio); solo lleva datos de prueba (D6),
+ * CLAIM: pide un organizador que ya existe (targetOrganizerId obligatorio); solo lleva datos de prueba (D6),
  * así que name, organizerType, description, website, facebook y la dirección se ignoran.
  * Las reglas que dependen del tipo las valida @ValidOrganizerRequest.
  */
@@ -25,7 +25,7 @@ public class OrganizerRequestCreateDto {
     @NotNull
     private OrganizerRequestType type;
 
-    /** Solo CLAIM: id de la página (verificada y sin reclamar) que el usuario pide. */
+    /** Solo CLAIM: id del organizador (verificado y sin reclamar) que el usuario pide. */
     private UUID targetOrganizerId;
 
     /** Solo NEW (obligatorio). */

@@ -18,7 +18,7 @@ public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequ
     boolean existsByUserIdAndStatus(UUID userId, OrganizerRequestStatus status);
     /** Cuántos REJECTED tiene el usuario. */
     long countByUserIdAndStatus(UUID userId, OrganizerRequestStatus status);
-    /** Al aprobar una CLAIM, encuentra las otras CLAIM PENDING de la misma página para rechazarlas. También lo usa deleteAsAdmin para
+    /** Al aprobar una CLAIM, encuentra las otras CLAIM PENDING del mismo organizador para rechazarlas. También lo usa deleteAsAdmin para
      cerrarlas antes de borrar. */
     List<OrganizerRequests> findByOrganizerIdAndTypeAndStatus(UUID organizerId, OrganizerRequestType type, OrganizerRequestStatus status);
 

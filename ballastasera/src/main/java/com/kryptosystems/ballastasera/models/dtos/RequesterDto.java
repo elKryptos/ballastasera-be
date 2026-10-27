@@ -17,6 +17,6 @@ public class RequesterDto {
     private String avatarUrl;
     /** El Instagram de su perfil social, si lo tiene: el admin lo compara con el de la solicitud. */
     private String instagram;
-    /** Fecha de registro (users.created_at): una cuenta de ayer pidiendo una página es una señal para el admin. */
+    /** Fecha de registro (users.created_at): una cuenta de ayer pidiendo un organizador es una señal para el admin. */
     private OffsetDateTime memberSince;
 }

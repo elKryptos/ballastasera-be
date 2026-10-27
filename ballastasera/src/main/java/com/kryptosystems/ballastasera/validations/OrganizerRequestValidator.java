@@ -14,7 +14,7 @@ public class OrganizerRequestValidator implements ConstraintValidator<ValidOrgan
 
         context.disableDefaultConstraintViolation();
 
-        // CLAIM: solo hace falta la página; el resto de campos de perfil y la dirección se ignoran (D6)
+        // CLAIM: solo hace falta el organizador pedido; el resto de campos de perfil y la dirección se ignoran (D6)
         if (dto.getType() == OrganizerRequestType.CLAIM) {
             if (dto.getTargetOrganizerId() != null) return true;
             return violation(context, "targetOrganizerId", "targetOrganizerId is required for CLAIM");

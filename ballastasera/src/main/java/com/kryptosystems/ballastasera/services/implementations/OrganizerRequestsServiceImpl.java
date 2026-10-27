@@ -51,7 +51,8 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     private static final int MAX_ORGANIZERS_PER_USER = 1;
     /** Índice parcial que garantiza una sola PENDING por usuario aunque dos create lleguen a la vez. */
     private static final String ONE_PENDING_CONSTRAINT = "uq_org_requests_one_pending";
-    /** Mensaje del rechazo automático de las CLAIM que pierden la página (lo lee el usuario). */
+    /** Mensaje del rechazo automático de las CLAIM que pierden el organizador. En italiano dice «pagina»
+     * porque es lo que ve el usuario en el wizard («Rivendica una pagina esistente»). */
     private static final String PAGE_ASSIGNED_TO_OTHER = "La pagina è stata assegnata a un altro utente.";
 
     private final OrganizerRequestsRepository organizerRequestsRepository;
@@ -85,7 +86,7 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
 
         if (dto.getType() == OrganizerRequestType.CLAIM) {
             request.setOrganizer(findClaimTarget(dto.getTargetOrganizerId()));
-            // D6: en CLAIM solo cuentan los datos de prueba; el perfil y el local ya son los de la página
+            // D6: en CLAIM solo cuentan los datos de prueba; el perfil y el local ya son los del organizador pedido
             request.setName(null);
             request.setOrganizerType(null);
             request.setDescription(null);
@@ -172,7 +173,7 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     public OrganizerRequests approve(UUID requestId, UUID adminId, OrganizerRequestApproveDto dto) {
         OrganizerRequests request = findPending(requestId);
         Users user = request.getUser();
-        // Solo pasa si mientras tanto el admin le asignó una página por la vía directa: hay que rechazarla
+        // Solo pasa si mientras tanto el admin le asignó un organizador por la vía directa: hay que rechazarla
         if (organizersRepository.countByUserId(user.getId()) >= MAX_ORGANIZERS_PER_USER) {
             throw new OrganizerRequestConflictException(ORGANIZER_LIMIT_REACHED, "User already has the maximum number of organizers");
         }
@@ -185,7 +186,7 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         if (dto != null && dto.getVenueId() != null) {
             request.setVenue(linkVenue(dto.getVenueId(), organizer));
         }
-        // D11: en una CLAIM solo falla si el admin creó la página sin su venue: enlazarlo y volver a aprobar
+        // D11: en una CLAIM solo falla si el admin creó el organizador sin su venue: enlazarlo y volver a aprobar
         if (organizer.getType().requiresVenue() && venuesRepository.findByOrganizerId(organizer.getId()).isEmpty()) {
             throw new OrganizerRequestConflictException(VENUE_REQUIRED, "Organizer type " + organizer.getType() + " requires a venue");
         }
@@ -220,8 +221,8 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         return saved;
     }
 
-    /** CLAIM: claim() asigna la página, sube el rol y publica su propio email (409 si ya tiene dueño).
-     * Las otras CLAIM PENDING de la misma página se rechazan como DUPLICATE, cada una con su email. */
+    /** CLAIM: claim() asigna el organizador, sube el rol y publica su propio email (409 si ya tiene dueño).
+     * Las otras CLAIM PENDING del mismo organizador se rechazan como DUPLICATE, cada una con su email. */
     private Organizers claimOrganizer(OrganizerRequests request, Users admin) {
         Organizers target = organizersService.claim(request.getOrganizer().getId(), request.getUser().getId());
         List<OrganizerRequests> competing = organizerRequestsRepository
@@ -266,7 +267,7 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         };
     }
 
-    /** Página de una CLAIM. Sin verificar cuenta como inexistente: mismo mensaje, para no revelar borradores. */
+    /** Organizador pedido en una CLAIM. Sin verificar cuenta como inexistente: mismo mensaje, para no revelar borradores. */
     private Organizers findClaimTarget(UUID organizerId) {
         Organizers target = organizersRepository.findById(organizerId)
                 .filter(Organizers::isVerified)

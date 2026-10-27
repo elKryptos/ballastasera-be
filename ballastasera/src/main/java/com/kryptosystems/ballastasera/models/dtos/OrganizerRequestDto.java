@@ -22,11 +22,11 @@ public class OrganizerRequestDto {
     private OrganizerRequestType type;
     private OrganizerRequestStatus status;
 
-    /** NEW: el nombre propuesto · CLAIM: el nombre de la página pedida. Para «Salsa Loca Milano · inviata oggi». */
+    /** NEW: el nombre propuesto · CLAIM: el nombre del organizador pedido. Para «Salsa Loca Milano · inviata oggi». */
     private String organizerName;
-    /** NEW: el tipo propuesto · CLAIM: el tipo de la página pedida. */
+    /** NEW: el tipo propuesto · CLAIM: el tipo del organizador pedido. */
     private OrganizerType organizerType;
-    /** CLAIM: la página pedida · NEW aprobada: el organizador creado. null en NEW sin aprobar. */
+    /** CLAIM: el organizador pedido · NEW aprobada: el organizador creado. null en NEW sin aprobar. */
     private UUID organizerId;
     /** Para enlazar al perfil público una vez aprobada. */
     private String organizerSlug;

@@ -41,7 +41,7 @@ public interface OrganizerRequestMapper {
 
     /** Para la lista del admin. Hereda los @Mapping de toOrganizerRequestDto (el parámetro tiene que
      * llamarse request en los dos, las expression lo usan). targetOrganizer solo en CLAIM: en un NEW
-     * aprobado organizer también está relleno, pero es el organizador creado, no una página pedida.
+     * aprobado organizer también está relleno, pero es el organizador creado, no uno pedido.
      * previousRejections y targetOrganizerVenues necesitan queries: los añade la sobrecarga de abajo. */
     @InheritConfiguration(name = "toOrganizerRequestDto")
     @Mapping(target = "requester", source = "user")
@@ -53,7 +53,7 @@ public interface OrganizerRequestMapper {
     OrganizerRequestAdminDto toOrganizerRequestAdminDto(OrganizerRequests request);
 
     /** Detalle del admin: el controller pide al servicio los rechazos anteriores del usuario y los venues
-     * de la página pedida (List.of() en NEW) y los pasa aquí, así el servicio solo devuelve entidades. */
+     * del organizador pedido (List.of() en NEW) y los pasa aquí, así el servicio solo devuelve entidades. */
     default OrganizerRequestAdminDto toOrganizerRequestAdminDto(OrganizerRequests request, long previousRejections,
                                                                  List<Venues> targetOrganizerVenues) {
         OrganizerRequestAdminDto dto = toOrganizerRequestAdminDto(request);
@@ -110,13 +110,13 @@ public interface OrganizerRequestMapper {
     @Mapping(target = "events", ignore = true)
     Organizers toOrganizerEntity(OrganizerRequests request);
 
-    /** NEW: el nombre propuesto · CLAIM: el de la página pedida (la solicitud no guarda nombre).
+    /** NEW: el nombre propuesto · CLAIM: el del organizador pedido (la solicitud no guarda nombre).
      * NEW aprobada: el del organizador creado, que es el mismo. */
     default String resolveOrganizerName(OrganizerRequests request) {
         return request.getOrganizer() != null ? request.getOrganizer().getName() : request.getName();
     }
 
-    /** NEW: el tipo propuesto · CLAIM: el de la página pedida (la solicitud no guarda tipo). */
+    /** NEW: el tipo propuesto · CLAIM: el del organizador pedido (la solicitud no guarda tipo). */
     default OrganizerType resolveOrganizerType(OrganizerRequests request) {
         return request.getOrganizer() != null ? request.getOrganizer().getType() : request.getOrganizerType();
     }

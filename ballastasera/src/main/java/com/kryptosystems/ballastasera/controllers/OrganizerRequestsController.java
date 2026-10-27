@@ -30,7 +30,7 @@ public class OrganizerRequestsController {
     private final OrganizerRequestMapper organizerRequestMapper;
 
     /** Requiere estar autenticado. Último paso del wizard «Diventa organizzatore»: crea la solicitud NEW
-     * (perfil nuevo) o CLAIM (página que ya existe) en PENDING, hasta que un admin la revise. */
+     * (perfil nuevo) o CLAIM (organizador que ya existe) en PENDING, hasta que un admin la revise. */
     @PostMapping(CREATE)
     public ResponseEntity<OrganizerRequestDto> create(@AuthenticationPrincipal UserPrincipal principal,
                                                       @Valid @RequestBody OrganizerRequestCreateDto body) {

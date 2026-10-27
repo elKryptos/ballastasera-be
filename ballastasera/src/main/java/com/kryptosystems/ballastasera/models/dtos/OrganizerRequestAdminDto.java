@@ -14,9 +14,9 @@ import java.util.List;
 public class OrganizerRequestAdminDto extends OrganizerRequestDto {
     /** «Richiesta da Kryptos». */
     private RequesterDto requester;
-    /** Solo CLAIM: la página pedida, para que el admin la compare con los datos de prueba. */
+    /** Solo CLAIM: el organizador pedido, para que el admin lo compare con los datos de prueba. */
     private OrganizerSummaryDto targetOrganizer;
-    /** Solo CLAIM: los venues que la página ya tiene enlazados (D11). Lista vacía en NEW. */
+    /** Solo CLAIM: los venues que el organizador pedido ya tiene enlazados (D11). Lista vacía en NEW. */
     private List<VenuesSummaryDto> targetOrganizerVenues;
     private String reviewedByName;
     /** Rechazos anteriores de este usuario: con 1 o más, el admin ve «2º intento». */

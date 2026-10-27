@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Se publica al aprobar una NEW o al rechazar una solicitud (también el rechazo automático de las CLAIM
- * que compiten por la misma página). Una CLAIM aprobada no lo publica: su email lo manda claim() con
+ * que compiten por el mismo organizador). Una CLAIM aprobada no lo publica: su email lo manda claim() con
  * OrganizerClaimedEvent. Se crea con approved() o rejected().
  */
 @Getter

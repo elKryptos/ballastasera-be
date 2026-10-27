@@ -764,7 +764,7 @@ de los usuarios que piden. Los datos están en `src/main/resources/db/seed_test_
 | Solicitud | Usuario | Caso |
 |---|---|---|
 | `ab000000-0000-0000-0000-000000000001` | Ana | CLAIM PENDING de *Salsa Loca Milano* (`88888888-…`, SCHOOL, con su venue `99999999-…`) |
-| `ab000000-0000-0000-0000-000000000002` | Marco | CLAIM PENDING de la misma página: la que se rechaza sola al aprobar la de Ana |
+| `ab000000-0000-0000-0000-000000000002` | Marco | CLAIM PENDING del mismo organizador: la que se rechaza sola al aprobar la de Ana |
 | `ab000000-0000-0000-0000-000000000003` | Lucia | NEW PERSON REJECTED |
 | `ab000000-0000-0000-0000-000000000004` | Lucia | NEW PERSON PENDING: «2º intento» (`previousRejections: 1`) |
 | `ab000000-0000-0000-0000-000000000005` | Dario | NEW CLUB PENDING con dirección (Via Gola 12, Milano) |
@@ -804,7 +804,7 @@ Authorization: Bearer <token admin>
 
 **Esperado**: `200` con `Page<OrganizerRequestAdminDto>`, la más antigua primero (`submittedAt` ASC).
 `totalElements` es el contador «In attesa · N». Cada fila trae `requester` (quien la pidió) y
-`previousRejections`. En una CLAIM: `targetOrganizer` con la página pedida y `targetOrganizerVenues`
+`previousRejections`. En una CLAIM: `targetOrganizer` con el organizador pedido y `targetOrganizerVenues`
 con sus venues; en una NEW: `targetOrganizer` vacío y `targetOrganizerVenues: []`.
 
 ```
@@ -903,13 +903,13 @@ Authorization: Bearer <token admin>
 ```
 
 **Esperado**: `200`. *Salsa Loca* queda con Ana como dueña (`claimed = true`), Ana pasa a `ORGANIZER` y
-le llega el email «Il profilo organizzatore ti è stato assegnato». No hace falta `venueId`: la página
+le llega el email «Il profilo organizzatore ti è stato assegnato». No hace falta `venueId`: el organizador
 ya tiene su venue.
 
 Después, `GET /rest/admin/organizer-requests?status=REJECTED`: la de Marco sale con
 `rejectionReason: "DUPLICATE"`, `rejectionMessage: "La pagina è stata assegnata a un altro utente."`,
 `reviewedByName` y el mismo `reviewedAt` que la aprobación. A Marco le llega el email de rechazo
-(«Motivo: Doppione.» + el mensaje). Se rechazan **todas** las CLAIM PENDING de esa página: si quedó
+(«Motivo: Doppione.» + el mensaje). Se rechazan **todas** las CLAIM PENDING de ese organizador: si quedó
 alguna de la sección 7, también sale aquí (probado el 27/10 con dos a la vez).
 
 ### Sin ser ADMIN

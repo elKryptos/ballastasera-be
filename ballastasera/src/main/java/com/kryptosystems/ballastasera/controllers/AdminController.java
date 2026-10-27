@@ -240,7 +240,7 @@ public class AdminController {
         return ResponseEntity.ok(toOrganizerRequestAdminDto(request));
     }
 
-    /** Rellena lo que necesita queries: rechazos anteriores y, en CLAIM, los venues de la página pedida.
+    /** Rellena lo que necesita queries: rechazos anteriores y, en CLAIM, los venues del organizador pedido.
      * Hasta dos queries por fila: aceptable con size ≤ 50. organizer puede ser null en una CLAIM
      * CANCELLED por deleteAsAdmin (ON DELETE SET NULL). */
     private OrganizerRequestAdminDto toOrganizerRequestAdminDto(OrganizerRequests request) {
