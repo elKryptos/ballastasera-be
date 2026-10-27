@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.OrganizerRejectReason;
 import com.kryptosystems.ballastasera.services.manager.EmailService;
 import com.resend.core.exception.ResendException;
 import com.resend.services.emails.model.CreateEmailOptions;
@@ -10,7 +11,13 @@ import com.resend.Resend;
 
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
+/**
+ * Los textos que no escribe el backend (nombre del organizador, mensaje del admin) pasan por
+ * HtmlUtils.htmlEscape antes de entrar en el HTML: el cliente de correo los muestra como texto
+ * y no los interpreta como etiquetas.
+ */
 @Slf4j
 @Service
 public class EmailServiceImpl implements EmailService {
@@ -57,21 +64,60 @@ public class EmailServiceImpl implements EmailService {
         try {
             CreateEmailResponse data = resend.emails().send(params);
         } catch (ResendException e) {
-            log.warn("Impossibile inviare l'email di approvazione a {}", toEmail, e);
+            log.warn("Impossibile inviare l'email di assegnazione a {}", toEmail, e);
+        }
+    }
+
+    @Override
+    @Async
+    public void sendOrganizerRejectedEmail(String toEmail, String organizerName, OrganizerRejectReason reason, String message) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject("La tua richiesta organizzatore non è stata approvata.")
+                .html(buildRejectedEmail(organizerName, reason, message))
+                .build();
+        try {
+            CreateEmailResponse data = resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di rifiuto a {}", toEmail, e);
         }
     }
 
     private String buildEmailContent(String organizerName) {
         return "<h1>Profilo verificato</h1>" +
-                "<p>Il tuo profilo organizzatore <strong>" + organizerName + "</strong> è stato verificato.</p>" +
+                "<p>Il tuo profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> è stato verificato.</p>" +
                 "<p>Ora puoi pubblicare eventi da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
                 "<p>A presto sulla pista!</p>";
     }
 
     private String buildClaimedEmail(String organizerName) {
         return "<h1>Profilo assegnato</h1>" +
-                "<p>Il profilo organizzatore <strong>" + organizerName + "</strong> ti è stato assegnato.</p>" +
+                "<p>Il profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> ti è stato assegnato.</p>" +
                 "<p>Ora puoi pubblicare eventi da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
                 "<p>A presto sulla pista!</p>";
+    }
+
+    /** Sin mensaje del admin, el email lleva solo el motivo: nada de párrafo vacío. */
+    private String buildRejectedEmail(String organizerName, OrganizerRejectReason reason, String message) {
+        String messageBlock = message == null || message.isBlank() ? ""
+                : "<p>" + HtmlUtils.htmlEscape(message) + "</p>";
+        return "<h1>Richiesta non approvata</h1>" +
+                "<p>La tua richiesta per <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> non è stata approvata.</p>" +
+                "<p>Motivo: " + rejectReasonLabel(reason) + ".</p>" +
+                messageBlock +
+                "<p>Puoi correggere i dati e inviare una nuova richiesta da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
+                "<p>A presto sulla pista!</p>";
+    }
+
+    /** Las mismas etiquetas que ve el admin al rechazar. */
+    private String rejectReasonLabel(OrganizerRejectReason reason) {
+        return switch (reason) {
+            case INSTAGRAM_NOT_FOUND -> "Instagram non trovato";
+            case INCOMPLETE_DATA -> "Dati incompleti";
+            case NOT_DANCE_ORGANIZER -> "Non organizza serate di ballo";
+            case DUPLICATE -> "Doppione";
+            case OTHER -> "Altro";
+        };
     }
 }

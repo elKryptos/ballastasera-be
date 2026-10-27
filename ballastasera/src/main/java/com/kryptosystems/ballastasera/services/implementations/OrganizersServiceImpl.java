@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
+import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
@@ -20,6 +21,7 @@ import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +41,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     private final EmailService emailService;
     private final OrganizerMapper organizerMapper;
     private final OrganizerRequestsRepository organizerRequestsRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public List<Organizers> findAll() {
@@ -139,7 +142,11 @@ public class OrganizersServiceImpl implements OrganizersService {
         return organizersRepository.save(organizer);
     }
 
+    /** @Transactional: asignar y subir el rol van juntos, y el evento necesita una transacción (sin ella
+     * se descarta y no sale el email). Llamado desde approve, se une a su transacción y el email espera
+     * a ese commit. */
     @Override
+    @Transactional
     @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public Organizers claim(UUID organizerId, UUID userId) {
         Organizers organizer = findById(organizerId);
@@ -151,7 +158,7 @@ public class OrganizersServiceImpl implements OrganizersService {
         organizer.setClaimed(true);
         Organizers saved = organizersRepository.save(organizer);
         usersService.promoteToOrganizer(userId);
-        emailService.sendOrganizerClaimedEmail(user.getEmail(), organizer.getName());
+        eventPublisher.publishEvent(new OrganizerClaimedEvent(user.getEmail(), organizer.getName()));
         return saved;
     }
 
