@@ -59,6 +59,7 @@ public class AdminController {
     private static final String DELETE_VENUE_LOGO = "/venues/{id}/logo";
     private static final String GET_ORGANIZER_REQUESTS = "/organizer-requests";
     private static final String GET_ORGANIZER_REQUEST_BY_ID = "/organizer-requests/{id}";
+    private static final String APPROVE_ORGANIZER_REQUEST = "/organizer-requests/{id}/approve";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -227,6 +228,16 @@ public class AdminController {
     @GetMapping(GET_ORGANIZER_REQUEST_BY_ID)
     public ResponseEntity<OrganizerRequestAdminDto> getOrganizerRequestById(@PathVariable UUID id) {
         return ResponseEntity.ok(toOrganizerRequestAdminDto(organizerRequestsService.findById(id)));
+    }
+
+    /** Aprueba una solicitud PENDING. Body opcional: { "venueId" } en una NEW de tipo local (D11), con el venue
+     * que el admin acaba de crear en POST /rest/admin/venues. */
+    @PatchMapping(APPROVE_ORGANIZER_REQUEST)
+    public ResponseEntity<OrganizerRequestAdminDto> approveOrganizerRequest(@AuthenticationPrincipal UserPrincipal principal,
+                                                                            @PathVariable UUID id,
+                                                                            @RequestBody(required = false) OrganizerRequestApproveDto body) {
+        var request = organizerRequestsService.approve(id, principal.getId(), body);
+        return ResponseEntity.ok(toOrganizerRequestAdminDto(request));
     }
 
     /** Rellena lo que necesita queries: rechazos anteriores y, en CLAIM, los venues de la página pedida.

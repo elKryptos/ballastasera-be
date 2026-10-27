@@ -150,7 +150,8 @@ public class OrganizersServiceImpl implements OrganizersService {
     @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
     public Organizers claim(UUID organizerId, UUID userId) {
         Organizers organizer = findById(organizerId);
-        if (organizer.isClaimed()) {
+        // user también: un organizador creado por su dueño y verificado sigue con claimed = false
+        if (organizer.isClaimed() || organizer.getUser() != null) {
             throw new OrganizerAlreadyClaimedException("Organizer " + organizerId + " is already claimed");
         }
         Users user = usersService.findById(userId);

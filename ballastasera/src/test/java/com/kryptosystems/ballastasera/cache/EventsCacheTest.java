@@ -225,7 +225,11 @@ class EventsCacheTest {
                 write("organizer updateAsAdmin", t -> t.organizersService.updateAsAdmin(ORGANIZER_ID, new OrganizerUpdateDto())),
                 write("organizer delete", t -> t.organizersService.delete(ORGANIZER_ID, USER_ID)),
                 write("organizer deleteAsAdmin", t -> t.organizersService.deleteAsAdmin(ORGANIZER_ID)),
-                write("organizer claim", t -> t.organizersService.claim(ORGANIZER_ID, USER_ID)),
+                write("organizer claim", t -> {
+                    // claim exige un organizador sin dueño; el del fixture tiene dueño para las otras escrituras
+                    t.organizersRepository.findById(ORGANIZER_ID).orElseThrow().setUser(null);
+                    t.organizersService.claim(ORGANIZER_ID, USER_ID);
+                }),
                 write("organizer verify", t -> t.organizersService.verify(ORGANIZER_ID)),
                 write("venue update", t -> t.venuesService.updateVenueAsAdmin(VENUE_ID, new VenueUpdateDto())),
                 write("venue updateLogo", t -> t.venuesService.updateLogoAsAdmin(VENUE_ID, image())),

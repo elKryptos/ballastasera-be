@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.enums.OrganizerType;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
+import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import org.mapstruct.InheritConfiguration;
@@ -91,6 +92,23 @@ public interface OrganizerRequestMapper {
     @Mapping(target = "submittedAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     OrganizerRequests toOrganizerRequestEntity(OrganizerRequestCreateDto dto);
+
+    /** Approve de una NEW: el organizador nuevo con los datos de la solicitud (name, description, logoUrl,
+     * website, phone, contactEmail, instagram ya normalizado, facebook). id, user y updatedAt se ignoran a
+     * propósito: existen con el mismo nombre en la solicitud y MapStruct los copiaría. slug, verified,
+     * claimed y user los pone el service. */
+    @Mapping(target = "type", source = "organizerType")
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "user", ignore = true)
+    @Mapping(target = "slug", ignore = true)
+    @Mapping(target = "verified", ignore = true)
+    @Mapping(target = "claimed", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "venues", ignore = true)
+    @Mapping(target = "eventSeries", ignore = true)
+    @Mapping(target = "events", ignore = true)
+    Organizers toOrganizerEntity(OrganizerRequests request);
 
     /** NEW: el nombre propuesto · CLAIM: el de la página pedida (la solicitud no guarda nombre).
      * NEW aprobada: el del organizador creado, que es el mismo. */

@@ -10,6 +10,10 @@ public class OrganizerRequestConflictException extends RuntimeException {
     public static final String ORGANIZER_LIMIT_REACHED = "ORGANIZER_LIMIT_REACHED";
     public static final String REQUEST_NOT_PENDING = "REQUEST_NOT_PENDING";
     public static final String REQUEST_STILL_PENDING = "REQUEST_STILL_PENDING";
+    /** Approve: el venue que pasa el admin ya está enlazado a otro organizador. */
+    public static final String VENUE_ALREADY_LINKED = "VENUE_ALREADY_LINKED";
+    /** Approve: el tipo exige venue (D11) y el organizador no tiene ninguno. */
+    public static final String VENUE_REQUIRED = "VENUE_REQUIRED";
 
     private final String code;
 

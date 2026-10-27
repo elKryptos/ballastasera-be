@@ -1,22 +1,32 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.config.RedisCacheConfig;
+import com.kryptosystems.ballastasera.enums.OrganizerRejectReason;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
+import com.kryptosystems.ballastasera.events.OrganizerRequestReviewedEvent;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestApproveDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestCreateDto;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerRequestMapper;
 import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
+import com.kryptosystems.ballastasera.repositories.VenuesRepository;
 import com.kryptosystems.ballastasera.services.manager.CitiesService;
 import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
+import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
+import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,12 +51,17 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     private static final int MAX_ORGANIZERS_PER_USER = 1;
     /** Índice parcial que garantiza una sola PENDING por usuario aunque dos create lleguen a la vez. */
     private static final String ONE_PENDING_CONSTRAINT = "uq_org_requests_one_pending";
+    /** Mensaje del rechazo automático de las CLAIM que pierden la página (lo lee el usuario). */
+    private static final String PAGE_ASSIGNED_TO_OTHER = "La pagina è stata assegnata a un altro utente.";
 
     private final OrganizerRequestsRepository organizerRequestsRepository;
     private final OrganizersRepository organizersRepository;
+    private final VenuesRepository venuesRepository;
+    private final OrganizersService organizersService;
     private final UsersService usersService;
     private final CitiesService citiesService;
     private final OrganizerRequestMapper organizerRequestMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -145,6 +161,99 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     public long countPreviousRejections(OrganizerRequests request) {
         long rejections = organizerRequestsRepository.countByUserIdAndStatus(request.getUser().getId(), OrganizerRequestStatus.REJECTED);
         return request.getStatus() == OrganizerRequestStatus.REJECTED ? rejections - 1 : rejections;
+    }
+
+    /** Si algo lanza (409, 404), la transacción hace rollback: no queda organizador creado, no cambia el rol
+     * y los eventos de email se descartan. El CacheEvict tampoco se ejecuta si el método lanza. */
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.VENUE_BY_CITY,
+            RedisCacheConfig.VENUE_MAP_BY_CITY, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
+    public OrganizerRequests approve(UUID requestId, UUID adminId, OrganizerRequestApproveDto dto) {
+        OrganizerRequests request = findPending(requestId);
+        Users user = request.getUser();
+        // Solo pasa si mientras tanto el admin le asignó una página por la vía directa: hay que rechazarla
+        if (organizersRepository.countByUserId(user.getId()) >= MAX_ORGANIZERS_PER_USER) {
+            throw new OrganizerRequestConflictException(ORGANIZER_LIMIT_REACHED, "User already has the maximum number of organizers");
+        }
+        Users admin = usersService.findById(adminId);
+
+        Organizers organizer = request.getType() == OrganizerRequestType.NEW
+                ? createOrganizer(request)
+                : claimOrganizer(request, admin);
+
+        if (dto != null && dto.getVenueId() != null) {
+            request.setVenue(linkVenue(dto.getVenueId(), organizer));
+        }
+        // D11: en una CLAIM solo falla si el admin creó la página sin su venue: enlazarlo y volver a aprobar
+        if (organizer.getType().requiresVenue() && venuesRepository.findByOrganizerId(organizer.getId()).isEmpty()) {
+            throw new OrganizerRequestConflictException(VENUE_REQUIRED, "Organizer type " + organizer.getType() + " requires a venue");
+        }
+
+        request.setStatus(OrganizerRequestStatus.APPROVED);
+        request.setReviewedBy(admin);
+        request.setReviewedAt(OffsetDateTime.now());
+        return request;
+    }
+
+    /** approve y reject: con detalles (el controller la mapea a OrganizerRequestAdminDto) y 409 si ya no está PENDING. */
+    private OrganizerRequests findPending(UUID requestId) {
+        OrganizerRequests request = findById(requestId);
+        if (request.getStatus() != OrganizerRequestStatus.PENDING) {
+            throw new OrganizerRequestConflictException(REQUEST_NOT_PENDING, "Only pending requests can be reviewed");
+        }
+        return request;
+    }
+
+    /** NEW: organizador verificado, con dueño y slug único. El email de aprobación sale después del commit. */
+    private Organizers createOrganizer(OrganizerRequests request) {
+        Organizers organizer = organizerRequestMapper.toOrganizerEntity(request);
+        organizer.setSlug(SlugUtils.uniqueSlug(request.getName(),
+                slug -> organizersRepository.findBySlug(slug).isPresent()));
+        organizer.setVerified(true);
+        organizer.setClaimed(true);
+        organizer.setUser(request.getUser());
+        Organizers saved = organizersRepository.save(organizer);
+        request.setOrganizer(saved);
+        usersService.promoteToOrganizer(request.getUser().getId());
+        eventPublisher.publishEvent(OrganizerRequestReviewedEvent.approved(request.getUser().getEmail(), saved.getName()));
+        return saved;
+    }
+
+    /** CLAIM: claim() asigna la página, sube el rol y publica su propio email (409 si ya tiene dueño).
+     * Las otras CLAIM PENDING de la misma página se rechazan como DUPLICATE, cada una con su email. */
+    private Organizers claimOrganizer(OrganizerRequests request, Users admin) {
+        Organizers target = organizersService.claim(request.getOrganizer().getId(), request.getUser().getId());
+        List<OrganizerRequests> competing = organizerRequestsRepository
+                .findByOrganizerIdAndTypeAndStatus(target.getId(), OrganizerRequestType.CLAIM, OrganizerRequestStatus.PENDING);
+        for (OrganizerRequests other : competing) {
+            // La propia solicitud sigue PENDING en este punto: sale en la lista
+            if (other.getId().equals(request.getId())) {
+                continue;
+            }
+            other.setStatus(OrganizerRequestStatus.REJECTED);
+            other.setRejectionReason(OrganizerRejectReason.DUPLICATE);
+            other.setRejectionMessage(PAGE_ASSIGNED_TO_OTHER);
+            other.setReviewedBy(admin);
+            other.setReviewedAt(OffsetDateTime.now());
+            eventPublisher.publishEvent(OrganizerRequestReviewedEvent.rejected(other.getUser().getEmail(),
+                    target.getName(), OrganizerRejectReason.DUPLICATE, PAGE_ASSIGNED_TO_OTHER));
+        }
+        return target;
+    }
+
+    /** D11: enlaza el venue que el admin acaba de crear. linkOrganizerIfFree es un UPDATE condicional: dos
+     * approve a la vez no pueden quedarse el mismo venue. Si no cambia ninguna fila, el venue no existe (404)
+     * o ya tiene organizador (409). */
+    private Venues linkVenue(UUID venueId, Organizers organizer) {
+        if (venuesRepository.linkOrganizerIfFree(venueId, organizer) == 0) {
+            if (!venuesRepository.existsById(venueId)) {
+                throw new EntityNotFoundException("Venue not found with id " + venueId);
+            }
+            throw new OrganizerRequestConflictException(VENUE_ALREADY_LINKED, "Venue " + venueId + " is already linked to an organizer");
+        }
+        // Se carga después del UPDATE: así la entidad ya trae el organizador nuevo
+        return venuesRepository.findById(venueId).orElseThrow();
     }
 
     /** PENDING por llegada (la más antigua primero); APPROVED y REJECTED, la última revisada primero.
