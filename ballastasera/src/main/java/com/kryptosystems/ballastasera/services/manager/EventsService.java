@@ -28,11 +28,11 @@ public interface EventsService {
     Events findByIdWithDetails(UUID id);
 
     /** Crea el evento a nombre del organizerId del dto; falla si ese organizer
-     * no le pertenece a requesterId o si aun no esta verificado. Nace en PENDING. */
+     * no le pertenece a requesterId o si aun no esta verificado. Nace en PUBLISHED. */
     Events create(UUID requesterId, EventCreateDto dto);
 
     /** Admin crea el evento para cualquier organizer (reclamado o no), sin chequeo
-     * de ownership ni de verificación. Nace en PENDING igual que create(). */
+     * de ownership ni de verificación. Nace en PUBLISHED igual que create(). */
     Events createAsAdmin(EventCreateDto dto);
 
     /** Edita un evento propio. No permite cambiar de organizer ni de status. */

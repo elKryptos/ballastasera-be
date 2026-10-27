@@ -76,7 +76,7 @@ public class EventsController {
     }
 
     /** Requiere estar autenticado. El organizerId del body debe pertenecer al
-     * usuario logueado y ese organizer debe estar verificado. Nace en PENDING. */
+     * usuario logueado y ese organizer debe estar verificado. Nace en PUBLISHED. */
     @PostMapping(CREATE)
     public ResponseEntity<EventDetailDto> create(@AuthenticationPrincipal UserPrincipal principal,
                                                  @Valid @RequestBody EventCreateDto body) {
