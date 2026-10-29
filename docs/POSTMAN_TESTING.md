@@ -912,6 +912,96 @@ Después, `GET /rest/admin/organizer-requests?status=REJECTED`: la de Marco sale
 («Motivo: Doppione.» + el mensaje). Se rechazan **todas** las CLAIM PENDING de ese organizador: si quedó
 alguna de la sección 7, también sale aquí (probado el 27/10 con dos a la vez).
 
+### `PATCH /rest/admin/organizer-requests/{id}/reject`
+
+Body obligatorio: `{ "reason": "<OrganizerRejectReason>", "message": "<opcional, máx. 500>" }`. Con
+`OTHER` el mensaje es obligatorio. Al mensaje se le quitan los espacios de los extremos y, si queda
+vacío, se guarda `null`. El email de rechazo sale después del commit. Probado el 29/10 con el seed recién
+cargado.
+
+**NEW con mensaje con espacios (Lucia, 2º intento)**
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000004/reject
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "reason": "INSTAGRAM_NOT_FOUND", "message": "   Il profilo @luciabachata è privato.   " }
+```
+
+**Esperado**: `200` con `status: "REJECTED"`, `rejectionReason: "INSTAGRAM_NOT_FOUND"`,
+`rejectionMessage` sin los espacios, `reviewedByName`, `reviewedAt` y `previousRejections: 1`. Lucia sigue
+`USER` y le llega el email («Motivo: Instagram non trovato.» + el mensaje).
+
+Repetir el mismo `PATCH` → **Esperado**: `409` con `errors.code = "REQUEST_NOT_PENDING"`.
+
+**`OTHER` sin mensaje (Dario)**
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000005/reject
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "reason": "OTHER" }
+```
+
+**Esperado**: `400` con `errors.messageProvidedForOther`. Igual con `"message": "   "`. Dario sigue PENDING.
+
+**Otro motivo sin mensaje (Dario)**: `{ "reason": "INCOMPLETE_DATA", "message": "" }` → `200` con
+`rejectionMessage: null`. El email sale sin mensaje.
+
+**CLAIM: Marco rechazado, Ana sigue PENDING**
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000002/reject
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "reason": "NOT_DANCE_ORGANIZER", "message": "Non risulti tra i gestori della scuola." }
+```
+
+**Esperado**: `200`. El email de Marco nombra a «Salsa Loca Milano». La CLAIM de Ana (`-01`) sigue
+PENDING y *Salsa Loca* sigue sin dueño (`user_id NULL`, `claimed = false`). Si después se aprueba la de
+Ana, la de Marco **no cambia**: sigue `NOT_DANCE_ORGANIZER` con su mensaje y no le llega otro email
+(approve solo rechaza las CLAIM que siguen PENDING).
+
+**Validación**: sin `reason` → `400` con `errors.reason`; `message` de más de 500 caracteres → `400` con
+`errors.message`; id inventado → `404`.
+
+**Body ilegible** (handler de `HttpMessageNotReadableException`, vale para todos los `@RequestBody`;
+antes daba `500`). Con el mismo `PATCH …/reject` de una solicitud PENDING:
+
+| Body | Esperado |
+|---|---|
+| `{ "reason": "FOO" }` | `400` con `errors.reason = "must be one of [INSTAGRAM_NOT_FOUND, INCOMPLETE_DATA, NOT_DANCE_ORGANIZER, DUPLICATE, OTHER]"` |
+| sin body | `400` sin `errors` |
+| `{ "reason": ` (JSON roto) | `400` sin `errors` |
+| `{ "reason": "OTHER", "message": {} }` | `400` con `errors.message = "has an invalid value"` |
+
+`approve` no cambia: su body es opcional (`required = false`) y sin body responde como siempre.
+
+### `409 CONCURRENT_UPDATE` — dos admins revisan la misma solicitud a la vez
+
+El `@Version` de `organizer_requests` se comprueba en el commit. Con dos peticiones de Postman no se
+consigue la carrera (la segunda llega después del commit y da `REQUEST_NOT_PENDING`), así que se simula
+con el debugger:
+
+1. Backend en **Debug** desde IntelliJ, con un breakpoint en `OrganizerRequestsServiceImpl.reject`, en la
+   línea `request.setStatus(...)`, suspend **Thread**.
+2. `PATCH …/ab000000-0000-0000-0000-000000000005/reject` con `{ "reason": "INCOMPLETE_DATA" }`: se queda parado.
+3. Con la petición parada, en la base:
+   `UPDATE organizer_requests SET version = version + 1 WHERE id = 'ab000000-0000-0000-0000-000000000005';`
+4. Reanudar (F9).
+
+**Esperado**: `409` con `errors.code = "CONCURRENT_UPDATE"` y
+`message: "The resource was modified by another request"`. Rollback: la solicitud sigue PENDING y no sale
+ningún email. Probado el 29/10.
+
+*Si recargas el seed creando la base desde cero: `ballastasera_schema.sql` todavía no tiene
+`organizer_requests`. Antes del seed hay que ejecutar el bloque del plan §3.2. Tu usuario admin se crea
+otra vez al hacer login (`UPDATE users SET role = 'ADMIN' …`). Después vuelve a hacer login para tener un
+token con el id nuevo.*
+
 ### Sin ser ADMIN
 
 Las mismas peticiones con el token de un USER → **Esperado**: `403`. Sin token: `401`.
@@ -919,3 +1009,92 @@ Las mismas peticiones con el token de un USER → **Esperado**: `403`. Sin token
 *Hasta el commit `5462714` un USER recibía `401`: el `403` de `hasRole("ADMIN")` se reenvía a
 `/error`, ese reenvío no lleva el JWT y Spring lo trataba como anónimo. Ahora `SecurityConfig` deja
 pasar el dispatch `ERROR` y el `403` llega tal cual. Vale para todo `/rest/admin/**`.*
+
+---
+
+## 9. Borrar organizadores y enlazar venues (admin, fase 0 de «Diventa organizzatore»)
+
+Plan: `organizer-requests-plan.md` (fase 0). Empieza con la base como la deja el seed (ver §8) y apunta
+tu id de admin: `SELECT id, role FROM users WHERE email = '<tu email>';`. Probado el 29/10.
+
+### `DELETE /rest/admin/organizers/{id}` — organizador sin dueño con CLAIM PENDING
+
+```
+DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `204`. Las solicitudes `ab000000-…-01` y `-02` pasan a `CANCELLED` con
+`rejection_message = 'La pagina è stata rimossa.'`, el venue `99999999-…` queda con
+`organizer_id = NULL` (`ON DELETE SET NULL`) y Ana y Marco siguen `USER`.
+
+### `PATCH /rest/admin/venues/{id}` con `organizerId` (D11)
+
+Seguido de lo anterior, con el venue de *Salsa Loca* ya sin organizador:
+
+```
+PATCH http://localhost:8081/rest/admin/venues/99999999-9999-9999-9999-999999999999
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "organizerId": "11111111-1111-1111-1111-111111111111" }
+```
+
+**Esperado**: `200` con `organizerId` y `organizerName: "Tropical Milano"`; el resto del venue no cambia.
+`GET /rest/organizers/11111111-1111-1111-1111-111111111111/venues` (público) muestra *Sala Havana* y
+*Salsa Loca · Sala Isola*. Con un `organizerId` inventado: `404`. Con `{}`: `200` y el enlace no cambia.
+
+**Recarga el seed** antes de seguir.
+
+### `demoteToUser` — el rol después de borrar un organizador
+
+**A: ORGANIZER con un solo organizador → USER.** Aprueba la CLAIM de Ana
+(`PATCH /rest/admin/organizer-requests/ab000000-0000-0000-0000-000000000001/approve`, ver §8) y borra
+*Salsa Loca*:
+
+```
+DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `204` y Ana vuelve a `role = 'USER'`.
+
+**B: ORGANIZER con dos organizadores → sigue ORGANIZER.** El usuario `22222222-…` ya tiene
+*Tropical Milano*; se le asigna otro y se borra:
+
+```
+POST http://localhost:8081/rest/admin/organizers/unclaimed
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "name": "Prova Demote B", "type": "PERSON" }
+```
+
+```
+PATCH http://localhost:8081/rest/admin/organizers/<id creado>/claim
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "userId": "22222222-2222-2222-2222-222222222222" }
+```
+
+```
+DELETE http://localhost:8081/rest/admin/organizers/<id creado>
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `204` y `22222222-…` sigue `ORGANIZER`.
+
+**C: ADMIN → nunca baja (y el DELETE del dueño).** Igual que B, pero con `"name": "Prova Demote C"` y el
+claim con `{ "userId": "<tu id de admin>" }` (te llega el email del claim). Después, con el endpoint
+del dueño:
+
+```
+DELETE http://localhost:8081/rest/organizers/<id creado>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `204` y sigues `ADMIN`.
+
+*Sin probar: `DELETE /rest/organizers/{id}` del dueño siendo USER → vuelve a USER. Hace falta el token de
+una segunda cuenta de Google que no sea admin; la lógica es la misma del caso A.*
