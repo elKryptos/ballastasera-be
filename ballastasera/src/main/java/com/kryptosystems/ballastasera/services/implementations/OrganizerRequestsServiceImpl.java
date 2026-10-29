@@ -9,6 +9,7 @@ import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedExceptio
 import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestApproveDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestRejectDto;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
@@ -194,6 +195,27 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         request.setStatus(OrganizerRequestStatus.APPROVED);
         request.setReviewedBy(admin);
         request.setReviewedAt(OffsetDateTime.now());
+        return request;
+    }
+
+    /** Sin @CacheEvict: rechazar no crea ni cambia organizadores ni venues. */
+    @Override
+    @Transactional
+    public OrganizerRequests reject(UUID requestId, UUID adminId, OrganizerRequestRejectDto dto) {
+        OrganizerRequests request = findPending(requestId);
+        // "" o solo espacios cuentan como sin mensaje
+        String message = dto.getMessage() == null || dto.getMessage().isBlank() ? null : dto.getMessage().trim();
+        request.setStatus(OrganizerRequestStatus.REJECTED);
+        request.setRejectionReason(dto.getReason());
+        request.setRejectionMessage(message);
+        request.setReviewedBy(usersService.findById(adminId));
+        request.setReviewedAt(OffsetDateTime.now());
+
+        // NEW: el nombre que pidió - CLAIM: el del organizador que reclama
+        String organizerName = request.getType() == OrganizerRequestType.NEW
+                ? request.getName()
+                : request.getOrganizer().getName();
+        eventPublisher.publishEvent(OrganizerRequestReviewedEvent.rejected(request.getUser().getEmail(), organizerName, dto.getReason(), message));
         return request;
     }
 

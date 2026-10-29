@@ -60,6 +60,7 @@ public class AdminController {
     private static final String GET_ORGANIZER_REQUESTS = "/organizer-requests";
     private static final String GET_ORGANIZER_REQUEST_BY_ID = "/organizer-requests/{id}";
     private static final String APPROVE_ORGANIZER_REQUEST = "/organizer-requests/{id}/approve";
+    private static final String REJECT_ORGANIZER_REQUEST = "/organizer-requests/{id}/reject";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -237,6 +238,15 @@ public class AdminController {
                                                                             @PathVariable UUID id,
                                                                             @RequestBody(required = false) OrganizerRequestApproveDto body) {
         var request = organizerRequestsService.approve(id, principal.getId(), body);
+        return ResponseEntity.ok(toOrganizerRequestAdminDto(request));
+    }
+
+    /** El admin rechaza una solicitud PENDING con motivo y mensaje opcional (obligatorio con OTHER, lo valida el DTO). */
+    @PatchMapping(REJECT_ORGANIZER_REQUEST)
+    public ResponseEntity<OrganizerRequestAdminDto> rejectOrganizerRequest(@AuthenticationPrincipal UserPrincipal principal,
+                                                                           @PathVariable UUID id,
+                                                                           @Valid @RequestBody OrganizerRequestRejectDto body) {
+        var request = organizerRequestsService.reject(id, principal.getId(), body);
         return ResponseEntity.ok(toOrganizerRequestAdminDto(request));
     }
 

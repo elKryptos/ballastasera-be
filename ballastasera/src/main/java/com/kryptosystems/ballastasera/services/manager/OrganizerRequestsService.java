@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.manager;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestApproveDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestRejectDto;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,4 +37,6 @@ public interface OrganizerRequestsService {
     /** El admin aprueba una solicitud PENDING. NEW: crea el organizador · CLAIM: asigna el organizador y rechaza
      * las otras CLAIM PENDING de ese organizador. dto puede ser null; dto.venueId enlaza el local (D11). */
     OrganizerRequests approve(UUID requestId, UUID adminId, OrganizerRequestApproveDto dto);
+
+    OrganizerRequests reject(UUID requestId, UUID adminId, OrganizerRequestRejectDto dto);
 }
