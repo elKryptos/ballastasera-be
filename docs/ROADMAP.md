@@ -142,6 +142,19 @@ Depende de Bloque 3 (Follow) para tener sentido completo.
 
 ---
 
+## Seguridad — deuda conocida
+
+- [ ] **Usuarios baneados o borrados siguen entrando con su token** (detectado el 29/10/2026).
+      `JwtAuthenticationFilter` lee el usuario de la base en cada request, pero no mira `isBanned` ni
+      `isDeleted`: con un JWT válido, un baneado sigue creando eventos y editando su organizador hasta que
+      el token caduca. `CustomOidcUserService` solo bloquea el login nuevo, y de lo demás solo
+      `OrganizerRequestsServiceImpl.create` (y `approve`) comprueban el baneo. Arreglo: en el filtro, si
+      `user.isBanned() || user.isDeleted()`, no autenticar (→ 401) y que el frontend lleve al login con
+      `account_banned` / `account_deleted`. Afecta a toda la app: probar login, logout y un usuario baneado
+      con sesión abierta. Relacionado: `docs/user-account-deletion-plan.md` §4 punto 4.
+
+---
+
 ## Notas de decisiones pendientes (resolver antes de picar código)
 
 - ¿Un organizador puede tener varios venues/series, o 1:1? (ya hay M:N en el modelo, confirmar UX)

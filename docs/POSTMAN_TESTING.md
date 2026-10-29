@@ -1110,7 +1110,7 @@ una solicitud **NEW APPROVED** de ese usuario para ese organizador. Si le llegó
 admin con `PATCH /rest/admin/organizers/{id}/claim` → `403` y no se borra nada. El admin sigue borrando
 cualquiera con `DELETE /rest/admin/organizers/{id}`.
 
-**⏳ Pendiente de probar** (código en el commit de D13, 29/10; 166 tests en verde).
+**✅ Probado el 29/10** (casos a–d, código en el commit de D13; 166 tests en verde).
 
 Con tu cuenta, que es la única que tiene token: `<tu token>` y `<token admin>` son el mismo. Antes de
 cada caso, tu usuario no puede tener ningún organizador ni ninguna solicitud PENDING (si no, `409`
@@ -1192,7 +1192,8 @@ Authorization: Bearer <tu token>
 *Salsa Loca* sigue existiendo (`SELECT user_id FROM organizers WHERE id = '88888888-…'` → tu id) y su venue
 `99999999-…` sigue enlazado.
 
-Para terminar, el admin sí la borra:
+Para terminar, el admin sí la borra. Ojo con la URL: es `/rest/admin/organizers/…`, no `/rest/organizers/…`
+(con esa da `403`):
 
 ```
 DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888
@@ -1202,6 +1203,9 @@ Authorization: Bearer <token admin>
 **Esperado**: `204`. Si vas a seguir usando *Salsa Loca*, recarga el seed.
 
 ### c) Asignada a mano por el admin → el dueño no la puede borrar
+
+*Este caso desaparece con D10: `PATCH /rest/admin/organizers/{id}/claim` se borra (decidido el 29/10). Quitarlo
+entonces.*
 
 ```
 POST http://localhost:8081/rest/admin/organizers/unclaimed
