@@ -14,6 +14,9 @@ public class OrganizerRequestConflictException extends RuntimeException {
     public static final String VENUE_ALREADY_LINKED = "VENUE_ALREADY_LINKED";
     /** Approve: el tipo exige venue (D11) y el organizador no tiene ninguno. */
     public static final String VENUE_REQUIRED = "VENUE_REQUIRED";
+    /** Approve/reject: otro admin revisó la misma solicitud a la vez (@Version). No lo lanza el servicio:
+     * lo usa el handler de ObjectOptimisticLockingFailureException, porque el conflicto salta en el commit. */
+    public static final String CONCURRENT_UPDATE = "CONCURRENT_UPDATE";
 
     private final String code;
 

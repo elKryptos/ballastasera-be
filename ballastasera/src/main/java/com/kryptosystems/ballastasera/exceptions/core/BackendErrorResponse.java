@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.method.ParameterValidationResult;
@@ -17,8 +19,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import tools.jackson.databind.exc.MismatchedInputException;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -142,6 +146,34 @@ public class BackendErrorResponse {
                 request.getRequestURI(),
                 "Parameter '" + ex.getName() + "' should be of type " + requiredType,
                 HttpStatus.BAD_REQUEST
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    /** Body ilegible: falta, no es JSON válido o un valor no encaja con su tipo (ej. "reason": "FOO").
+     * Sin este handler caía en el genérico como 500. No se devuelve ex.getMessage(): lleva nombres de
+     * clases Java. Si se sabe el campo, va en errors.<campo>, como en handleValidation. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorDetails> handleNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        Map<String, String> errors = null;
+        if (ex.getCause() instanceof MismatchedInputException mismatch && !mismatch.getPath().isEmpty()) {
+            // El último tramo del path es el campo que falla; en un array no tiene nombre (null)
+            String field = mismatch.getPath().getLast().getPropertyName();
+            if (field != null) {
+                Class<?> type = mismatch.getTargetType();
+                errors = Map.of(field, type != null && type.isEnum()
+                        ? "must be one of " + Arrays.toString(type.getEnumConstants())
+                        : "has an invalid value");
+            }
+        }
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "Malformed request body",
+                request.getRequestURI(),
+                "The request body is missing, is not valid JSON or has a value of the wrong type",
+                HttpStatus.BAD_REQUEST,
+                errors
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
     }
@@ -290,6 +322,22 @@ public class BackendErrorResponse {
                 "Organizer request conflict",
                 HttpStatus.CONFLICT,
                 Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+    /** @Version (hoy solo OrganizerRequests): otra petición la modificó entre la lectura y el commit. Salta
+     * en el commit, fuera del servicio, por eso se traduce aquí. Mismo formato que los otros 409 con code. */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorDetails> handleOptimisticLock(ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "The resource was modified by another request",
+                request.getRequestURI(),
+                "Concurrent update",
+                HttpStatus.CONFLICT,
+                Map.of("code", OrganizerRequestConflictException.CONCURRENT_UPDATE)
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
