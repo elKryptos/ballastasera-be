@@ -1085,16 +1085,152 @@ Authorization: Bearer <token admin>
 
 **Esperado**: `204` y `22222222-…` sigue `ORGANIZER`.
 
-**C: ADMIN → nunca baja (y el DELETE del dueño).** Igual que B, pero con `"name": "Prova Demote C"` y el
-claim con `{ "userId": "<tu id de admin>" }` (te llega el email del claim). Después, con el endpoint
-del dueño:
+**C: ADMIN → nunca baja.** Igual que B, pero con `"name": "Prova Demote C"` y el claim con
+`{ "userId": "<tu id de admin>" }` (te llega el email del claim). Después, con el endpoint del admin:
 
 ```
-DELETE http://localhost:8081/rest/organizers/<id creado>
-Authorization: Bearer <tu token>
+DELETE http://localhost:8081/rest/admin/organizers/<id creado>
+Authorization: Bearer <token admin>
 ```
 
 **Esperado**: `204` y sigues `ADMIN`.
 
+*El 29/10 este caso se probó con el `DELETE /rest/organizers/{id}` del dueño. Desde D13 (§10), ese
+endpoint da `403` para un organizador asignado por el admin, así que ahora se borra con el del admin.*
+
 *Sin probar: `DELETE /rest/organizers/{id}` del dueño siendo USER → vuelve a USER. Hace falta el token de
 una segunda cuenta de Google que no sea admin; la lógica es la misma del caso A.*
+
+---
+
+## 10. D13: el dueño solo borra lo que creó con una NEW (organizador)
+
+Plan: `organizer-requests-plan.md` (fase 3, D13). `DELETE /rest/organizers/{id}` solo funciona si existe
+una solicitud **NEW APPROVED** de ese usuario para ese organizador. Si le llegó por CLAIM o se lo asignó el
+admin con `PATCH /rest/admin/organizers/{id}/claim` → `403` y no se borra nada. El admin sigue borrando
+cualquiera con `DELETE /rest/admin/organizers/{id}`.
+
+**⏳ Pendiente de probar** (código en el commit de D13, 29/10; 166 tests en verde).
+
+Con tu cuenta, que es la única que tiene token: `<tu token>` y `<token admin>` son el mismo. Antes de
+cada caso, tu usuario no puede tener ningún organizador ni ninguna solicitud PENDING (si no, `409`
+`ORGANIZER_LIMIT_REACHED` o `PENDING_REQUEST_EXISTS`):
+
+```sql
+SELECT id, name FROM organizers WHERE user_id = '<tu id>';
+SELECT id, type, status FROM organizer_requests WHERE user_id = '<tu id>' AND status = 'PENDING';
+```
+
+### a) NEW aprobada → el dueño la puede borrar
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "name": "Prova D13 New",
+  "organizerType": "PERSON",
+  "description": "Prova D13: organizzatore creato con una NEW.",
+  "instagram": "prova.d13.new",
+  "contactEmail": "prova.d13@example.com",
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `201`. Copia el `id` (`<request_id>`).
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/<request_id>/approve
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200` con `organizerId` (`<organizer_id>`).
+
+```
+DELETE http://localhost:8081/rest/organizers/<organizer_id>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `204`. El organizador ya no existe y sigues `ADMIN`.
+
+### b) CLAIM aprobada → el dueño no la puede borrar
+
+Necesita un organizador verificado y sin dueño. Si *Salsa Loca* (`88888888-…`) ya tiene dueño (por
+ejemplo, Ana de la §8), crea otro con `POST /rest/admin/organizers/unclaimed` (ya sale verificado) y usa
+su id como `targetOrganizerId`, o recarga el seed.
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <tu token>
+Content-Type: application/json
+
+{
+  "type": "CLAIM",
+  "targetOrganizerId": "88888888-8888-8888-8888-888888888888",
+  "instagram": "salsaloca.milano",
+  "contactEmail": "titolare@salsaloca.it",
+  "message": "Prova D13: sono il titolare.",
+  "termsAccepted": true
+}
+```
+
+```
+PATCH http://localhost:8081/rest/admin/organizer-requests/<request_id>/approve
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200`. Eres el dueño de *Salsa Loca*.
+
+```
+DELETE http://localhost:8081/rest/organizers/88888888-8888-8888-8888-888888888888
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `403` con `message: "This organizer is managed by BallaStasera: only an admin can delete it"`.
+*Salsa Loca* sigue existiendo (`SELECT user_id FROM organizers WHERE id = '88888888-…'` → tu id) y su venue
+`99999999-…` sigue enlazado.
+
+Para terminar, el admin sí la borra:
+
+```
+DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `204`. Si vas a seguir usando *Salsa Loca*, recarga el seed.
+
+### c) Asignada a mano por el admin → el dueño no la puede borrar
+
+```
+POST http://localhost:8081/rest/admin/organizers/unclaimed
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "name": "Prova D13 Claim", "type": "PERSON" }
+```
+
+**Esperado**: `201`. Copia el `id` (`<organizer_id>`).
+
+```
+PATCH http://localhost:8081/rest/admin/organizers/<organizer_id>/claim
+Authorization: Bearer <token admin>
+Content-Type: application/json
+
+{ "userId": "<tu id>" }
+```
+
+```
+DELETE http://localhost:8081/rest/organizers/<organizer_id>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `403`, el mismo mensaje que en b). Limpia con
+`DELETE http://localhost:8081/rest/admin/organizers/<organizer_id>` → `204`, y sigues `ADMIN`.
+
+### d) No es tuyo → el 403 de siempre
+
+`DELETE http://localhost:8081/rest/organizers/11111111-1111-1111-1111-111111111111` (*Tropical Milano*, del
+usuario `22222222-…`) con tu token → `403` con `message: "You are not owner of this organizer"`. Va antes
+que D13: si no eres el dueño, ni siquiera se mira la solicitud.
