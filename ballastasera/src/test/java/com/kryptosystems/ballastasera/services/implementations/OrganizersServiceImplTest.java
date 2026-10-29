@@ -58,6 +58,8 @@ class OrganizersServiceImplTest {
     void deleteRemovesOrganizerAndThenDemotesOwner() {
         Organizers organizer = organizer(user(OWNER_ID));
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
+        when(organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
+                ORGANIZER_ID, OWNER_ID, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED)).thenReturn(true);
 
         organizersService.delete(ORGANIZER_ID, OWNER_ID);
 
@@ -72,6 +74,19 @@ class OrganizersServiceImplTest {
         when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
 
         assertThatThrownBy(() -> organizersService.delete(ORGANIZER_ID, OTHER_USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(organizersRepository, never()).delete(any());
+        verifyNoInteractions(usersService);
+    }
+
+    /** D13: llegó por CLAIM o lo asignó el admin, no hay NEW APPROVED de ese usuario (false por defecto en Mockito). */
+    @Test
+    void deleteOfOrganizerNotCreatedByOwnerIsRejectedAndDeletesNothing() {
+        Organizers organizer = organizer(user(OWNER_ID));
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
+
+        assertThatThrownBy(() -> organizersService.delete(ORGANIZER_ID, OWNER_ID))
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(organizersRepository, never()).delete(any());

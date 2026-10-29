@@ -2,6 +2,8 @@ package com.kryptosystems.ballastasera.cache;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.EventStatus;
+import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
+import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
@@ -46,7 +48,7 @@ import static org.mockito.Mockito.*;
  * contando las llamadas a eventsRepository.findByIdWithDetails.
  */
 @SpringJUnitConfig
-@MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class, OrganizerRequestsRepository.class,
+@MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class,
         EventResolverService.class, ObjectStorageService.class, WebpConverterService.class, GeocodingService.class,
         EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class})
 class EventsCacheTest {
@@ -124,6 +126,9 @@ class EventsCacheTest {
 
     @MockitoBean
     private EventSeriesRepository eventSeriesRepository;
+
+    @MockitoBean
+    private OrganizerRequestsRepository organizerRequestsRepository;
 
     @BeforeEach
     void setUp() {
@@ -223,7 +228,12 @@ class EventsCacheTest {
         return Stream.of(
                 write("organizer update", t -> t.organizersService.update(ORGANIZER_ID, USER_ID, new OrganizerUpdateDto())),
                 write("organizer updateAsAdmin", t -> t.organizersService.updateAsAdmin(ORGANIZER_ID, new OrganizerUpdateDto())),
-                write("organizer delete", t -> t.organizersService.delete(ORGANIZER_ID, USER_ID)),
+                write("organizer delete", t -> {
+                    // D13: el dueño solo borra lo que nació de su NEW aprobada
+                    when(t.organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
+                            ORGANIZER_ID, USER_ID, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED)).thenReturn(true);
+                    t.organizersService.delete(ORGANIZER_ID, USER_ID);
+                }),
                 write("organizer deleteAsAdmin", t -> t.organizersService.deleteAsAdmin(ORGANIZER_ID)),
                 write("organizer claim", t -> {
                     // claim exige un organizador sin dueño; el del fixture tiene dueño para las otras escrituras

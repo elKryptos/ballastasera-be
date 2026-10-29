@@ -21,6 +21,10 @@ public interface OrganizerRequestsRepository extends JpaRepository<OrganizerRequ
     /** Al aprobar una CLAIM, encuentra las otras CLAIM PENDING del mismo organizador para rechazarlas. También lo usa deleteAsAdmin para
      cerrarlas antes de borrar. */
     List<OrganizerRequests> findByOrganizerIdAndTypeAndStatus(UUID organizerId, OrganizerRequestType type, OrganizerRequestStatus status);
+    /** D13: ¿el organizador nació de una NEW aprobada de ese usuario? Si no (CLAIM o asignado por el admin),
+     * su dueño no lo puede borrar. */
+    boolean existsByOrganizerIdAndUserIdAndTypeAndStatus(UUID organizerId, UUID userId,
+                                                         OrganizerRequestType type, OrganizerRequestStatus status);
 
     /** La última solicitud del usuario: GET /me y el logo a copiar al reenviar. */
     @Query("""

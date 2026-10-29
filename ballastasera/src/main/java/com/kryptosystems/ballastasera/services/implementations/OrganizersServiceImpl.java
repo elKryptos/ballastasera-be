@@ -95,6 +95,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     public void delete(UUID id, UUID requesterId){
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
+        assertDeletableByOwner(organizer, requesterId);
         organizersRepository.delete(organizer);
         usersService.demoteToUser(requesterId);
     }
@@ -192,6 +193,16 @@ public class OrganizersServiceImpl implements OrganizersService {
         // name (mín. 3) y limit (1-10) ya los valida el controller
         return organizersRepository.findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(
                 name.trim(), Limit.of(limit));
+    }
+
+    /** D13: el dueño solo borra lo que creó él con una NEW aprobada. Lo que llegó por CLAIM o le asignó el admin
+     * (PATCH /admin/organizers/{id}/claim) solo lo borra el admin: el perfil, el venue y los eventos los puso BallaStasera. */
+    private void assertDeletableByOwner(Organizers organizer, UUID requesterId) {
+        boolean createdByOwner = organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
+                organizer.getId(), requesterId, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED);
+        if (!createdByOwner) {
+            throw new AccessDeniedException("This organizer is managed by BallaStasera: only an admin can delete it");
+        }
     }
 
     private void assertOwnership(Organizers organizer, UUID requesterId){
