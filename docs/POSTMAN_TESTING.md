@@ -1238,3 +1238,102 @@ Authorization: Bearer <tu token>
 `DELETE http://localhost:8081/rest/organizers/11111111-1111-1111-1111-111111111111` (*Tropical Milano*, del
 usuario `22222222-…`) con tu token → `403` con `message: "You are not owner of this organizer"`. Va antes
 que D13: si no eres el dueño, ni siquiera se mira la solicitud.
+
+---
+
+## 11. D13: soltar un organizador (`release` del dueño y `unclaim` del admin)
+
+Plan: `organizer-requests-plan.md` (fase 3, D13 ampliada). Soltar le quita el dueño **sin borrar nada**
+(`user = null`, `claimed = false`). El organizador, su venue y sus eventos siguen igual, vuelve a salir en
+`claimable` y la CLAIM APPROVED se queda como historial. Lo que el dueño creó con una NEW nunca se suelta,
+solo se borra (§10).
+
+- `PATCH /rest/organizers/{id}/release`: el dueño, solo si le llegó por CLAIM o se lo asignó el admin.
+  `204`, sin email.
+- `PATCH /rest/admin/organizers/{id}/unclaim`: el admin, cualquiera con dueño menos los de una NEW. `200`
+  con `OrganizerDetailDto`, y el antiguo dueño recibe el email «Il profilo organizzatore non è più associato
+  al tuo account.» después del commit.
+
+*Sin probar todavía.*
+
+Con tu cuenta, como en la §10 (`<tu token>` y `<token admin>` son el mismo). Como eres `ADMIN`, sigues
+`ADMIN` después de soltar (`demoteToUser` solo baja a un `ORGANIZER`), y el email de `unclaim` te llega a ti.
+Antes de cada caso, sin organizadores ni solicitudes PENDING (las mismas SQL de la §10).
+
+### a) CLAIM aprobada → el dueño la suelta
+
+Haz la CLAIM sobre *Salsa Loca* y apruébala como en la §10 b) (si ya tiene dueño, recarga el seed).
+
+```
+PATCH http://localhost:8081/rest/organizers/88888888-8888-8888-8888-888888888888/release
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `204`. Comprueba:
+
+```sql
+SELECT user_id, claimed FROM organizers WHERE id = '88888888-8888-8888-8888-888888888888';      -- null, false
+SELECT organizer_id FROM venues WHERE id = '99999999-9999-9999-9999-999999999999';              -- sigue 88888888-…
+SELECT type, status FROM organizer_requests WHERE user_id = '<tu id>' ORDER BY created_at DESC; -- CLAIM APPROVED
+```
+
+`GET http://localhost:8081/rest/organizers/claimable?name=salsa` (sin token) → *Salsa Loca* vuelve a salir.
+`GET http://localhost:8081/rest/organizers/me` → `[]`. No llega ningún email.
+
+Un segundo `release` → `403` con `message: "You are not owner of this organizer"`: ya no es tuyo.
+
+### b) NEW aprobada → el dueño no la puede soltar
+
+Crea y aprueba una NEW como en la §10 a) (`<organizer_id>`).
+
+```
+PATCH http://localhost:8081/rest/organizers/<organizer_id>/release
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `403` con `message: "You created this organizer: delete it instead of releasing it"`. Sigues
+siendo el dueño (`SELECT user_id FROM organizers WHERE id = '<organizer_id>'` → tu id). Déjalo así para el
+caso e).
+
+### c) No es tuyo → el 403 de siempre
+
+`PATCH http://localhost:8081/rest/organizers/11111111-1111-1111-1111-111111111111/release` (*Tropical
+Milano*, del usuario `22222222-…`) con tu token → `403` con `message: "You are not owner of this
+organizer"`. Va antes que D13: si no eres el dueño, ni siquiera se mira la solicitud.
+
+### d) `unclaim` de una CLAIM aprobada
+
+Después del caso e) (sin organizadores), vuelve a hacer la CLAIM sobre *Salsa Loca* y apruébala: tras el
+caso a) está libre otra vez.
+
+```
+PATCH http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888/unclaim
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `200` con el organizador y `"claimed": false`. Las mismas SQL del caso a). Te llega el email
+«Il profilo organizzatore non è più associato al tuo account.» con el nombre *Salsa Loca*.
+
+Repetir el mismo `unclaim` → `409` con `errors.code = "ORGANIZER_NOT_CLAIMED"` (caso f).
+
+### e) `unclaim` de una NEW aprobada → 409, no cambia nada
+
+Con el organizador del caso b):
+
+```
+PATCH http://localhost:8081/rest/admin/organizers/<organizer_id>/unclaim
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `409` con `errors.code = "ORGANIZER_CREATED_BY_OWNER"`. Sigues siendo el dueño y no llega
+ningún email. Limpia con `DELETE http://localhost:8081/rest/admin/organizers/<organizer_id>` → `204`.
+
+### f) `unclaim` sin dueño y organizador que no existe
+
+- Un organizador sin dueño, por ejemplo *Salsa Loca* después del caso d) o uno recién creado con
+  `POST /rest/admin/organizers/unclaimed` → `409` con `errors.code = "ORGANIZER_NOT_CLAIMED"`.
+- `PATCH http://localhost:8081/rest/admin/organizers/00000000-0000-0000-0000-000000000000/unclaim` → `404`
+  con `message: "Organizer not found with id 00000000-…"`.
+
+*Sin probar: `unclaim` sin ser ADMIN → `403` (como en la §8, «Sin ser ADMIN»). Hace falta el token de una
+segunda cuenta.*
