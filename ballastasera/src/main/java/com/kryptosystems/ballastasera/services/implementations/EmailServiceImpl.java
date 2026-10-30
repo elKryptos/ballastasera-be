@@ -84,6 +84,22 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    @Async
+    public void sendOrganizerUnclaimedEmail(String toEmail, String organizerName) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject("Il profilo organizzatore non è più associato al tuo account.")
+                .html(buildUnclaimedEmail(organizerName))
+                .build();
+        try {
+            CreateEmailResponse data = resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di rimozione a {}", toEmail, e);
+        }
+    }
+
     private String buildEmailContent(String organizerName) {
         return "<h1>Profilo verificato</h1>" +
                 "<p>Il tuo profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> è stato verificato.</p>" +
@@ -95,6 +111,13 @@ public class EmailServiceImpl implements EmailService {
         return "<h1>Profilo assegnato</h1>" +
                 "<p>Il profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> ti è stato assegnato.</p>" +
                 "<p>Ora puoi pubblicare eventi da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
+                "<p>A presto sulla pista!</p>";
+    }
+
+    private String buildUnclaimedEmail(String organizerName) {
+        return "<h1>Profilo rimosso</h1>" +
+                "<p>Il profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> non è più associato al tuo account.</p>" +
+                "<p>Puoi inviare una nuova richiesta da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
                 "<p>A presto sulla pista!</p>";
     }
 

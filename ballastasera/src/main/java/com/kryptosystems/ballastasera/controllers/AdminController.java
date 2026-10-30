@@ -46,6 +46,7 @@ public class AdminController {
     private static final String UPDATE_ORGANIZER = "/organizers/{id}";
     private static final String DELETE_ORGANIZER = "/organizers/{id}";
     private static final String CLAIM_ORGANIZER = "/organizers/{id}/claim";
+    private static final String UNCLAIM_ORGANIZER = "/organizers/{id}/unclaim";
     private static final String CREATE_EVENT = "/events";
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
@@ -129,6 +130,14 @@ public class AdminController {
     public ResponseEntity<OrganizerDetailDto> claimOrganizer(@PathVariable UUID id,
                                                              @Valid @RequestBody OrganizerClaimDto body) {
         var organizer = organizersService.claim(id, body.getUserId());
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
+    }
+
+    /** D13: admin le quita el organizador a su dueño, sin borrarlo. 409 si no tiene dueño o si su dueño lo creó
+     * con una NEW (ese se borra con DELETE). */
+    @PatchMapping(UNCLAIM_ORGANIZER)
+    public ResponseEntity<OrganizerDetailDto> unclaimOrganizer(@PathVariable UUID id) {
+        var organizer = organizersService.unclaimAsAdmin(id);
         return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
     }
 

@@ -4,7 +4,9 @@ import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
+ import com.kryptosystems.ballastasera.events.OrganizerUnclaimedEvent;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
+import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
@@ -120,6 +122,39 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
+    public void release(UUID id, UUID requesterId) {
+        Organizers organizer = findById(id);
+        assertOwnership(organizer, requesterId);
+        if (isCreatedByOwner(organizer, requesterId)) {
+            throw new AccessDeniedException("You created this organizer: delete it instead of releasing it");
+        }
+        removeOwner(organizer);
+    }
+
+    /** @Transactional: el evento necesita una transacción (sin ella se descarta y no sale el email). */
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
+    public Organizers unclaimAsAdmin(UUID id) {
+        Organizers organizer = findById(id);
+        Users owner = organizer.getUser();
+        // «Tiene dueño» se mira con user, no con claimed
+        if (owner == null) {
+            throw new OrganizerRequestConflictException(OrganizerRequestConflictException.ORGANIZER_NOT_CLAIMED,
+                    "Organizer " + id + " has no owner");
+        }
+        if (isCreatedByOwner(organizer, owner.getId())) {
+            throw new OrganizerRequestConflictException(OrganizerRequestConflictException.ORGANIZER_CREATED_BY_OWNER,
+                    "Organizer was created by its owner: delete it instead of unclaiming it");
+        }
+        Organizers saved = removeOwner(organizer);
+        eventPublisher.publishEvent(new OrganizerUnclaimedEvent(owner.getEmail(), organizer.getName()));
+        return saved;
+    }
+
+    @Override
     public Organizers findVerifiedBySlug(String slug){
         return organizersRepository.findBySlugAndIsVerifiedTrue(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with slug " + slug));
@@ -198,11 +233,26 @@ public class OrganizersServiceImpl implements OrganizersService {
     /** D13: el dueño solo borra lo que creó él con una NEW aprobada. Lo que llegó por CLAIM o le asignó el admin
      * (PATCH /admin/organizers/{id}/claim) solo lo borra el admin: el perfil, el venue y los eventos los puso BallaStasera. */
     private void assertDeletableByOwner(Organizers organizer, UUID requesterId) {
-        boolean createdByOwner = organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
-                organizer.getId(), requesterId, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED);
-        if (!createdByOwner) {
+        if (!isCreatedByOwner(organizer, requesterId)) {
             throw new AccessDeniedException("This organizer is managed by BallaStasera: only an admin can delete it");
         }
+    }
+
+    /** D13: delete, release y unclaimAsAdmin usan la misma condición. */
+    private boolean isCreatedByOwner(Organizers organizer, UUID userId) {
+        return organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
+                organizer.getId(), userId, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED);
+    }
+
+    /** D13: release y unclaim. El organizador, su venue y sus eventos no cambian, y vuelve a claimable.
+     * demoteToUser ve ya user = null: Hibernate hace flush antes de su count (FlushMode AUTO). */
+    private Organizers removeOwner(Organizers organizer) {
+        UUID ownerId = organizer.getUser().getId();
+        organizer.setUser(null);
+        organizer.setClaimed(false);
+        Organizers saved = organizersRepository.save(organizer);
+        usersService.demoteToUser(ownerId);
+        return saved;
     }
 
     private void assertOwnership(Organizers organizer, UUID requesterId){

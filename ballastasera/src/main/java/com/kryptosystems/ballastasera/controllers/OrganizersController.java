@@ -40,6 +40,7 @@ public class OrganizersController {
     private static final String GET_ORGANIZER_VENUES = "/{id}/venues";
     private static final String GET_ORGANIZER_EVENT_SERIES = "/{id}/event-series";
     private static final String DELETE_ORGANIZER = "/{id}";
+    private static final String RELEASE_ORGANIZER = "/{id}/release";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -133,6 +134,14 @@ public class OrganizersController {
     @DeleteMapping(DELETE_ORGANIZER)
     public ResponseEntity<Void> deleteOrganizer(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         organizersService.delete(id, principal.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. D13: el dueño deja un organizador que no creó él. 403 si lo creó con una NEW:
+     * ese se borra con DELETE. */
+    @PatchMapping(RELEASE_ORGANIZER)
+    public ResponseEntity<Void> releaseOrganizer(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        organizersService.release(id, principal.getId());
         return ResponseEntity.noContent().build();
     }
 }

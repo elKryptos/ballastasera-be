@@ -33,4 +33,9 @@ public class OrganizerEmailListener {
                     event.getRejectionReason(), event.getRejectionMessage());
         }
     }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrganizerUnclaimed(OrganizerUnclaimedEvent event) {
+        emailService.sendOrganizerUnclaimedEmail(event.getToEmail(), event.getOrganizerName());
+    }
 }

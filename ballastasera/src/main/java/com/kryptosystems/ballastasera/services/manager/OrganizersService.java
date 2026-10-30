@@ -25,6 +25,15 @@ public interface OrganizersService {
 
     void deleteAsAdmin(UUID id);
 
+    /** D13: el dueño deja un organizador que le llegó por CLAIM o se lo asignó el admin (user=null,
+     * claimed=false) y baja a USER si no le quedan. Nunca borra: si lo creó él con una NEW, 403
+     * y tiene que usar delete. */
+    void release(UUID id, UUID requesterId);
+
+    /** D13: el admin le quita el organizador a su dueño, como release, y le avisa por email.
+     * 409 si no tiene dueño o si su dueño lo creó con una NEW (esos se borran con deleteAsAdmin). */
+    Organizers unclaimAsAdmin(UUID id);
+
     Page<Organizers> findPendingVerification(Pageable pageable);
 
     /** Aprueba: isVerified=true, sube el rol del dueno y le manda el email de notificacion. */
