@@ -1461,3 +1461,25 @@ VALUES ('88888888-8888-8888-8888-888888888888', NULL,
 UPDATE venues SET organizer_id = '88888888-8888-8888-8888-888888888888'
 WHERE id = '99999999-9999-9999-9999-999999999999';
 ```
+
+---
+
+## 13. Rutas que no existen → 404
+
+Sin handler, una URL mal escrita con token (por ejemplo `/rest/event` sin la s) daba `NoResourceFoundException`,
+que acababa en el handler genérico como `500` con el stack trace en el log. Ahora `handleNoResourceFound` en
+`BackendErrorResponse` devuelve `404` y un `WARN` de una línea.
+
+**✅ Probado el 31/10** (puerto 8080 ese día).
+
+```
+GET http://localhost:8081/rest/event/a818ad03-3ba4-45d5-a3d9-a4f0695273a7
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `404` con `message: "No endpoint GET /rest/event/a818ad03-…"` y `details: "Resource not found"`.
+
+- La misma URL sin token → `401` (Security corta antes de saber si la ruta existe).
+- `GET http://localhost:8081/rest/events/<id que existe>` → `200`.
+- `GET http://localhost:8081/rest/events/00000000-0000-0000-0000-000000000000` → `404` de `EntityNotFoundException`
+  («Event not found with id …»).

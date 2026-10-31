@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import tools.jackson.databind.exc.MismatchedInputException;
 
 import java.time.LocalDateTime;
@@ -134,6 +135,21 @@ public class BackendErrorResponse {
                 HttpStatus.METHOD_NOT_ALLOWED
         );
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(errorDetails);
+    }
+
+    /** Ruta que no existe (ej. /rest/event sin la s) con token: sin token Security ya da 401 antes. Sin este
+     * handler caia en el generico como 500. */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorDetails> handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "No endpoint " + ex.getHttpMethod() + " " + request.getRequestURI(),
+                request.getRequestURI(),
+                "Resource not found",
+                HttpStatus.NOT_FOUND
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDetails);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
