@@ -1462,6 +1462,25 @@ UPDATE venues SET organizer_id = '88888888-8888-8888-8888-888888888888'
 WHERE id = '99999999-9999-9999-9999-999999999999';
 ```
 
+### d) `status` en el detalle del evento (B, paso 4)
+
+`GET /rest/events/{id}` no filtra por estado: desde un enlace guardado, el FE ve si el evento está `CANCELLED` y
+muestra «Annullato». **✅ Probado el 31/10.**
+
+- `GET http://localhost:8081/rest/events/<id de un evento PUBLISHED>` (sin token) → `200` con `"status": "PUBLISHED"`.
+- Cancela otro por SQL y ábrelo:
+
+  ```sql
+  SELECT id, title, start_at, status FROM events WHERE status = 'PUBLISHED' AND start_at > now() ORDER BY start_at LIMIT 5;
+  UPDATE events SET status = 'CANCELLED' WHERE id = '<event_id>';
+  ```
+
+  `GET http://localhost:8081/rest/events/<event_id>` → `200` con `"status": "CANCELLED"`. Vuelve a dejarlo con
+  `UPDATE events SET status = 'PUBLISHED' WHERE id = '<event_id>';`.
+
+Ojo con Redis: el detalle se cachea 30 min en `eventDetail` y un `UPDATE` por SQL no lo vacía. Usa un evento que no
+hayas abierto o haz flush de Redis antes (en el despliegue también, fases 6/7 del plan).
+
 ---
 
 ## 13. Rutas que no existen → 404

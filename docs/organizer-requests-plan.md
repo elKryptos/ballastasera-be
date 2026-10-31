@@ -27,14 +27,14 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
 | 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
 | 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos, aplazados |
-| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). **← SIGUIENTE: retirar los eventos futuros al borrar (B)** |
+| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). **← SIGUIENTE: D10** |
 | 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: `status` en `EventDetailDto`** (B, paso 4; los pasos 1–3 de B, series sin organizador y
-eventos retirados al borrar, ya están hechos y probados en la §12). Después, por orden: borrar `pending`/`verify` y `PATCH
-/admin/organizers/{id}/claim` (D10) → ban en approve y `logoUrl` del dueño (revisión del 29/10) → D12.
+**Siguiente paso: D10**, borrar `pending`/`verify` y `PATCH /admin/organizers/{id}/claim` (B, los 4 pasos,
+hecho y probado en la §12; además, 404 para rutas que no existen, §13). Después, por orden: ban en approve y
+`logoUrl` del dueño (revisión del 29/10) → D12.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
 - `OTHER` sin mensaje se valida en `OrganizerRequestRejectDto` con un `@AssertTrue`
@@ -1237,7 +1237,7 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
   - Tests: dueño de una CLAIM suelta → ok y baja a USER · dueño de una NEW suelta → 403 · `unclaim` sin dueño
     → 409 `ORGANIZER_NOT_CLAIMED` · `unclaim` de una página creada con NEW → 409 `ORGANIZER_CREATED_BY_OWNER` y
     no cambia nada · `unclaim` publica el evento del email.
-- [ ] **D13, decidido el 29/10: al borrar un organizador se retiran sus eventos futuros (después de
+- [x] **D13, decidido el 29/10: al borrar un organizador se retiran sus eventos futuros (después de
       `release`/`unclaim`).** Hasta ahora, con `ON DELETE SET NULL`, sus eventos futuros seguían publicados sin
       organizador y nadie salvo el admin podía cancelarlos.
   1. ✅ **Bug que ya existía, hecho el 31/10 y probado en Postman (`POSTMAN_TESTING.md` §12):**
@@ -1255,7 +1255,7 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
      `deleteAsAdmin` **antes** de `organizersRepository.delete` (después `organizer_id` ya es null). Inyecta
      `EventsRepository` y `EventSeriesRepository`, como ya hace con `OrganizerRequestsRepository`. La caché
      ya se vacía (`EVENT_DETAIL`, `allEntries`). `release`/`unclaim` no tocan los eventos.
-  4. `status` en `EventDetailDto` (MapStruct lo mapea solo): `GET /rest/events/{id}` no filtra por estado y,
+  4. ✅ (31/10, §12 d) `status` en `EventDetailDto` (MapStruct lo mapea solo): `GET /rest/events/{id}` no filtra por estado y,
      desde un enlace guardado, un evento cancelado se veía como si siguiera en pie. El frontend muestra
      «Annullato».
   - Por qué cancelar y no borrar: mapa, lista por ciudad, eventos del organizador, favoritos y «ci vado»

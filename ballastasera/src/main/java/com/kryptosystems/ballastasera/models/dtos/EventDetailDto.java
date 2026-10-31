@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.EventType;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import lombok.Getter;
@@ -18,6 +19,9 @@ public class EventDetailDto {
     private String slug;
     private String title;
     private EventType eventType;
+
+    /** GET /rest/events/{id} no filtra por estado: desde un enlace guardado, el FE muestra «Annullato» si es CANCELLED. */
+    private EventStatus status;
     private String description;
     private String flyerUrl;
     private FlyerStatus flyerStatus;
