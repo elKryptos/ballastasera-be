@@ -38,14 +38,11 @@ import static com.kryptosystems.ballastasera.utilities.RestConstants.ADMIN;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private static final String GET_ORGANIZER_PENDING = "/organizers/pending";
     private static final String GET_ORGANIZER_VERIFIED = "/organizers/verified";
     private static final String GET_ORGANIZER_BY_ID = "/organizers/{id}";
-    private static final String ORGANIZER_VERIFY = "/organizers/{id}/verify";
     private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
     private static final String UPDATE_ORGANIZER = "/organizers/{id}";
     private static final String DELETE_ORGANIZER = "/organizers/{id}";
-    private static final String CLAIM_ORGANIZER = "/organizers/{id}/claim";
     private static final String UNCLAIM_ORGANIZER = "/organizers/{id}/unclaim";
     private static final String CREATE_EVENT = "/events";
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
@@ -73,16 +70,6 @@ public class AdminController {
     private final OrganizerRequestsService organizerRequestsService;
     private final OrganizerRequestMapper organizerRequestMapper;
 
-    /** Lista de organizadores pendientes de verificacion por un admin. */
-    @GetMapping(GET_ORGANIZER_PENDING)
-    public ResponseEntity<Page<OrganizerDetailDto>> getPending(@RequestParam(defaultValue = "0") int page,
-                                                               @RequestParam(defaultValue = "20") int size) {
-        Page<OrganizerDetailDto> result = organizersService
-                .findPendingVerification(PageRequest.of(page, size))
-                .map(organizerMapper::toOrganizerDetailDto);
-        return ResponseEntity.ok(result);
-    }
-
     /** Lista de organizadores ya verificados. */
     @GetMapping(GET_ORGANIZER_VERIFIED)
     public ResponseEntity<Page<OrganizerSummaryDto>> getVerified(@RequestParam(defaultValue = "0") int page,
@@ -96,12 +83,6 @@ public class AdminController {
     @GetMapping(GET_ORGANIZER_BY_ID)
     public ResponseEntity<OrganizerDetailDto> getOrganizerById(@PathVariable UUID id) {
         return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizersService.findById(id)));
-    }
-
-    /** Aprueba: isVerified=true, sube el rol del usuario y envia el email de notificacion. */
-    @PatchMapping(ORGANIZER_VERIFY)
-    public ResponseEntity<OrganizerDetailDto> verify(@PathVariable UUID id) {
-        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizersService.verify(id)));
     }
 
     /** Admin crea un organizer a partir de datos externos (Instagram, etc.), sin dueño todavia. */
@@ -123,14 +104,6 @@ public class AdminController {
     public ResponseEntity<Void> deleteOrganizer(@PathVariable UUID id) {
         organizersService.deleteAsAdmin(id);
         return ResponseEntity.noContent().build();
-    }
-
-    /** Admin asigna el organizer al usuario que lo reclamo. */
-    @PatchMapping(CLAIM_ORGANIZER)
-    public ResponseEntity<OrganizerDetailDto> claimOrganizer(@PathVariable UUID id,
-                                                             @Valid @RequestBody OrganizerClaimDto body) {
-        var organizer = organizersService.claim(id, body.getUserId());
-        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
     }
 
     /** D13: admin le quita el organizador a su dueño, sin borrarlo. 409 si no tiene dueño o si su dueño lo creó

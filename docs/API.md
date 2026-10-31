@@ -320,26 +320,6 @@ contenido del perfil.
 
 ---
 
-### `GET /api/admin/organizers/pending` — admin
-
-Lista paginada de organizadores con `isVerified=false`, para que un admin los revise.
-
-> Pendiente: este controller no tiene todavía `@PreAuthorize`/chequeo de rol — cualquier usuario
-> autenticado puede llamarlo hoy. Falta restringirlo a `ROLE_ADMIN`.
-
-**Respuesta** — `Page<OrganizerDetailDto>`.
-
----
-
-### `PATCH /api/admin/organizers/{id}/verify` — admin
-
-Aprueba al organizador: `isVerified=true`, sube el rol del usuario dueño, y le manda el email de
-notificación de aprobación.
-
-**Respuesta** — `OrganizerDetailDto`.
-
----
-
 ### `GET /auth/me` — requiere login
 
 Ya existía. Devuelve `userId`, `email`, `displayName`, `role`, `avatarUrl`, y ahora también

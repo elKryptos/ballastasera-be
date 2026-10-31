@@ -1060,7 +1060,8 @@ Authorization: Bearer <token admin>
 **Esperado**: `204` y Ana vuelve a `role = 'USER'`.
 
 **B: ORGANIZER con dos organizadores → sigue ORGANIZER.** El usuario `22222222-…` ya tiene
-*Tropical Milano*; se le asigna otro y se borra:
+*Tropical Milano*; se le da otro y se borra. Desde D10 no hay endpoint para asignar a mano, y el flujo
+de solicitudes no deja tener dos (D3), así que el segundo se asigna por SQL:
 
 ```
 POST http://localhost:8081/rest/admin/organizers/unclaimed
@@ -1070,12 +1071,8 @@ Content-Type: application/json
 { "name": "Prova Demote B", "type": "PERSON" }
 ```
 
-```
-PATCH http://localhost:8081/rest/admin/organizers/<id creado>/claim
-Authorization: Bearer <token admin>
-Content-Type: application/json
-
-{ "userId": "22222222-2222-2222-2222-222222222222" }
+```sql
+UPDATE organizers SET user_id = '22222222-2222-2222-2222-222222222222', claimed = true WHERE id = '<id creado>';
 ```
 
 ```
@@ -1085,18 +1082,18 @@ Authorization: Bearer <token admin>
 
 **Esperado**: `204` y `22222222-…` sigue `ORGANIZER`.
 
-**C: ADMIN → nunca baja.** Igual que B, pero con `"name": "Prova Demote C"` y el claim con
-`{ "userId": "<tu id de admin>" }` (te llega el email del claim). Después, con el endpoint del admin:
+**C: ADMIN → nunca baja.** Haz una CLAIM con tu cuenta de admin sobre *Salsa Loca* y apruébala, como en
+la §10 b). Después, con el endpoint del admin:
 
 ```
-DELETE http://localhost:8081/rest/admin/organizers/<id creado>
+DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888
 Authorization: Bearer <token admin>
 ```
 
-**Esperado**: `204` y sigues `ADMIN`.
+**Esperado**: `204` y sigues `ADMIN`. Recarga el seed si vas a seguir usando *Salsa Loca*.
 
-*El 29/10 este caso se probó con el `DELETE /rest/organizers/{id}` del dueño. Desde D13 (§10), ese
-endpoint da `403` para un organizador asignado por el admin, así que ahora se borra con el del admin.*
+*El 29/10 B y C se probaron asignando con `PATCH /rest/admin/organizers/{id}/claim`, que se borró con D10
+(31/10). La lógica de `demoteToUser` no cambia.*
 
 *Sin probar: `DELETE /rest/organizers/{id}` del dueño siendo USER → vuelve a USER. Hace falta el token de
 una segunda cuenta de Google que no sea admin; la lógica es la misma del caso A.*
@@ -1106,8 +1103,8 @@ una segunda cuenta de Google que no sea admin; la lógica es la misma del caso A
 ## 10. D13: el dueño solo borra lo que creó con una NEW (organizador)
 
 Plan: `organizer-requests-plan.md` (fase 3, D13). `DELETE /rest/organizers/{id}` solo funciona si existe
-una solicitud **NEW APPROVED** de ese usuario para ese organizador. Si le llegó por CLAIM o se lo asignó el
-admin con `PATCH /rest/admin/organizers/{id}/claim` → `403` y no se borra nada. El admin sigue borrando
+una solicitud **NEW APPROVED** de ese usuario para ese organizador. Si le llegó por CLAIM → `403` y no se
+borra nada. El admin sigue borrando
 cualquiera con `DELETE /rest/admin/organizers/{id}`.
 
 **✅ Probado el 29/10** (casos a–d, código en el commit de D13; 166 tests en verde).
@@ -1202,36 +1199,10 @@ Authorization: Bearer <token admin>
 
 **Esperado**: `204`. Si vas a seguir usando *Salsa Loca*, recarga el seed.
 
-### c) Asignada a mano por el admin → el dueño no la puede borrar
+### c) Asignada a mano por el admin
 
-*Este caso desaparece con D10: `PATCH /rest/admin/organizers/{id}/claim` se borra (decidido el 29/10). Quitarlo
-entonces.*
-
-```
-POST http://localhost:8081/rest/admin/organizers/unclaimed
-Authorization: Bearer <token admin>
-Content-Type: application/json
-
-{ "name": "Prova D13 Claim", "type": "PERSON" }
-```
-
-**Esperado**: `201`. Copia el `id` (`<organizer_id>`).
-
-```
-PATCH http://localhost:8081/rest/admin/organizers/<organizer_id>/claim
-Authorization: Bearer <token admin>
-Content-Type: application/json
-
-{ "userId": "<tu id>" }
-```
-
-```
-DELETE http://localhost:8081/rest/organizers/<organizer_id>
-Authorization: Bearer <tu token>
-```
-
-**Esperado**: `403`, el mismo mensaje que en b). Limpia con
-`DELETE http://localhost:8081/rest/admin/organizers/<organizer_id>` → `204`, y sigues `ADMIN`.
+*Quitado con D10 (31/10): `PATCH /rest/admin/organizers/{id}/claim` ya no existe. Asignar una página es
+una CLAIM aprobada, que es el caso b).*
 
 ### d) No es tuyo → el 403 de siempre
 
@@ -1248,7 +1219,7 @@ Plan: `organizer-requests-plan.md` (fase 3, D13 ampliada). Soltar le quita el du
 `claimable` y la CLAIM APPROVED se queda como historial. Lo que el dueño creó con una NEW nunca se suelta,
 solo se borra (§10).
 
-- `PATCH /rest/organizers/{id}/release`: el dueño, solo si le llegó por CLAIM o se lo asignó el admin.
+- `PATCH /rest/organizers/{id}/release`: el dueño, solo si le llegó por CLAIM.
   `204`, sin email.
 - `PATCH /rest/admin/organizers/{id}/unclaim`: el admin, cualquiera con dueño menos los de una NEW. `200`
   con `OrganizerDetailDto`, y el antiguo dueño recibe el email «Il profilo organizzatore non è più associato
@@ -1502,3 +1473,32 @@ Authorization: Bearer <token admin>
 - `GET http://localhost:8081/rest/events/<id que existe>` → `200`.
 - `GET http://localhost:8081/rest/events/00000000-0000-0000-0000-000000000000` → `404` de `EntityNotFoundException`
   («Event not found with id …»).
+
+---
+
+## 14. D10: endpoints antiguos borrados
+
+Plan: `organizer-requests-plan.md` (fase 3, D10). Se borran los del flujo antiguo:
+- `GET /rest/admin/organizers/pending` y `PATCH /rest/admin/organizers/{id}/verify`: los sustituyen
+  `GET /rest/admin/organizer-requests` (+ detalle) y `PATCH /rest/admin/organizer-requests/{id}/approve`/`reject`.
+- `PATCH /rest/admin/organizers/{id}/claim` (asignación manual, `OrganizerClaimDto`): lo sustituye una CLAIM
+  aprobada (`claimable` + `POST /rest/organizer-requests` + `approve`); para deshacer, `unclaim`/`release` (§11).
+
+`OrganizersService.claim()` se queda: lo usa `approve`.
+
+**✅ Probado el 31/10** (puerto 8080 ese día). Todo con `<token admin>`:
+
+| Petición | Esperado |
+|---|---|
+| `GET http://localhost:8081/rest/admin/organizers/pending` | `400`: "pending" cae ahora en `GET /organizers/{id}` y no es un UUID |
+| `PATCH http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888/verify` | `404` con `message: "No endpoint PATCH …/verify"` (§13) |
+| `PATCH http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888/claim` con `{"userId": "<tu id>"}` | `404` con `message: "No endpoint PATCH …/claim"` |
+
+Lo que se queda sigue igual:
+
+| Petición | Esperado |
+|---|---|
+| `GET http://localhost:8081/rest/admin/organizers/verified` | `200` |
+| `GET http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888` | `200` |
+| CLAIM + approve sobre *Salsa Loca*, como en la §10 b) | approve `200`, la página tiene dueño y llega el email |
+| `PATCH http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888/unclaim` | `200`, la página vuelve a estar libre |

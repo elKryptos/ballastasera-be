@@ -18,7 +18,6 @@ import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
-import com.kryptosystems.ballastasera.services.manager.EmailService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
@@ -44,7 +43,6 @@ public class OrganizersServiceImpl implements OrganizersService {
 
     private final OrganizersRepository organizersRepository;
     private final UsersService usersService;
-    private final EmailService emailService;
     private final OrganizerMapper organizerMapper;
     private final OrganizerRequestsRepository organizerRequestsRepository;
     private final EventsRepository eventsRepository;
@@ -208,25 +206,6 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
-    public Page<Organizers> findPendingVerification(Pageable pageable){
-        return organizersRepository.findByIsVerifiedFalse(pageable);
-    }
-
-    @Override
-    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
-    public Organizers verify(UUID id) {
-        Organizers organizer = findById(id);
-        organizer.setVerified(true);
-        Organizers saved = organizersRepository.save(organizer);
-        if (organizer.getUser() == null) {
-            return saved;
-        }
-        usersService.promoteToOrganizer(organizer.getUser().getId());
-        emailService.sendOrganizerApprovedEmail(organizer.getUser().getEmail(), organizer.getName());
-        return saved;
-    }
-
-    @Override
     public Page<Organizers> findVerified(Pageable pageable) {
         return organizersRepository.findByIsVerifiedTrue(pageable);
     }
@@ -238,8 +217,8 @@ public class OrganizersServiceImpl implements OrganizersService {
                 name.trim(), Limit.of(limit));
     }
 
-    /** D13: el dueño solo borra lo que creó él con una NEW aprobada. Lo que llegó por CLAIM o le asignó el admin
-     * (PATCH /admin/organizers/{id}/claim) solo lo borra el admin: el perfil, el venue y los eventos los puso BallaStasera. */
+    /** D13: el dueño solo borra lo que creó él con una NEW aprobada. Lo que llegó por CLAIM solo lo borra el admin:
+     * el perfil, el venue y los eventos los puso BallaStasera. */
     private void assertDeletableByOwner(Organizers organizer, UUID requesterId) {
         if (!isCreatedByOwner(organizer, requesterId)) {
             throw new AccessDeniedException("This organizer is managed by BallaStasera: only an admin can delete it");

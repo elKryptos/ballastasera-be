@@ -240,7 +240,6 @@ class EventsCacheTest {
                     t.organizersRepository.findById(ORGANIZER_ID).orElseThrow().setUser(null);
                     t.organizersService.claim(ORGANIZER_ID, USER_ID);
                 }),
-                write("organizer verify", t -> t.organizersService.verify(ORGANIZER_ID)),
                 write("venue update", t -> t.venuesService.updateVenueAsAdmin(VENUE_ID, new VenueUpdateDto())),
                 write("venue updateLogo", t -> t.venuesService.updateLogoAsAdmin(VENUE_ID, image())),
                 write("venue deleteLogo", t -> t.venuesService.deleteLogoAsAdmin(VENUE_ID)),

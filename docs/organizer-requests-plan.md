@@ -27,14 +27,13 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
 | 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
 | 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos, aplazados |
-| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). **← SIGUIENTE: D10** |
+| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). D10 (borrar `pending`, `verify` y `claim` manual): hecho y probado en Postman (§14). **← SIGUIENTE: ban en approve y `logoUrl` del dueño** |
 | 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: D10**, borrar `pending`/`verify` y `PATCH /admin/organizers/{id}/claim` (B, los 4 pasos,
-hecho y probado en la §12; además, 404 para rutas que no existen, §13). Después, por orden: ban en approve y
-`logoUrl` del dueño (revisión del 29/10) → D12.
+**Siguiente paso: ban en approve y `logoUrl` del dueño** (revisión del 29/10). Hechos el 31/10: B (§12), 404
+para rutas que no existen (§13) y D10 (§14). Después: D12.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
 - `OTHER` sin mensaje se valida en `OrganizerRequestRejectDto` con un `@AssertTrue`
@@ -1285,8 +1284,11 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
       `venuesRepository.findByOrganizerId(organizer.getId())`; si no → 403 `AccessDeniedException`
       («Venue not owned by this organizer»). Un método privado en cada servicio, llamado justo antes de
       `resolveVenue`. En `update` solo se comprueba si el body cambia `venueId`.
-- [ ] Borrar `GET /rest/admin/organizers/pending`, `PATCH /rest/admin/organizers/{id}/verify`,
+- [x] Borrar `GET /rest/admin/organizers/pending`, `PATCH /rest/admin/organizers/{id}/verify`,
       `OrganizersService.findPendingVerification` y `verify`, y `OrganizersRepository.findByIsVerifiedFalse` (D10).
+      *Hecho el 31/10 y probado en Postman (`POSTMAN_TESTING.md` §14), 165 tests en verde (sale el caso
+      `organizer verify` de `EventsCacheTest`). También fuera el `EmailService` de `OrganizersServiceImpl`, que
+      solo usaba `verify`. §10 c quitado y §9 B/C reescritos sin el `claim` manual. `API.md` sin `pending`/`verify`.*
       `GET /rest/admin/organizers/verified` se queda (lo usa `verified-organizer-list`).
       **Añadido 29/10: borrar también `PATCH /rest/admin/organizers/{id}/claim`** (`CLAIM_ORGANIZER` en
       `AdminController` y `OrganizerClaimDto` si nadie más lo usa). Se saltaba las reglas del flujo nuevo: no

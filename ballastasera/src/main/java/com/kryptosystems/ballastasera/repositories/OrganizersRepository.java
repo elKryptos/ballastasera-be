@@ -19,8 +19,6 @@ public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
 
     List<Organizers> findByUserId(UUID userId);
 
-    Page<Organizers> findByIsVerifiedFalse(Pageable pageable);
-
     Page<Organizers> findByIsVerifiedTrue(Pageable pageable);
 
     long countByUserId(UUID userId); //cuántos organizadores tiene el usuario (límite MAX_ORGANIZERS_PER_USER)

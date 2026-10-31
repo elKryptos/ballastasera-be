@@ -10,7 +10,6 @@ import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
-import com.kryptosystems.ballastasera.services.manager.EmailService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -53,9 +52,6 @@ class OrganizersServiceImplTest {
     private UsersService usersService;
 
     @Mock
-    private EmailService emailService;
-
-    @Mock
     private OrganizerMapper organizerMapper;
 
     @InjectMocks
@@ -88,7 +84,7 @@ class OrganizersServiceImplTest {
         verifyNoInteractions(usersService);
     }
 
-    /** D13: llegó por CLAIM o lo asignó el admin, no hay NEW APPROVED de ese usuario (false por defecto en Mockito). */
+    /** D13: llegó por CLAIM, no hay NEW APPROVED de ese usuario (false por defecto en Mockito). */
     @Test
     void deleteOfOrganizerNotCreatedByOwnerIsRejectedAndDeletesNothing() {
         Organizers organizer = organizer(user(OWNER_ID));

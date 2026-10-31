@@ -25,7 +25,7 @@ public interface OrganizersService {
 
     void deleteAsAdmin(UUID id);
 
-    /** D13: el dueño deja un organizador que le llegó por CLAIM o se lo asignó el admin (user=null,
+    /** D13: el dueño deja un organizador que le llegó por CLAIM (user=null,
      * claimed=false) y baja a USER si no le quedan. Nunca borra: si lo creó él con una NEW, 403
      * y tiene que usar delete. */
     void release(UUID id, UUID requesterId);
@@ -33,11 +33,6 @@ public interface OrganizersService {
     /** D13: el admin le quita el organizador a su dueño, como release, y le avisa por email.
      * 409 si no tiene dueño o si su dueño lo creó con una NEW (esos se borran con deleteAsAdmin). */
     Organizers unclaimAsAdmin(UUID id);
-
-    Page<Organizers> findPendingVerification(Pageable pageable);
-
-    /** Aprueba: isVerified=true, sube el rol del dueno y le manda el email de notificacion. */
-    Organizers verify(UUID id);
 
     /** Regresa los organizadores que ya han sido verificados. */
     Page<Organizers> findVerified(Pageable pageable);
@@ -49,7 +44,7 @@ public interface OrganizersService {
     /** Admin crea el perfil sin dueño, a partir de datos externos (ej. Instagram). Nace verified=true y claimed=false. */
     Organizers createUnclaimed(OrganizerCreateDto dto);
 
-    /** Admin asigna el organizer a un usuario real: user=userId, claimed=true, promueve el rol y notifica por email. */
+    /** Approve de una CLAIM: user=userId, claimed=true, promueve el rol y notifica por email. */
     Organizers claim(UUID organizerId, UUID userId);
 
     /** Buscador del wizard (CLAIM): organizadores verificados y sin dueño cuyo nombre contiene name, por orden alfabético. */
