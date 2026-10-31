@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
@@ -13,6 +14,8 @@ import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
+import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
+import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EmailService;
@@ -31,6 +34,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +47,8 @@ public class OrganizersServiceImpl implements OrganizersService {
     private final EmailService emailService;
     private final OrganizerMapper organizerMapper;
     private final OrganizerRequestsRepository organizerRequestsRepository;
+    private final EventsRepository eventsRepository;
+    private final EventSeriesRepository eventSeriesRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -98,6 +104,7 @@ public class OrganizersServiceImpl implements OrganizersService {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
         assertDeletableByOwner(organizer, requesterId);
+        retireUpcomingEvents(id);
         organizersRepository.delete(organizer);
         usersService.demoteToUser(requesterId);
     }
@@ -115,6 +122,7 @@ public class OrganizersServiceImpl implements OrganizersService {
             claim.setStatus(OrganizerRequestStatus.CANCELLED);
             claim.setRejectionMessage("La pagina è stata rimossa.");
         }
+        retireUpcomingEvents(id);
         organizersRepository.delete(organizer);
         if (owner != null) {
             usersService.demoteToUser(owner.getId());
@@ -242,6 +250,14 @@ public class OrganizersServiceImpl implements OrganizersService {
     private boolean isCreatedByOwner(Organizers organizer, UUID userId) {
         return organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
                 organizer.getId(), userId, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED);
+    }
+
+    /** D13: delete y deleteAsAdmin, antes de borrar (después organizer_id ya es null). Eventos futuros a CANCELLED
+     * y series inactivas; los pasados y los que están en curso no se tocan. */
+    private void retireUpcomingEvents(UUID organizerId) {
+        OffsetDateTime now = OffsetDateTime.now();
+        eventsRepository.cancelUpcomingByOrganizerId(organizerId, now, EventStatus.CANCELLED);
+        eventSeriesRepository.deactivateByOrganizerId(organizerId, now);
     }
 
     /** D13: release y unclaim. El organizador, su venue y sus eventos no cambian, y vuelve a claimable.

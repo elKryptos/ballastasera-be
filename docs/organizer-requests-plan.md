@@ -32,8 +32,8 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: retirar los eventos futuros al borrar** (B: D13, fase 3; el paso 1, series sin organizador,
-ya está hecho y probado en la §12). Después, por orden: borrar `pending`/`verify` y `PATCH
+**Siguiente paso: `status` en `EventDetailDto`** (B, paso 4; los pasos 1–3 de B, series sin organizador y
+eventos retirados al borrar, ya están hechos y probados en la §12). Después, por orden: borrar `pending`/`verify` y `PATCH
 /admin/organizers/{id}/claim` (D10) → ban en approve y `logoUrl` del dueño (revisión del 29/10) → D12.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
@@ -1246,12 +1246,12 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
      daba 404; ahora es `LEFT JOIN FETCH`, como en `EventsRepository`. `buildDetailDto` hacía
      `series.getOrganizer().getInstagram()` (NPE) y `assertOwnership` hacía `series.getOrganizer().getUser()`
      (500 en vez de 403); los dos comprueban ya `organizer == null`, como `EventsServiceImpl.assertOwnership`.
-  2. `EventsRepository.cancelUpcomingByOrganizerId(organizerId, now, CANCELLED)` y
+  2. ✅ (31/10, §12 c) `EventsRepository.cancelUpcomingByOrganizerId(organizerId, now, CANCELLED)` y
      `EventSeriesRepository.deactivateByOrganizerId(organizerId, now)`: `UPDATE` JPQL con `@Modifying`;
      `updatedAt` a mano porque el `UPDATE` masivo no pasa por `@UpdateTimestamp`. Eventos con
      `startAt > now` y no `CANCELLED` (también `DRAFT`/`PENDING`) → `CANCELLED`; series → `active = false`.
      Los pasados y los que están en curso no se tocan.
-  3. `retireUpcomingEvents(organizerId)` privado en `OrganizersServiceImpl`, llamado por `delete` y
+  3. ✅ (31/10, §12 c) `retireUpcomingEvents(organizerId)` privado en `OrganizersServiceImpl`, llamado por `delete` y
      `deleteAsAdmin` **antes** de `organizersRepository.delete` (después `organizer_id` ya es null). Inyecta
      `EventsRepository` y `EventSeriesRepository`, como ya hace con `OrganizerRequestsRepository`. La caché
      ya se vacía (`EVENT_DETAIL`, `allEntries`). `release`/`unclaim` no tocan los eventos.

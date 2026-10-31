@@ -47,6 +47,16 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     @Query("UPDATE Events e SET e.goingCount = e.goingCount - 1 WHERE e.id IN :eventIds AND e.goingCount > 0")
     void decrementGoingCountForEvents(@Param("eventIds") List<UUID> eventIds);
 
+    /** Al borrar un organizador: sus eventos futuros pasan a CANCELLED. Los pasados y los que están en curso no se tocan. */
+    @Modifying
+    @Query("""
+            UPDATE Events e SET e.status = :cancelled, e.updatedAt = :now
+            WHERE e.organizer.id = :organizerId AND e.startAt > :now AND e.status <> :cancelled
+            """)
+    int cancelUpcomingByOrganizerId(@Param("organizerId") UUID organizerId,
+                                    @Param("now") OffsetDateTime now,
+                                    @Param("cancelled") EventStatus cancelled);
+
     /**
      * Ids de eventos publicados para el mapa: en curso o que empiezan antes de :to,
      * dentro del bounding box visible. Un evento sin end_at se asume que dura 4h desde start_at.
@@ -96,8 +106,5 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
             """)
     Optional<Events> findByIdWithDetails(@Param("id") UUID id);
 
-    List<Events> findByOrganizerIdAndStatusOrderByStartAtDesc(
-            UUID organizerId,
-            EventStatus status
-    );
+    List<Events> findByOrganizerIdAndStatusOrderByStartAtDesc(UUID organizerId, EventStatus status);
 }

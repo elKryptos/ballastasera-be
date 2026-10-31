@@ -2,9 +2,11 @@ package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.models.entities.EventSeries;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,4 +25,12 @@ public interface EventSeriesRepository extends JpaRepository<EventSeries, UUID> 
             WHERE s.id = :id
             """)
     Optional<EventSeries> findByIdWithDetails(@Param("id") UUID id);
+
+    /** Al borrar un organizador: sus series dejan de generar ocurrencias. */
+    @Modifying
+    @Query("""
+            UPDATE EventSeries s SET s.active = false, s.updatedAt = :now
+            WHERE s.organizer.id = :organizerId AND s.active = true
+            """)
+    int deactivateByOrganizerId(@Param("organizerId") UUID organizerId, @Param("now") OffsetDateTime now);
 }

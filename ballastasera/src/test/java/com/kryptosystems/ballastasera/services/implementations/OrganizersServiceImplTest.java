@@ -6,6 +6,8 @@ import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
+import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
+import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.services.manager.EmailService;
@@ -40,6 +42,12 @@ class OrganizersServiceImplTest {
 
     @Mock
     private OrganizerRequestsRepository organizerRequestsRepository;
+
+    @Mock
+    private EventsRepository eventsRepository;
+
+    @Mock
+    private EventSeriesRepository eventSeriesRepository;
 
     @Mock
     private UsersService usersService;

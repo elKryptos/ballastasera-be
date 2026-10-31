@@ -1342,7 +1342,7 @@ El mismo `PATCH .../unclaim` con el token de una cuenta USER → `403` (como en 
 
 ---
 
-## 12. Series sin organizador (B, paso 1)
+## 12. Series sin organizador y eventos retirados al borrar (B, pasos 1–3)
 
 Plan: `organizer-requests-plan.md` (fase 3, D13: retirar los eventos futuros al borrar, paso 1). Cuando se
 borra un organizador, `ON DELETE SET NULL` deja `organizer_id` a null en sus series. Antes:
@@ -1400,3 +1400,64 @@ UPDATE event_series SET organizer_id = NULL WHERE id = '<series_id>';
 - `DELETE http://localhost:8081/rest/event-series/<series_id>` con el mismo token → el mismo `403`.
 
 Limpia con `DELETE FROM event_series WHERE id = '<series_id>';` (sin ocurrencias generadas, no hay eventos).
+
+### c) Borrar el organizador retira sus eventos futuros (B, pasos 2 y 3)
+
+Al borrar un organizador (`delete` del dueño y `deleteAsAdmin`), `retireUpcomingEvents` pasa sus eventos
+futuros a `CANCELLED` y desactiva sus series **antes** del `DELETE` (después `organizer_id` ya es null). Los
+pasados y los que están en curso no se tocan. `release`/`unclaim` no tocan los eventos.
+
+**✅ Probado el 31/10** con `deleteAsAdmin` sobre *Salsa Loca* (puerto 8080 ese día).
+
+1. Crea la serie como en el caso a) y genera ocurrencias (hoy sábado 31/10: 3 viernes pasados y 4 futuros):
+
+   ```
+   POST http://localhost:8081/rest/admin/event-series/<series_id>/occurrences
+   Authorization: Bearer <token admin>
+   Content-Type: application/json
+   ```
+
+   ```json
+   { "startDate": "2026-10-16", "endDate": "2026-11-27" }
+   ```
+
+   **Esperado**: `201` con 7 eventos.
+
+2. Antes de borrar:
+
+   ```sql
+   SELECT start_at::date AS dia, status, organizer_id, updated_at
+   FROM events WHERE series_id = '<series_id>' ORDER BY start_at;          -- 7 PUBLISHED, organizer 88888888-…
+   SELECT active, organizer_id, updated_at FROM event_series WHERE id = '<series_id>';  -- true
+   ```
+
+3. `DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888` con
+   `<token admin>` → `204`. Después:
+
+   ```sql
+   SELECT start_at::date AS dia, status, organizer_id, updated_at
+   FROM events WHERE series_id = '<series_id>' ORDER BY start_at;
+   -- 16/10, 23/10, 30/10 → PUBLISHED, updated_at sin cambios
+   -- 06/11 … 27/11 → CANCELLED, updated_at de ahora
+   -- organizer_id → NULL en las 7 (ON DELETE SET NULL)
+   SELECT active, organizer_id, updated_at FROM event_series WHERE id = '<series_id>';  -- false, NULL, de ahora
+   ```
+
+4. `GET http://localhost:8081/rest/event-series/<series_id>` (sin token) → `200`. Generar ocurrencias otra vez
+   (`"endDate": "2026-12-31"`) → error de `EventSeriesInactiveException`.
+
+Limpieza: borra la prueba y restaura *Salsa Loca* (el `INSERT` es el del seed, `seed_test_data.sql`):
+
+```sql
+DELETE FROM events WHERE series_id = '<series_id>';
+DELETE FROM event_series WHERE id = '<series_id>';
+
+INSERT INTO organizers (id, user_id, name, slug, type, description, contact_email, instagram, is_verified, claimed)
+VALUES ('88888888-8888-8888-8888-888888888888', NULL,
+        'Salsa Loca Milano', 'salsa-loca-milano', 'SCHOOL',
+        'Scuola di salsa e bachata in zona Isola. Corsi tutte le sere, social il venerdì.',
+        'info@salsaloca.it', 'salsaloca.milano', true, false);
+
+UPDATE venues SET organizer_id = '88888888-8888-8888-8888-888888888888'
+WHERE id = '99999999-9999-9999-9999-999999999999';
+```
