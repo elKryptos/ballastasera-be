@@ -15,15 +15,10 @@ Convención de estado (la misma que `ROADMAP.md`):
 - `[~]` en progreso (dejar nota de qué falta)
 - `[x]` hecho y probado (tests + Postman)
 
-## ▶ Dónde retomar (actualizado 30/10/2026)
+## ▶ Dónde retomar (actualizado 31/10/2026)
 
-Rama `feature/organizer-requests`. El push lo hace el usuario.
-- Ya en el remoto: todo hasta `ef64c74`, incluidos los commits del 27/10 (lista, detalle, emails después
-  del commit, approve y sus docs de Postman).
-- **Pendientes de push (29/10):** `4910656` reject · `8a78043` handlers 400 (body ilegible) y 409
-  (`CONCURRENT_UPDATE`) · `e35e9d6` doc Postman (§8 reject + handlers, §9 fase 0) · `5dec3b2` D13 (borrar)
-  · `7b498e5` plan + `POSTMAN_TESTING.md` §10 · `3cd6d69` plan revisado + notas de borrado de cuenta.
-- **Sin commit (30/10):** `release` + `unclaim` (código), este plan y `POSTMAN_TESTING.md` §11.
+Rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `b6b6e40`
+(`release` + `unclaim` y su §11 incluidos); nada pendiente de push.
 
 Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 
@@ -32,14 +27,13 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
 | 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
 | 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos, aplazados |
-| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: código hecho el 30/10, **falta probarlo en Postman (§11)**. **← SIGUIENTE: retirar los eventos futuros al borrar (B)** |
+| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). **← SIGUIENTE: retirar los eventos futuros al borrar (B)** |
 | 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: probar `release` + `unclaim` en Postman** (`POSTMAN_TESTING.md` §11, casos a–f; el d va
-después del e) y hacer el commit. Después, por orden: retirar los eventos futuros al borrar (B: D13, fase 3;
-antes arreglar el 500 de las series sin organizador) → borrar `pending`/`verify` y `PATCH
+**Siguiente paso: retirar los eventos futuros al borrar** (B: D13, fase 3; antes arreglar el 500 de las
+series sin organizador). Después, por orden: borrar `pending`/`verify` y `PATCH
 /admin/organizers/{id}/claim` (D10) → ban en approve y `logoUrl` del dueño (revisión del 29/10) → D12.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
@@ -1206,14 +1200,15 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
       `deleteOfOrganizerNotCreatedByOwnerIsRejectedAndDeletesNothing` y, en `EventsCacheTest`,
       `OrganizerRequestsRepository` como campo `@MockitoBean` con stub en «organizer delete». Probado en
       Postman el 29/10: `POSTMAN_TESTING.md` §10 (a–d). El caso C de §9 ya usa el DELETE del admin.*
-- [~] **D13, ampliada el 29/10: soltar el organizador.** Un método privado en `OrganizersServiceImpl` que pone
+- [x] **D13, ampliada el 29/10: soltar el organizador.** Un método privado en `OrganizersServiceImpl` que pone
       `user = null` y `claimed = false` y llama a `demoteToUser` del antiguo dueño, usado por:
       *Código hecho el 30/10, 166 tests en verde: constantes `ORGANIZER_NOT_CLAIMED` y
       `ORGANIZER_CREATED_BY_OWNER`, `OrganizerUnclaimedEvent`, `EmailService.sendOrganizerUnclaimedEmail`
       (texto solo con «invia una nuova richiesta»: el remitente es noreply), `onOrganizerUnclaimed` en el
       listener, `release` + `unclaimAsAdmin` con los privados `removeOwner` e `isCreatedByOwner` (que ahora
       usa también `assertDeletableByOwner`), y los dos endpoints. `SecurityConfig` sin cambios: `release` cae
-      en `anyRequest().authenticated()` y `unclaim` en `/rest/admin/**`. Falta: Postman (§11) y los tests.
+      en `anyRequest().authenticated()` y `unclaim` en `/rest/admin/**`. Probado en Postman el 31/10
+      (`POSTMAN_TESTING.md` §11, con una cuenta USER y otra ADMIN). Faltan los tests (fase 4).
       Confirmado el 30/10: el admin no puede hacer `unclaim` de una página creada con NEW (409), solo
       borrarla.*
   - `release(id, requesterId)` → `PATCH /rest/organizers/{id}/release` (204): `assertOwnership` y 403 si

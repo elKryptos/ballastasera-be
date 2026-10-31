@@ -1254,7 +1254,8 @@ solo se borra (§10).
   con `OrganizerDetailDto`, y el antiguo dueño recibe el email «Il profilo organizzatore non è più associato
   al tuo account.» después del commit.
 
-*Sin probar todavía.*
+**✅ Probado el 31/10** (casos a–f, código en `fb8894d`), con una cuenta USER y otra ADMIN: incluye el
+`unclaim` sin ser ADMIN → `403` del final.
 
 Con tu cuenta, como en la §10 (`<tu token>` y `<token admin>` son el mismo). Como eres `ADMIN`, sigues
 `ADMIN` después de soltar (`demoteToUser` solo baja a un `ORGANIZER`), y el email de `unclaim` te llega a ti.
@@ -1335,5 +1336,6 @@ ningún email. Limpia con `DELETE http://localhost:8081/rest/admin/organizers/<o
 - `PATCH http://localhost:8081/rest/admin/organizers/00000000-0000-0000-0000-000000000000/unclaim` → `404`
   con `message: "Organizer not found with id 00000000-…"`.
 
-*Sin probar: `unclaim` sin ser ADMIN → `403` (como en la §8, «Sin ser ADMIN»). Hace falta el token de una
-segunda cuenta.*
+### g) `unclaim` sin ser ADMIN
+
+El mismo `PATCH .../unclaim` con el token de una cuenta USER → `403` (como en la §8, «Sin ser ADMIN»).
