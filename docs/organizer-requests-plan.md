@@ -26,14 +26,16 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 |---|---|
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
 | 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
-| 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos, aplazados |
-| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). D10 (borrar `pending`, `verify` y `claim` manual): hecho y probado en Postman (§14). Ban en approve: hecho y probado (§8). **← SIGUIENTE: `logoUrl` del dueño** |
+| 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos: decididos el 31/10 (D7, §5.3), por hacer |
+| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). D10 (borrar `pending`, `verify` y `claim` manual): hecho y probado en Postman (§14). Ban en approve: hecho y probado (§8). **← SIGUIENTE: logos (D7, §5.3)** |
 | 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: `logoUrl` del dueño** (revisión del 29/10). Hechos el 31/10: B (§12), 404 para rutas que
-no existen (§13), D10 (§14) y el ban en approve (§8). Después: D12.
+**Siguiente paso: logos** (D7 y §5.3, decididos el 31/10; incluye el `ignore` de `logoUrl` del dueño). Orden:
+storage → evento de borrado después del commit → logo de la solicitud → logo del organizador → borrados en
+cancel/reject/delete → `ignore` en el `update` del dueño. Hechos el 31/10: B (§12), 404 para rutas que no
+existen (§13), D10 (§14) y el ban en approve (§8). Después: D12 → tests (fase 4) → `schema.sql` + migración.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
 - `OTHER` sin mensaje se valida en `OrganizerRequestRejectDto` con un `@AssertTrue`
@@ -62,9 +64,12 @@ IntelliJ (con el modo auto desactivado); después compilar, `mvnw test`, probar 
 actualiza `POSTMAN_TESTING.md` directamente. Commit con una sola línea en inglés, sin referencia a Claude.
 
 **Decisiones abiertas:**
-- Logos (D7, §5.3): `PATCH /rest/organizer-requests/{id}/logo`, `PATCH /rest/organizers/{id}/logo` y
-  `ObjectStorageService.uploadOrganizerLogo/deleteOrganizerLogo` aplazados. Al recuperarlos: copiar el
-  `logoUrl` de la REJECTED al reenviar (hay un `TODO 5.3` en `OrganizerRequestsServiceImpl.create`).
+- Logos (D7, §5.3): **decididos el 31/10, entran en esta entrega.** Dos APIs como en venues: el `POST` de la
+  solicitud sigue en JSON y el logo se sube con `PATCH /rest/organizer-requests/{id}/logo` **una sola vez**
+  (NEW, PENDING y sin logo; si no → 409). Mientras está PENDING no se cambia. Después del approve, el dueño
+  (NEW o CLAIM) lo cambia con `PATCH /rest/organizers/{id}/logo`. El logo vive lo mismo que lo que lo usa:
+  se borra del bucket al cancelar, al rechazar, al cambiarlo y al borrar el organizador (dueño o admin),
+  siempre **después del commit**. Ya no se copia el logo al reenviar: el `TODO 5.3` de `create` se quita.
 - D13 **confirmada el 27/10 y ampliada el 29/10** con `release` (dueño) + `unclaim` (admin): ver la tabla
   de decisiones. Revisada el 29/10: el creador solo borra, nunca suelta. `code` del 409, caché y email ya
   decididos (fase 3). Queda implementarla.
@@ -122,7 +127,7 @@ USER ──Diventa organizzatore──► PENDING ──approve──► APPROVE
 | D4 | **Una sola solicitud PENDING por usuario**, garantizada por la base de datos con un índice único parcial | Evita duplicados por doble clic o por dos pestañas a la vez (condición de carrera) |
 | D5 | **Reenviar = fila nueva**, prellenada desde la rechazada | No se pierde el historial de rechazos, y el admin ve «2º intento» |
 | D6 | **CLAIM solo lleva datos de prueba** (Instagram, email, mensaje). El wizard muestra los datos del organizador elegido precargados y en solo lectura. Los cambios de perfil se hacen después de la aprobación con `PATCH /rest/organizers/{id}` | La página ya existe y es pública. La solicitud solo tiene que demostrar que es suya, y el admin revisa una sola cosa |
-| D7 | **El logo se sube a la solicitud** (multipart, webp en S3), no como URL libre. Al aprobar, la URL pasa al organizador | Hoy `logoUrl` es un string que pone el cliente: inseguro. Se reutiliza la tubería de logos de venues |
+| D7 | **El logo se sube a la solicitud** (multipart, webp en S3), no como URL libre. Al aprobar, la URL pasa al organizador. **Concretado el 31/10:** se sube una sola vez al crear la NEW (`PATCH …/organizer-requests/{id}/logo`, 409 si ya tiene logo o no está PENDING); no se cambia mientras está PENDING; después del approve el dueño (NEW o CLAIM) lo cambia con `PATCH /rest/organizers/{id}/logo`; el dueño ya no puede mandar `logoUrl` en texto. Se borra del bucket, después del commit, al cancelar, rechazar, cambiarlo o borrar el organizador. `release`/`unclaim` no lo tocan (es de la página). Ver §5.3 | Hoy `logoUrl` es un string que pone el cliente: la imagen no es nuestra (puede cambiar o desaparecer después de revisarla), cada visita llama a un servidor ajeno (rastreo), no hay control de tamaño ni formato y no pasa por la caché de nginx. Se reutiliza la tubería de logos de venues. Borrar al rechazar o cancelar evita datos inútiles en el bucket; borrar después del commit evita perder la imagen si la transacción hace rollback |
 | D8 | **Descripción: máximo 500 en la solicitud** (`OrganizerRequestCreateDto`, contador /500 en el wizard) y **2000 en create y update del organizador** (`OrganizerCreateDto`, `OrganizerUpdateDto`, contador /2000 en la edición del perfil). Actualizado 24/10/2026 | Create y update iguales: bajar update a 500 haría que el PATCH de una descripción larga que ya existe diera 400. Una solicitud aprobada (≤ 500) siempre cabe en el organizador |
 | D9 | **El rol cambia sin repetir el login** | `JwtAuthenticationFilter` vuelve a leer el usuario de la base de datos en cada request. El frontend solo tiene que volver a pedir `/rest/auth/me`. El claim `role` del JWT queda viejo, pero no se usa para autorizar |
 | D10 | **Los endpoints viejos se borran en la misma entrega** (`POST /rest/organizers`, `pending` y `verify`), y backend y frontend se despliegan juntos | En prod no hay ninguna solicitud ni ningún organizador con dueño (sección 3.2), así que no hay nada que mantener en paralelo |
@@ -827,6 +832,7 @@ public class OrganizerRequestApproveDto {
 | `CONCURRENT_UPDATE` | Optimistic lock: otro admin la revisó a la vez |
 | `ORGANIZER_NOT_CLAIMED` | `PATCH /admin/organizers/{id}/unclaim` sobre un organizador sin dueño (D13, añadido 29/10/2026) |
 | `ORGANIZER_CREATED_BY_OWNER` | `PATCH /admin/organizers/{id}/unclaim` sobre un organizador que su dueño creó con una NEW: se borra, no se suelta (D13, añadido 29/10/2026) |
+| `LOGO_NOT_ALLOWED` | `PATCH /organizer-requests/{id}/logo` sobre una CLAIM o una solicitud que ya tiene logo: se sube una sola vez, al crearla (D7, añadido 31/10/2026) |
 
 Excepción nueva: `exceptions/OrganizerRequestConflictException(String code, String message)` con su
 `@ExceptionHandler` en `BackendErrorResponse` → 409. Los códigos son constantes de la propia excepción
@@ -928,11 +934,11 @@ export interface OrganizerRequestApproveDto {
 |---|---|---|---|---|
 | `POST /rest/organizer-requests` | Usuario | `OrganizerRequestCreateDto` | 201 `OrganizerRequestDto` | 400 validación · 403 baneado · 404 página CLAIM no existe o no está verificada · 404 ciudad del local no existe · 409 `PENDING_REQUEST_EXISTS` / `ORGANIZER_LIMIT_REACHED` / `ORGANIZER_ALREADY_CLAIMED` |
 | `GET /rest/organizer-requests/me` | Usuario | — | 200 `OrganizerRequestDto` (la más reciente) · **204** si nunca pidió | — |
-| `PATCH /rest/organizer-requests/{id}/logo` | Usuario (dueño) | multipart `logo` | 200 `OrganizerRequestDto` | 400 tipo de imagen · 403 no es suya · 409 `REQUEST_NOT_PENDING` |
+| `PATCH /rest/organizer-requests/{id}/logo` | Usuario (dueño) | multipart `logo` | 200 `OrganizerRequestDto` | 400 tipo de imagen · 403 no es suya · 409 `REQUEST_NOT_PENDING` · 409 `LOGO_NOT_ALLOWED` (es una CLAIM o ya tiene logo: se sube una sola vez) |
 | `DELETE /rest/organizer-requests/{id}` | Usuario (dueño) | — | 204 (pasa a CANCELLED) | 403 · 409 `REQUEST_NOT_PENDING` |
 | `PATCH /rest/organizer-requests/{id}/acknowledge` | Usuario (dueño) | — | 200 `OrganizerRequestDto` | 403 · 409 si está PENDING |
 | `GET /rest/organizers/claimable?name=&limit=5` | Público | `name` mínimo 3 caracteres, `limit` máximo 10 | 200 `List<OrganizerSummaryDto>` | 400 si `name` < 3 |
-| `PATCH /rest/organizers/{id}/logo` | Organizador dueño | multipart `logo` | 200 `OrganizerDetailDto` | 403 |
+| `PATCH /rest/organizers/{id}/logo` | Organizador dueño (NEW o CLAIM) | multipart `logo` | 200 `OrganizerDetailDto` (borra el anterior si era nuestro) | 400 tipo de imagen · 403 no es suyo |
 | `DELETE /rest/organizers/{id}` | Organizador dueño | — | 204 (el dueño baja a USER si no le quedan organizadores) | 403 no es suyo · 403 no viene de su NEW (D13) |
 | `PATCH /rest/organizers/{id}/release` | Organizador dueño | — | 204 (sin dueño, vuelve a `claimable`; el dueño baja a USER si no le quedan) | 403 no es suyo · 403 viene de su NEW: se borra, no se suelta (D13) |
 | `PATCH /rest/admin/organizers/{id}/unclaim` | Admin | — | 200 `OrganizerDetailDto` | 404 · 409 `ORGANIZER_NOT_CLAIMED` (sin dueño) / `ORGANIZER_CREATED_BY_OWNER` (viene de su NEW: se borra) |
@@ -955,18 +961,44 @@ REJECTED por `reviewedAt DESC`. El contador «In attesa · 2» es el `totalEleme
 
 ### 5.3 Logos
 
+Decidido el 31/10 (D7). Dos APIs, como en venues: crear la solicitud (JSON) y subir el logo aparte
+(multipart). Así el `POST` no cambia y la subida es la misma en la solicitud y en el organizador.
+
+**Storage**
 - `ObjectStorageService` gana `String uploadOrganizerLogo(UUID ownerId, byte[] webpContent)` y
   `void deleteOrganizerLogo(String logoUrl)`.
 - En `S3ObjectStorageServiceImpl`: mismo bucket `logos`, prefijo `organizers/`, clave nueva en cada
-  subida (`organizers/{ownerId}/logo-{uuid}.webp`; el comentario de `uploadVenueLogo` explica por qué).
-  `ownerId` es el id de la solicitud (antes de aprobar) o el del organizador (después).
+  subida (`organizers/{ownerId}/logo-{uuid}.webp`; el comentario de `uploadVenueLogo` explica por qué:
+  nginx sirve `/logos` como immutable). `ownerId` es el id de la solicitud (antes de aprobar) o el del
+  organizador (después). `deleteOrganizerLogo` solo borra URLs de nuestro bucket: una URL externa (las que
+  pone el admin a mano) se ignora, como en `deleteVenueLogo`.
 - Misma tubería que `VenuesServiceImpl.updateLogoAsAdmin`: `ImageTypeValidator.detectExtension` →
-  `webpConverterService.convertToWebp(content, LOGO_MAX_LONG_EDGE)` → upload → borrar el anterior con
-  `deleteLogoQuietly`.
-- Al aprobar una NEW, `organizer.logoUrl = request.logoUrl`: la URL sigue siendo válida, no se mueve nada.
-- Al reenviar, la solicitud nueva copia el `logoUrl` de la anterior: no se borra.
-- Los logos de solicitudes rechazadas o canceladas que nunca se aprobaron quedan huérfanos. Se acepta
-  por ahora (son pocos KB); un job de limpieza queda fuera de esta semana.
+  `webpConverterService.convertToWebp(content, LOGO_MAX_LONG_EDGE)` → upload.
+
+**Ciclo de vida del logo**
+
+| Momento | Qué pasa |
+|---|---|
+| Crear la NEW | El wizard hace `POST` (JSON) y luego `PATCH /rest/organizer-requests/{id}/logo`. Se acepta **una sola vez**: NEW, PENDING y `logoUrl == null`; si no → 409 `LOGO_NOT_ALLOWED` (`REQUEST_NOT_PENDING` si ya no está PENDING) |
+| Si la subida falla | La solicitud queda sin logo (es opcional). El FE puede reintentar en el momento; si no, el logo se pone después del approve |
+| PENDING | No se cambia |
+| CLAIM | No sube logo en la solicitud: la página ya tiene el suyo |
+| Cancel (usuario) | Se borra del bucket |
+| Reject (admin) | Se borra del bucket. «Modifica e reinvia» no lo copia: el usuario lo vuelve a subir |
+| Approve NEW | `organizer.logoUrl = request.logoUrl` (el mapper ya lo copia): misma URL, no se mueve nada |
+| Dueño cambia el logo (NEW o CLAIM) | `PATCH /rest/organizers/{id}/logo`: sube el nuevo y borra el anterior si era nuestro. Si era la URL externa del admin, solo se reemplaza |
+| `update` del dueño (`PATCH /rest/organizers/{id}`) | Ignora `logoUrl` (método del mapper con `@Mapping(target = "logoUrl", ignore = true)`). `updateAsAdmin` lo sigue aceptando en texto |
+| Borrar organizador (dueño o `deleteAsAdmin`) | Se borra del bucket |
+| `release` / `unclaim` | No se toca: el logo es de la página |
+
+**Borrar después del commit.** Todos los borrados del bucket van con un evento (`OrganizerLogoDeletedEvent`
+con la URL) y un listener `@TransactionalEventListener(AFTER_COMMIT)` en el paquete `events/`, igual que
+los emails. Si el método hace rollback (por ejemplo un `409 CONCURRENT_UPDATE` en reject), la imagen no se
+borra y la fila sigue apuntando a un archivo que existe. El listener captura y registra los errores de S3:
+como mucho queda un archivo huérfano.
+
+**Consecuencia aceptada:** al cambiar el logo después del approve se borra el archivo que se subió con la
+solicitud, así que en el historial del admin esa solicitud APPROVED sale sin logo.
 
 ---
 
@@ -1091,9 +1123,8 @@ Estado 26/10/2026: **hecha y probada en Postman** (`fdfd05e` + `03f0b29`; prueba
   4. CLAIM: `target = organizersRepository.findById(targetOrganizerId)`; si no existe o no está
      `isVerified` → 404; si `claimed` o `user != null` → 409 `ORGANIZER_ALREADY_CLAIMED`.
      `request.organizer = target`; no se copian los campos de perfil.
-  5. NEW: copiar `name`, `organizerType`, `description`, `website` y `facebook`. Además, si existe una
-     REJECTED previa con logo, copiar su `logoUrl` (reenviar mantiene el logo). *Copiar el logo queda
-     aplazado con los logos: `TODO 5.3` en el código.*
+  5. NEW: copiar `name`, `organizerType`, `description`, `website` y `facebook`. *Ya no se copia el logo de
+     una REJECTED previa (31/10): el reject lo borra y el usuario lo vuelve a subir. Quitar el `TODO 5.3`.*
   6. Los dos tipos: `instagram` normalizado, `contactEmail`, `phone`, `message`,
      `termsAcceptedAt = now()`, `status = PENDING`.
   7. **Local (D11), solo NEW.** Las reglas de tipo ya las aplicó `@ValidOrganizerRequest`. Si llega
@@ -1101,9 +1132,10 @@ Estado 26/10/2026: **hecha y probada en Postman** (`fdfd05e` + `03f0b29`; prueba
      En CLAIM no se guarda nada: el local es el que el admin ya enlazó al organizador.
   8. `save`; capturar `DataIntegrityViolationException` → 409 `PENDING_REQUEST_EXISTS`.
 - [x] **`findMyLatest(userId)`** → `Optional`; el controller devuelve 204 si está vacío.
-- [ ] **`updateLogo(requestId, userId, file)`**: ownership (`request.user.id == userId`, si no → 403),
-      `status == PENDING` (si no → 409 `REQUEST_NOT_PENDING`), luego la tubería de la sección 5.3.
-      *Aplazado (logos).*
+- [ ] **`updateLogo(requestId, userId, file)`** + `PATCH /rest/organizer-requests/{id}/logo`: ownership
+      (`request.user.id == userId`, si no → 403), `status == PENDING` (si no → 409 `REQUEST_NOT_PENDING`),
+      `type == NEW` y `logoUrl == null` (si no → 409 `LOGO_NOT_ALLOWED`: se sube una sola vez), luego la
+      tubería de la sección 5.3.
 - [x] **`cancel(requestId, userId)`**: ownership + PENDING → `CANCELLED` (+ `acknowledgedAt = now()`).
 - [x] **`acknowledge(requestId, userId)`**: ownership; si está `PENDING` → 409 `REQUEST_STILL_PENDING`; si no,
       `acknowledgedAt = now()` (idempotente: si ya tiene fecha, no se toca).
@@ -1111,8 +1143,12 @@ Estado 26/10/2026: **hecha y probada en Postman** (`fdfd05e` + `03f0b29`; prueba
       `@Size(min = 3, max = 120)` en `name` y `@Min(1) @Max(10)` en `limit` (por defecto 5) → 400.
       Endpoint `GET /rest/organizers/claimable` en `OrganizersController`.
 - [ ] **`OrganizersService.updateLogo(id, requesterId, file)`** + `PATCH /rest/organizers/{id}/logo`
-      (ownership con el `assertOwnership` que ya existe). `@CacheEvict` igual que `update`. *Aplazado (logos).*
-- [ ] `ObjectStorageService.uploadOrganizerLogo` / `deleteOrganizerLogo` (sección 5.3). *Aplazado (logos).*
+      (ownership con el `assertOwnership` que ya existe; vale para dueños por NEW y por CLAIM). Borra el
+      anterior después del commit. `@CacheEvict` igual que `update`.
+- [ ] `ObjectStorageService.uploadOrganizerLogo` / `deleteOrganizerLogo` (sección 5.3).
+- [ ] `OrganizerLogoDeletedEvent` + listener `AFTER_COMMIT` (sección 5.3), publicado por `cancel`, `reject`,
+      `updateLogo` del organizador (el anterior), `delete` y `deleteAsAdmin`.
+- [ ] Constante `LOGO_NOT_ALLOWED` en `OrganizerRequestConflictException` (+ fila en §4.6).
 - [x] `SecurityConfig`: `GET /rest/organizers/claimable` en `permitAll`.
 - [x] Javadoc corto en cada endpoint, con el estilo del controller (quién puede llamarlo y para qué pantalla).
 - [x] Borrar `POST /rest/organizers` (`OrganizersController.create`), `OrganizersService.createForUser`
@@ -1304,9 +1340,8 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
     solicitud sigue PENDING y el admin la rechaza.*
   - `OrganizersServiceImpl.update` (el dueño) ignora `logoUrl`: método del mapper con
     `@Mapping(target = "logoUrl", ignore = true)`. Hoy el dueño puede poner cualquier URL externa como logo
-    (el problema de D7, que sigue abierto mientras los logos estén aplazados). `updateAsAdmin` lo sigue
-    aceptando (lo usa `update-organizer` del frontend). Cuando vuelva 5.3, el dueño lo cambia por
-    `PATCH /rest/organizers/{id}/logo`.
+    (el problema de D7). `updateAsAdmin` lo sigue aceptando (lo usa `update-organizer` del frontend). El
+    dueño lo cambia con `PATCH /rest/organizers/{id}/logo`. *31/10: se hace junto con los logos (§5.3).*
   - Fuera de esta entrega: el filtro JWT no mira `isBanned`/`isDeleted` → `ROADMAP.md`, «Seguridad — deuda
     conocida».
 
@@ -1328,9 +1363,12 @@ para controllers.
   - create con un organizador ya propio → `ORGANIZER_LIMIT_REACHED`
   - create CLAIM sobre una página reclamada → `ORGANIZER_ALREADY_CLAIMED` · sobre una no verificada → 404
   - usuario baneado → 403
-  - reenviar copia el logo de la REJECTED anterior
   - `DataIntegrityViolationException` → `PENDING_REQUEST_EXISTS`
   - cancel / logo / acknowledge: no es el dueño → 403 · no está PENDING → 409
+  - logo: CLAIM → `LOGO_NOT_ALLOWED` · ya tiene logo → `LOGO_NOT_ALLOWED` · NEW sin logo → sube y guarda la URL
+  - cancel y reject con logo publican `OrganizerLogoDeletedEvent`; sin logo, no
+  - `OrganizersServiceImpl`: `updateLogo` borra el anterior (evento) · `delete`/`deleteAsAdmin` publican el
+    evento · `update` del dueño no cambia `logoUrl`
   - approve NEW: crea el organizador verificado y reclamado, slug único, promueve, publica el evento de email
   - approve CLAIM: llama a `claim`, auto-rechaza las CLAIM competidoras
   - create NEW: ciudad del local inexistente → 404 · CLAIM con `venueAddress` → se ignora
@@ -1389,11 +1427,15 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
     admin lo cambia al crear el venue. El indicador de pasos pasa a 4 cuando este paso existe.
   - **`conferma`** (Passo 3): resumen con «Modifica», bloque «Cosa succede adesso», checkbox obligatoria
     «Pubblicherò solo serate reali…», «Invia richiesta» → `POST`, luego `PATCH logo` si hay logo, y
-    navegar a `richiesta-inviata`. Si el logo falla, la solicitud ya está creada: avisar y ofrecer
-    reintentar desde «Vedi la richiesta». Traducir los `errors.code` 409 a mensajes.
+    navegar a `richiesta-inviata`. Si el logo falla, la solicitud ya está creada: reintentar una vez en el
+    momento; si vuelve a fallar, avisar «Il logo non è stato caricato: potrai aggiungerlo dopo
+    l'approvazione». No hay forma de cambiar o subir el logo mientras está PENDING (31/10). Traducir los
+    `errors.code` 409 a mensajes.
   - **`richiesta-inviata`**: timeline (Inviata con `submittedAt` → In revisione → Pronto a pubblicare),
     «Torna alla home». También sirve de «Vedi la richiesta» (con «Annulla richiesta» → `DELETE`).
 - [ ] «Modifica e reinvia»: `diventa-organizzatore/chi-sei?da=<idRechazada>` prellena el store desde `myRequest`.
+      El logo no se prellena (el reject lo borró): en `profilo`, el círculo del logo sale vacío con
+      «Carica di nuovo il logo».
 - [ ] Textos en `public/i18n/it.json`, `en.json` y `es.json` (transloco), con claves bajo `organizerRequest.*`.
 - [ ] Tests vitest: el servicio (204 → `null`), el store (mapeo de tipos, modo CLAIM, cuándo aparece
       «Il tuo locale») y el guard de redirección.
@@ -1434,6 +1476,9 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
       `organizerId` igual al suyo; si no, «Lascia la pagina» (`PATCH /rest/organizers/{id}/release`).
       Confirmación de «Elimina»: «Gli eventi futuri resteranno pubblicati senza organizzatore: annullali
       prima». Confirmación de «Lascia»: «I contatti e gli eventi resteranno pubblici: modificali prima».
+- [ ] **Perfil del organizador: logo.** El campo `logoUrl` en texto se cambia por subida de archivo
+      (`PATCH /rest/organizers/{id}/logo`) con preview, para dueños por NEW y por CLAIM. El backend ya
+      ignora `logoUrl` en el `update` del dueño.
 - [ ] Admin: botón «Rimuovi proprietario» en el organizador → `PATCH /rest/admin/organizers/{id}/unclaim`.
 - [ ] `admin-home`: cambiar el enlace de «Organizzatori in attesa» a la página nueva.
 - [ ] Borrar `features/admin/pending-organizers`, su ruta, `FEATURE_FLAGS.pendingOrganizersPage` (y su
@@ -1446,7 +1491,8 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
 
 - [ ] `docs/API.md`: sección «Solicitudes de organizador» con cada endpoint de la sección 5.1; quitar `POST /api/organizers`.
 - [ ] `docs/ROADMAP.md`: bloque nuevo marcado `[x]`, más la deuda técnica (email de `claim()`
-      después del commit, limpieza de logos huérfanos).
+      después del commit; los logos ya se borran con su solicitud u organizador, solo quedan huérfanos si
+      falla S3 al borrar).
 - [ ] `docs/POSTMAN_TESTING.md`: flujo completo USER → ADMIN.
 - [ ] **Staging, en este orden:**
   1. Backup (`pg_dump`).
@@ -1479,7 +1525,8 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
   `GET /rest/organizers/{id}/venues`.
 - Que un organizador conecte o cree venues por su cuenta (D11: siempre lo hace el admin).
 - Más de un organizador por usuario (D3: solo hay que cambiar la constante y la UI de selección).
-- Job de limpieza de logos huérfanos.
+- Job de limpieza de logos huérfanos. Desde el 31/10 casi no hace falta: el logo se borra al cancelar,
+  rechazar, cambiar o borrar; solo quedaría alguno si falla S3 al borrar.
 - Moderación de eventos del organizador antes de publicarlos (pregunta abierta del doc del 06/10).
 - Notificaciones push o in-app (el aviso es por email y por la tarjeta del menú).
 - Borrar la cuenta de un usuario. Hoy no hay endpoint, pero `organizers.user_id` es `ON DELETE CASCADE`: un
