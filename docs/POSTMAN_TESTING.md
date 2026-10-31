@@ -1339,3 +1339,64 @@ ningún email. Limpia con `DELETE http://localhost:8081/rest/admin/organizers/<o
 ### g) `unclaim` sin ser ADMIN
 
 El mismo `PATCH .../unclaim` con el token de una cuenta USER → `403` (como en la §8, «Sin ser ADMIN»).
+
+---
+
+## 12. Series sin organizador (B, paso 1)
+
+Plan: `organizer-requests-plan.md` (fase 3, D13: retirar los eventos futuros al borrar, paso 1). Cuando se
+borra un organizador, `ON DELETE SET NULL` deja `organizer_id` a null en sus series. Antes:
+- `GET /rest/event-series/{id}` daba `404`, porque `findByIdWithDetails` hacía un `JOIN FETCH` normal
+  sobre el organizador.
+- `PATCH`/`DELETE` de la serie daban `500` (NPE en `assertOwnership`).
+
+Ahora la query usa `LEFT JOIN FETCH`, como `EventsRepository`, y hay null checks en `buildDetailDto` y
+`assertOwnership`.
+
+**✅ Probado el 31/10.**
+
+### a) Crear la serie como admin
+
+`cityId`: `SELECT id FROM cities WHERE slug = 'milano';`
+
+```
+POST http://localhost:8081/rest/admin/event-series
+Authorization: Bearer <token admin>
+Content-Type: application/json
+```
+
+```json
+{
+  "organizerId": "88888888-8888-8888-8888-888888888888",
+  "venueId": "99999999-9999-9999-9999-999999999999",
+  "cityId": <id de milano>,
+  "title": "Social del venerdì",
+  "recurrenceDays": ["FRIDAY"],
+  "description": "Serie de prueba para el organizador null.",
+  "address": "Via Borsieri 12",
+  "latitude": 45.4889,
+  "longitude": 9.1890,
+  "startTime": "21:30:00",
+  "endTime": "02:00:00",
+  "danceStyleIds": []
+}
+```
+
+**Esperado**: `201`. Apunta el `id` (`<series_id>`). Las coordenadas evitan el geocoding. Sin
+`instagramUrl`, para que se vea el fallback.
+
+`GET http://localhost:8081/rest/event-series/<series_id>` (sin token) → `200` con
+`"instagramUrl": "salsaloca.milano"` (el del organizador).
+
+### b) Sin organizador
+
+```sql
+UPDATE event_series SET organizer_id = NULL WHERE id = '<series_id>';
+```
+
+- `GET http://localhost:8081/rest/event-series/<series_id>` (sin token) → `200` con `"instagramUrl": null`.
+- `PATCH http://localhost:8081/rest/event-series/<series_id>` con el token de una cuenta USER y
+  `{"title": "Cambio"}` → `403` con `message: "Not the owner of this event series"`.
+- `DELETE http://localhost:8081/rest/event-series/<series_id>` con el mismo token → el mismo `403`.
+
+Limpia con `DELETE FROM event_series WHERE id = '<series_id>';` (sin ocurrencias generadas, no hay eventos).

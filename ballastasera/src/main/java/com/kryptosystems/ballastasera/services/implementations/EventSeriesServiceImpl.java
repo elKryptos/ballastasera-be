@@ -89,9 +89,11 @@ public class EventSeriesServiceImpl implements EventSeriesService {
 
     private EventSeriesDetailDto buildDetailDto(EventSeries series) {
         EventSeriesDetailDto dto = eventSeriesMapper.toEventSeriesDetailDto(series);
-        dto.setInstagramUrl(series.getInstagramUrl() != null
-                ? series.getInstagramUrl()
-                : series.getOrganizer().getInstagram());
+        if (series.getInstagramUrl() != null) {
+            dto.setInstagramUrl(series.getInstagramUrl());
+        } else if (series.getOrganizer() != null) {
+            dto.setInstagramUrl(series.getOrganizer().getInstagram());
+        }
         return dto;
     }
 
@@ -272,7 +274,8 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     }
 
     private void assertOwnership(EventSeries series, UUID requesterId) {
-        if (series.getOrganizer().getUser() == null || !series.getOrganizer().getUser().getId().equals(requesterId)) {
+        Organizers organizer = series.getOrganizer();
+        if (organizer == null || organizer.getUser() == null || !organizer.getUser().getId().equals(requesterId)) {
             throw new AccessDeniedException("Not the owner of this event series");
         }
     }

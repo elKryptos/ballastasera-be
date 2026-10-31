@@ -32,8 +32,8 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: retirar los eventos futuros al borrar** (B: D13, fase 3; antes arreglar el 500 de las
-series sin organizador). Después, por orden: borrar `pending`/`verify` y `PATCH
+**Siguiente paso: retirar los eventos futuros al borrar** (B: D13, fase 3; el paso 1, series sin organizador,
+ya está hecho y probado en la §12). Después, por orden: borrar `pending`/`verify` y `PATCH
 /admin/organizers/{id}/claim` (D10) → ban en approve y `logoUrl` del dueño (revisión del 29/10) → D12.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
@@ -1240,10 +1240,12 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
 - [ ] **D13, decidido el 29/10: al borrar un organizador se retiran sus eventos futuros (después de
       `release`/`unclaim`).** Hasta ahora, con `ON DELETE SET NULL`, sus eventos futuros seguían publicados sin
       organizador y nadie salvo el admin podía cancelarlos.
-  1. **Bug que ya existe, primero:** `EventSeriesServiceImpl` no aguanta una serie sin organizador (lo deja
-     así cualquier borrado). `buildDetailDto` hace `series.getOrganizer().getInstagram()` → 500 en
-     `GET /rest/event-series/{id}` (público); `assertOwnership` hace `series.getOrganizer().getUser()` → 500
-     en vez de 403. Comprobar `organizer == null` como ya hace `EventsServiceImpl.assertOwnership`.
+  1. ✅ **Bug que ya existía, hecho el 31/10 y probado en Postman (`POSTMAN_TESTING.md` §12):**
+     `EventSeriesServiceImpl` no aguantaba una serie sin organizador (lo deja así cualquier borrado).
+     `findByIdWithDetails` hacía `JOIN FETCH s.organizer`, así que el `GET /rest/event-series/{id}` (público)
+     daba 404; ahora es `LEFT JOIN FETCH`, como en `EventsRepository`. `buildDetailDto` hacía
+     `series.getOrganizer().getInstagram()` (NPE) y `assertOwnership` hacía `series.getOrganizer().getUser()`
+     (500 en vez de 403); los dos comprueban ya `organizer == null`, como `EventsServiceImpl.assertOwnership`.
   2. `EventsRepository.cancelUpcomingByOrganizerId(organizerId, now, CANCELLED)` y
      `EventSeriesRepository.deactivateByOrganizerId(organizerId, now)`: `UPDATE` JPQL con `@Modifying`;
      `updatedAt` a mano porque el `UPDATE` masivo no pasa por `@UpdateTimestamp`. Eventos con

@@ -16,7 +16,7 @@ public interface EventSeriesRepository extends JpaRepository<EventSeries, UUID> 
 
     @Query("""
             SELECT s FROM EventSeries s
-            JOIN FETCH s.organizer o
+            LEFT JOIN FETCH s.organizer o
             LEFT JOIN FETCH s.venue v
             JOIN FETCH s.city c
             LEFT JOIN FETCH s.danceStyles ds
