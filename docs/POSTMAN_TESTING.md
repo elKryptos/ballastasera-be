@@ -1010,6 +1010,51 @@ Las mismas peticiones con el token de un USER → **Esperado**: `403`. Sin token
 `/error`, ese reenvío no lleva el JWT y Spring lo trataba como anónimo. Ahora `SecurityConfig` deja
 pasar el dispatch `ERROR` y el `403` llega tal cual. Vale para todo `/rest/admin/**`.*
 
+### Usuario baneado mientras su solicitud está PENDING → approve `403`
+
+Revisión del 29/10: `approve` comprueba `isBanned` como `create`. Antes se aprobaba igual y el usuario subía a
+ORGANIZER. **✅ Probado el 31/10** (puerto 8080 ese día), con una cuenta USER y otra ADMIN.
+
+1. Con `<token user>`, `POST http://localhost:8081/rest/organizer-requests`:
+
+   ```json
+   {
+     "type": "NEW",
+     "name": "Prova Ban Approve",
+     "organizerType": "PERSON",
+     "description": "Prova: utente bannato mentre la richiesta è PENDING.",
+     "instagram": "prova.ban",
+     "contactEmail": "prova.ban@example.com",
+     "termsAccepted": true
+   }
+   ```
+
+   **Esperado**: `201`. Copia el `id` (`<request_id>`).
+
+2. Banéalo:
+
+   ```sql
+   SELECT id, role, is_banned FROM users WHERE email = '<email del user>';
+   UPDATE users SET is_banned = true WHERE id = '<id user>';
+   ```
+
+3. `PATCH http://localhost:8081/rest/admin/organizer-requests/<request_id>/approve` con `<token admin>` →
+   `403` con `message: "Banned users cannot become organizers"`. No cambia nada y no llega ningún email:
+
+   ```sql
+   SELECT status FROM organizer_requests WHERE id = '<request_id>';   -- PENDING
+   SELECT count(*) FROM organizers WHERE name = 'Prova Ban Approve';  -- 0
+   SELECT role FROM users WHERE id = '<id user>';                     -- USER
+   ```
+
+4. El admin la rechaza: `PATCH …/<request_id>/reject` con `{ "reason": "OTHER", "message": "Account sospeso." }`
+   → `200`, `REJECTED`, y llega el email de rechazo.
+
+Limpieza: `UPDATE users SET is_banned = false WHERE id = '<id user>';`
+
+*El token del baneado sigue valiendo hasta que caduca (el filtro JWT no mira `isBanned`): deuda en
+`ROADMAP.md`, «Seguridad — deuda conocida». El login con Google sí lo bloquea.*
+
 ---
 
 ## 9. Borrar organizadores y enlazar venues (admin, fase 0 de «Diventa organizzatore»)

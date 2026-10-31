@@ -27,13 +27,13 @@ Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
 | 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
 | 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos, aplazados |
-| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). D10 (borrar `pending`, `verify` y `claim` manual): hecho y probado en Postman (§14). **← SIGUIENTE: ban en approve y `logoUrl` del dueño** |
+| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). D10 (borrar `pending`, `verify` y `claim` manual): hecho y probado en Postman (§14). Ban en approve: hecho y probado (§8). **← SIGUIENTE: `logoUrl` del dueño** |
 | 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
 | 5a/5b — Frontend | No empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: ban en approve y `logoUrl` del dueño** (revisión del 29/10). Hechos el 31/10: B (§12), 404
-para rutas que no existen (§13) y D10 (§14). Después: D12.
+**Siguiente paso: `logoUrl` del dueño** (revisión del 29/10). Hechos el 31/10: B (§12), 404 para rutas que
+no existen (§13), D10 (§14) y el ban en approve (§8). Después: D12.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
 - `OTHER` sin mensaje se valida en `OrganizerRequestRejectDto` con un `@AssertTrue`
@@ -1298,8 +1298,10 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
       `OrganizersService.claim()` se queda: lo usa `approve`. Después, en D13 ya no existe «asignado a mano»
       (el criterio `isCreatedByOwner` no cambia) y el caso c de `POSTMAN_TESTING.md` §10 se puede quitar.
 - [ ] **Revisión del 29/10 contra el código:**
-  - `approve`: si el usuario de la solicitud está baneado → 403, como en `create` (si lo banean mientras
-    está PENDING, hoy se aprobaría y subiría a ORGANIZER).
+  - ✅ `approve`: si el usuario de la solicitud está baneado → 403, como en `create` (si lo banean mientras
+    está PENDING, hoy se aprobaría y subiría a ORGANIZER). *Hecho el 31/10 y probado en Postman
+    (`POSTMAN_TESTING.md` §8, «Usuario baneado»): `403` con «Banned users cannot become organizers», la
+    solicitud sigue PENDING y el admin la rechaza.*
   - `OrganizersServiceImpl.update` (el dueño) ignora `logoUrl`: método del mapper con
     `@Mapping(target = "logoUrl", ignore = true)`. Hoy el dueño puede poner cualquier URL externa como logo
     (el problema de D7, que sigue abierto mientras los logos estén aplazados). `updateAsAdmin` lo sigue

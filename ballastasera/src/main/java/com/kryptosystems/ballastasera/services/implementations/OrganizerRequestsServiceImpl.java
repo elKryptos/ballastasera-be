@@ -174,7 +174,11 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     public OrganizerRequests approve(UUID requestId, UUID adminId, OrganizerRequestApproveDto dto) {
         OrganizerRequests request = findPending(requestId);
         Users user = request.getUser();
-        // Solo pasa si mientras tanto el admin le asignó un organizador por la vía directa: hay que rechazarla
+        // Lo mismo que en create: si lo banean mientras su solicitud está PENDING, no se aprueba (rechazarla)
+        if (user.isBanned()) {
+            throw new AccessDeniedException("Banned users cannot become organizers");
+        }
+        // Desde D10 no hay asignación directa: solo pasaría si se le asignó un organizador por SQL
         if (organizersRepository.countByUserId(user.getId()) >= MAX_ORGANIZERS_PER_USER) {
             throw new OrganizerRequestConflictException(ORGANIZER_LIMIT_REACHED, "User already has the maximum number of organizers");
         }
