@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
+import com.kryptosystems.ballastasera.enums.OrganizerType;
 import com.kryptosystems.ballastasera.exceptions.VenueCityMismatchException;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
@@ -16,6 +17,7 @@ import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
+import com.kryptosystems.ballastasera.repositories.VenuesRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventFlyerProcessingService;
 import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
@@ -40,6 +42,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,8 +80,143 @@ class EventsServiceImplTest {
     @Mock
     private EventFlyerProcessingService eventFlyerProcessingService;
 
+    @Mock
+    private VenuesRepository venuesRepository;
+
     @InjectMocks
     private EventsServiceImpl eventsService;
+
+    // ---------- D12: CLUB y VENUE solo publican en sus venues ----------
+
+    @Test
+    void createAllowsAClubInItsOwnVenue() {
+        Organizers club = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        club.setType(OrganizerType.CLUB);
+        EventCreateDto dto = createDto(ORGANIZER_ID);
+        dto.setVenueId(VENUE_ID);
+        Events mappedEvent = mappedEvent();
+        Cities city = new Cities();
+        city.setId(1L);
+
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(club));
+        when(venuesRepository.existsByIdAndOrganizerId(VENUE_ID, ORGANIZER_ID)).thenReturn(true);
+        when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
+        when(eventResolverService.resolveCity(1L)).thenReturn(city);
+        when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+        when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
+
+        assertSame(mappedEvent, eventsService.create(REQUESTER_ID, dto));
+    }
+
+    @Test
+    void createRejectsAClubInAVenueOfAnotherOrganizer() {
+        Organizers club = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        club.setType(OrganizerType.CLUB);
+        EventCreateDto dto = createDto(ORGANIZER_ID);
+        dto.setVenueId(VENUE_ID);
+
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(club));
+        when(venuesRepository.existsByIdAndOrganizerId(VENUE_ID, ORGANIZER_ID)).thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.create(REQUESTER_ID, dto));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void createRejectsAVenueOrganizerWithoutVenue() {
+        Organizers venueOrganizer = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        venueOrganizer.setType(OrganizerType.VENUE);
+        EventCreateDto dto = createDto(ORGANIZER_ID);
+
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(venueOrganizer));
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.create(REQUESTER_ID, dto));
+        verify(eventsRepository, never()).save(any(Events.class));
+        verifyNoInteractions(venuesRepository);
+    }
+
+    /** SCHOOL no está atada a su venue (puede dar un social en otro local). */
+    @Test
+    void createAllowsASchoolInAnyVenue() {
+        Organizers school = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        school.setType(OrganizerType.SCHOOL);
+        EventCreateDto dto = createDto(ORGANIZER_ID);
+        dto.setVenueId(VENUE_ID);
+        Events mappedEvent = mappedEvent();
+        Cities city = new Cities();
+        city.setId(1L);
+
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(school));
+        when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
+        when(eventResolverService.resolveCity(1L)).thenReturn(city);
+        when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+        when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
+
+        assertSame(mappedEvent, eventsService.create(REQUESTER_ID, dto));
+        verifyNoInteractions(venuesRepository);
+    }
+
+    @Test
+    void createAsAdminDoesNotApplyTheVenueRule() {
+        Organizers club = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        club.setType(OrganizerType.CLUB);
+        EventCreateDto dto = createDto(ORGANIZER_ID);
+        Events mappedEvent = mappedEvent();
+
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(club));
+        when(eventsMapper.toEventEntity(dto)).thenReturn(mappedEvent);
+        when(eventResolverService.resolveCity(1L)).thenReturn(new Cities());
+        when(eventsRepository.findBySlug(anyString())).thenReturn(Optional.empty());
+        when(eventsRepository.save(mappedEvent)).thenReturn(mappedEvent);
+
+        assertSame(mappedEvent, eventsService.createAsAdmin(dto));
+        verifyNoInteractions(venuesRepository);
+    }
+
+    @Test
+    void updateRejectsAClubMovingTheEventToAVenueOfAnotherOrganizer() {
+        Organizers club = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        club.setType(OrganizerType.CLUB);
+        Events event = event(club);
+        EventUpdateDto dto = new EventUpdateDto();
+        dto.setVenueId(VENUE_ID);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(venuesRepository.existsByIdAndOrganizerId(VENUE_ID, ORGANIZER_ID)).thenReturn(false);
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.update(EVENT_ID, REQUESTER_ID, dto));
+        verify(eventsMapper, never()).updateEventEntityFromDto(any(EventUpdateDto.class), any(Events.class));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void removeVenueRejectsAClub() {
+        Organizers club = organizer(ORGANIZER_ID, REQUESTER_ID, true);
+        club.setType(OrganizerType.CLUB);
+        Events event = event(club);
+        Venues venue = new Venues();
+        event.setVenue(venue);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.removeVenue(EVENT_ID, REQUESTER_ID));
+        assertSame(venue, event.getVenue());
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void removeVenueStillWorksForAPerson() {
+        Events event = event(organizer(ORGANIZER_ID, REQUESTER_ID, true));
+        event.setVenue(new Venues());
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        eventsService.removeVenue(EVENT_ID, REQUESTER_ID);
+
+        assertEquals(null, event.getVenue());
+        verifyNoInteractions(venuesRepository);
+    }
 
     @Test
     void createSavesPublishedEventForVerifiedOrganizerOwner() {

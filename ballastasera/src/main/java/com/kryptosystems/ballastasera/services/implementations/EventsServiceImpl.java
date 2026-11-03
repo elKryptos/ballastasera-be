@@ -41,6 +41,7 @@ public class EventsServiceImpl implements EventsService {
     private final EventResolverService eventResolverService;
     private final ObjectStorageService objectStorageService;
     private final EventFlyerProcessingService eventFlyerProcessingService;
+    private final VenuesRepository venuesRepository;
 
     private static final Duration MAP_DURATION = Duration.ofDays(21);
     private static final int MAP_LIMIT = 150;
@@ -129,6 +130,7 @@ public class EventsServiceImpl implements EventsService {
         if (!organizer.isVerified()) {
             throw new AccessDeniedException("Organizer not verified yet");
         }
+        assertVenueAllowed(organizer, dto.getVenueId());
         return buildAndSaveEvent(organizer, dto);
     }
 
@@ -168,6 +170,10 @@ public class EventsServiceImpl implements EventsService {
         Events event = findById(id);
         assertOwnership(event, requesterId);
         Organizers organizer = event.getOrganizer();
+        // D12: solo si el body cambia el venue; antes de tocar la entidad
+        if (dto.getVenueId() != null) {
+            assertVenueAllowed(organizer, dto.getVenueId());
+        }
         eventsMapper.updateEventEntityFromDto(dto, event);
         if (event.getEndAt() != null && !event.getStartAt().isBefore(event.getEndAt())) {
             throw new InvalidEventTimingException(
@@ -260,6 +266,8 @@ public class EventsServiceImpl implements EventsService {
     public Events removeVenue(UUID eventId, UUID requesterId) {
         Events event = findById(eventId);
         assertOwnership(event, requesterId);
+        // D12: un CLUB/VENUE no puede dejar el evento sin su venue
+        assertVenueAllowed(event.getOrganizer(), null);
         event.setVenue(null);
         return eventsRepository.save(event);
     }
@@ -299,6 +307,17 @@ public class EventsServiceImpl implements EventsService {
         eventsRepository.delete(event);
         objectStorageService.deleteEventFlyerRaw(event.getId());
         objectStorageService.deleteEventFlyerFinal(event.getId());
+    }
+
+    /** D12: un CLUB o VENUE solo publica en sus propios venues (venueId obligatorio y suyo). Solo los métodos
+     * del organizador; los AsAdmin no lo llaman. */
+    private void assertVenueAllowed(Organizers organizer, UUID venueId) {
+        if (!organizer.getType().isVenueBound()) {
+            return;
+        }
+        if (venueId == null || !venuesRepository.existsByIdAndOrganizerId(venueId, organizer.getId())) {
+            throw new AccessDeniedException("Venue not owned by this organizer");
+        }
     }
 
     /** Si el organizer fue borrado, nadie puede reclamar ser el dueño vía esta implementación se deniega el update */

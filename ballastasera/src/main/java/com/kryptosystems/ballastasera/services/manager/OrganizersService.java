@@ -5,6 +5,7 @@ import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,9 @@ public interface OrganizersService {
     Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto);
 
     Organizers updateAsAdmin(UUID id, OrganizerUpdateDto dto);
+
+    /** D7: el dueño (por NEW o por CLAIM) sube o cambia el logo; el anterior se borra del bucket si era nuestro. */
+    Organizers updateLogo(UUID id, UUID requesterId, MultipartFile file);
 
     void delete(UUID id, UUID requesterId);
 

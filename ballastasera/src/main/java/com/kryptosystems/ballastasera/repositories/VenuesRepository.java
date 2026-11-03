@@ -13,6 +13,8 @@ import java.util.UUID;
 public interface VenuesRepository extends JpaRepository<Venues, UUID> {
     List<Venues> findByCityId(Long cityId);
     List<Venues> findByOrganizerId(UUID organizerId);
+    /** D12: el venue es de ese organizador (CLUB/VENUE solo publican en los suyos). */
+    boolean existsByIdAndOrganizerId(UUID id, UUID organizerId);
     Optional<Venues> findByCityIdAndNameIgnoreCase(Long cityId, String name);
     List<Venues> findByCityIdAndNameContainingIgnoreCase(Long cityId, String name);
     Optional<Venues> findByCityIdAndNameIgnoreCaseAndIdNot(Long cityId, String name, UUID id);

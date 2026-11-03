@@ -8,9 +8,11 @@ import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -25,6 +27,7 @@ public class OrganizerRequestsController {
     private static final String GET_MY_LATEST = "/me";
     private static final String CANCEL = "/{id}";
     private static final String ACKNOWLEDGE = "/{id}/acknowledge";
+    private static final String UPDATE_LOGO = "/{id}/logo";
 
     private final OrganizerRequestsService organizerRequestsService;
     private final OrganizerRequestMapper organizerRequestMapper;
@@ -46,6 +49,16 @@ public class OrganizerRequestsController {
                 .map(organizerRequestMapper::toOrganizerRequestDto)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /** Requiere estar autenticado. Solo el dueño. Wizard, justo después del POST: logo de una NEW PENDING, una
+     * sola vez (D7). 409 LOGO_NOT_ALLOWED si es CLAIM o ya tiene logo. */
+    @PatchMapping(value = UPDATE_LOGO, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OrganizerRequestDto> updateLogo(@AuthenticationPrincipal UserPrincipal principal,
+                                                          @PathVariable UUID id,
+                                                          @RequestParam("logo") MultipartFile file) {
+        var request = organizerRequestsService.updateLogo(id, principal.getId(), file);
+        return ResponseEntity.ok(organizerRequestMapper.toOrganizerRequestDto(request));
     }
 
     /** Requiere estar autenticado. Solo el dueño. Retira su solicitud mientras está PENDING (pasa a CANCELLED). */

@@ -177,6 +177,51 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    // ---------- «Diventa organizzatore» ----------
+
+    @Test
+    void anonymousCannotGetOwnOrganizerRequest() throws Exception {
+        mockMvc.perform(get("/rest/organizer-requests/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("Location"));
+    }
+
+    @Test
+    void authenticatedUserCanGetOwnOrganizerRequest() throws Exception {
+        mockMvc.perform(get("/rest/organizer-requests/me")
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void regularUserCannotListAdminOrganizerRequests() throws Exception {
+        mockMvc.perform(get("/rest/admin/organizer-requests")
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanListAdminOrganizerRequests() throws Exception {
+        mockMvc.perform(get("/rest/admin/organizer-requests")
+                        .with(authentication(adminAuthentication())))
+                .andExpect(status().isOk());
+    }
+
+    /** El buscador del wizard (CLAIM) es público: la ruta literal gana a /rest/organizers/{slug}. */
+    @Test
+    void claimableOrganizersArePublic() throws Exception {
+        mockMvc.perform(get("/rest/organizers/claimable").param("name", "sal"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousCannotUploadOrganizerLogos() throws Exception {
+        mockMvc.perform(patch("/rest/organizers/{id}/logo", EVENT_ID))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/rest/organizer-requests/{id}/logo", EVENT_ID))
+                .andExpect(status().isUnauthorized());
+    }
+
     private UsernamePasswordAuthenticationToken userAuthentication() {
         Users user = new Users();
         user.setId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
@@ -265,6 +310,31 @@ class SecurityConfigTest {
 
         @GetMapping("/rest/dance-styles/{id}")
         String getDanceStyle(@PathVariable Long id) {
+            return "ok";
+        }
+
+        @GetMapping("/rest/organizer-requests/me")
+        String getOwnOrganizerRequest() {
+            return "ok";
+        }
+
+        @GetMapping("/rest/admin/organizer-requests")
+        String listOrganizerRequests() {
+            return "ok";
+        }
+
+        @GetMapping("/rest/organizers/claimable")
+        String getClaimableOrganizers() {
+            return "ok";
+        }
+
+        @PatchMapping("/rest/organizers/{id}/logo")
+        String updateOrganizerLogo(@PathVariable UUID id) {
+            return "ok";
+        }
+
+        @PatchMapping("/rest/organizer-requests/{id}/logo")
+        String updateOrganizerRequestLogo(@PathVariable UUID id) {
             return "ok";
         }
     }

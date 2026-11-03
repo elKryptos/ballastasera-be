@@ -209,4 +209,60 @@ class S3ObjectStorageServiceImplTest {
         assertThatThrownBy(() -> service.deleteVenueLogo(LOGOS_PUBLIC_BASE_URL + "/venues/x/logo-y.webp"))
                 .isInstanceOf(MediaStorageException.class);
     }
+
+    @Test
+    void uploadOrganizerLogoStoresWebpInLogosBucketUnderOrganizerPrefixAndReturnsPublicUrl() {
+        UUID ownerId = UUID.randomUUID();
+
+        String url = service.uploadOrganizerLogo(ownerId, new byte[]{1, 2, 3});
+
+        ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
+        PutObjectRequest request = requestCaptor.getValue();
+        assertThat(request.bucket()).isEqualTo(LOGOS_BUCKET);
+        assertThat(request.key()).matches("organizers/" + ownerId + "/logo-[0-9a-f-]{36}\\.webp");
+        assertThat(request.contentType()).isEqualTo("image/webp");
+        assertThat(url).isEqualTo(LOGOS_PUBLIC_BASE_URL + "/" + request.key());
+    }
+
+    @Test
+    void uploadOrganizerLogoUsesNewKeyOnEachUpload() {
+        UUID ownerId = UUID.randomUUID();
+
+        String firstUrl = service.uploadOrganizerLogo(ownerId, new byte[]{1});
+        String secondUrl = service.uploadOrganizerLogo(ownerId, new byte[]{2});
+
+        assertThat(secondUrl).isNotEqualTo(firstUrl);
+    }
+
+    @Test
+    void deleteOrganizerLogoRemovesObjectFromLogosBucket() {
+        String key = "organizers/" + UUID.randomUUID() + "/logo-" + UUID.randomUUID() + ".webp";
+
+        service.deleteOrganizerLogo(LOGOS_PUBLIC_BASE_URL + "/" + key);
+
+        ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(s3Client).deleteObject(captor.capture());
+        assertThat(captor.getValue().bucket()).isEqualTo(LOGOS_BUCKET);
+        assertThat(captor.getValue().key()).isEqualTo(key);
+    }
+
+    /** Las URLs externas que pone el admin a mano no son nuestras, y un logo de venue no se toca desde aquí. */
+    @Test
+    void deleteOrganizerLogoIgnoresUrlsThatAreNotOrganizerLogos() {
+        service.deleteOrganizerLogo("https://scontent.cdninstagram.com/logo.jpg");
+        service.deleteOrganizerLogo(LOGOS_PUBLIC_BASE_URL + "/venues/" + UUID.randomUUID() + "/logo-1.webp");
+        service.deleteOrganizerLogo(null);
+
+        verifyNoInteractions(s3Client);
+    }
+
+    @Test
+    void deleteOrganizerLogoWrapsS3FailuresAsMediaStorageException() {
+        doThrow(S3Exception.builder().message("boom").build())
+                .when(s3Client).deleteObject(any(DeleteObjectRequest.class));
+
+        assertThatThrownBy(() -> service.deleteOrganizerLogo(LOGOS_PUBLIC_BASE_URL + "/organizers/x/logo-y.webp"))
+                .isInstanceOf(MediaStorageException.class);
+    }
 }

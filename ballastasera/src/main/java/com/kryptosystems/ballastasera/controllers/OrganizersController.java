@@ -17,9 +17,11 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class OrganizersController {
     private static final String GET_ORGANIZER_EVENT_SERIES = "/{id}/event-series";
     private static final String DELETE_ORGANIZER = "/{id}";
     private static final String RELEASE_ORGANIZER = "/{id}/release";
+    private static final String UPDATE_LOGO = "/{id}/logo";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -87,6 +90,16 @@ public class OrganizersController {
                                                      @PathVariable UUID id,
                                                      @Valid @RequestBody OrganizerUpdateDto body) {
         var organizer = organizersService.update(id, principal.getId(), body);
+        return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
+    }
+
+    /** Requiere estar autenticado. Solo el dueño (por NEW o por CLAIM). Sube o cambia el logo de su perfil:
+     * webp en el bucket de logos, el anterior se borra (D7). */
+    @PatchMapping(value = UPDATE_LOGO, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OrganizerDetailDto> updateLogo(@AuthenticationPrincipal UserPrincipal principal,
+                                                         @PathVariable UUID id,
+                                                         @RequestParam("logo") MultipartFile file) {
+        var organizer = organizersService.updateLogo(id, principal.getId(), file);
         return ResponseEntity.ok(organizerMapper.toOrganizerDetailDto(organizer));
     }
 

@@ -5,7 +5,9 @@ import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
+import com.kryptosystems.ballastasera.events.OrganizerLogoDeletedEvent;
  import com.kryptosystems.ballastasera.events.OrganizerUnclaimedEvent;
+import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
@@ -18,8 +20,11 @@ import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
+import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
+import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
@@ -32,7 +37,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -41,6 +48,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrganizersServiceImpl implements OrganizersService {
 
+    /** El mismo tope que los logos de venues (VenuesServiceImpl). */
+    private static final int LOGO_MAX_LONG_EDGE = 512;
+
     private final OrganizersRepository organizersRepository;
     private final UsersService usersService;
     private final OrganizerMapper organizerMapper;
@@ -48,6 +58,8 @@ public class OrganizersServiceImpl implements OrganizersService {
     private final EventsRepository eventsRepository;
     private final EventSeriesRepository eventSeriesRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectStorageService objectStorageService;
+    private final WebpConverterService webpConverterService;
 
     @Override
     public List<Organizers> findAll() {
@@ -81,9 +93,33 @@ public class OrganizersServiceImpl implements OrganizersService {
     public Organizers update(UUID id, UUID requesterId, OrganizerUpdateDto dto) {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
-        organizerMapper.updateOrganizerFromDto(dto, organizer);
+        // D7: el dueño no pone logoUrl en texto, lo sube con updateLogo
+        organizerMapper.updateOwnedOrganizerFromDto(dto, organizer);
         organizer.setInstagram(InstagramUtils.normalizeHandle(organizer.getInstagram()));
         return organizersRepository.save(organizer);
+    }
+
+    /** D7: el dueño (por NEW o por CLAIM) sube o cambia el logo. El anterior se borra del bucket después del
+     * commit si era nuestro; la URL externa que puso el admin solo se reemplaza. */
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
+    public Organizers updateLogo(UUID id, UUID requesterId, MultipartFile file) {
+        Organizers organizer = findById(id);
+        assertOwnership(organizer, requesterId);
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Failed to read logo file", e);
+        }
+        ImageTypeValidator.detectExtension(content);
+        byte[] webpContent = webpConverterService.convertToWebp(content, LOGO_MAX_LONG_EDGE);
+        String previousLogoUrl = organizer.getLogoUrl();
+        organizer.setLogoUrl(objectStorageService.uploadOrganizerLogo(id, webpContent));
+        Organizers saved = organizersRepository.save(organizer);
+        discardLogo(previousLogoUrl);
+        return saved;
     }
 
     @Override
@@ -105,6 +141,7 @@ public class OrganizersServiceImpl implements OrganizersService {
         retireUpcomingEvents(id);
         organizersRepository.delete(organizer);
         usersService.demoteToUser(requesterId);
+        discardLogo(organizer.getLogoUrl());
     }
 
     @Override
@@ -125,6 +162,7 @@ public class OrganizersServiceImpl implements OrganizersService {
         if (owner != null) {
             usersService.demoteToUser(owner.getId());
         }
+        discardLogo(organizer.getLogoUrl());
     }
 
     @Override
@@ -229,6 +267,14 @@ public class OrganizersServiceImpl implements OrganizersService {
     private boolean isCreatedByOwner(Organizers organizer, UUID userId) {
         return organizerRequestsRepository.existsByOrganizerIdAndUserIdAndTypeAndStatus(
                 organizer.getId(), userId, OrganizerRequestType.NEW, OrganizerRequestStatus.APPROVED);
+    }
+
+    /** D7: logo que ya no se usa (cambiado u organizador borrado). Se borra del bucket después del commit
+     * (OrganizerLogoListener); una URL externa la ignora deleteOrganizerLogo. */
+    private void discardLogo(String logoUrl) {
+        if (logoUrl != null) {
+            eventPublisher.publishEvent(new OrganizerLogoDeletedEvent(logoUrl));
+        }
     }
 
     /** D13: delete y deleteAsAdmin, antes de borrar (después organizer_id ya es null). Eventos futuros a CANCELLED

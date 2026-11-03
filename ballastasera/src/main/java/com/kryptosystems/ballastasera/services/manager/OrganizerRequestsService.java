@@ -7,6 +7,7 @@ import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestRejectDto;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,9 @@ public interface OrganizerRequestsService {
 
     /** El dueño retira su solicitud PENDING: pasa a CANCELLED. */
     void cancel(UUID requestId, UUID userId);
+
+    /** D7: logo de una NEW PENDING, una sola vez (409 LOGO_NOT_ALLOWED si es CLAIM o ya tiene logo). */
+    OrganizerRequests updateLogo(UUID requestId, UUID userId, MultipartFile file);
 
     /** El dueño ha visto el resultado (APPROVED/REJECTED/CANCELLED): fija acknowledgedAt una sola vez. */
     OrganizerRequests acknowledge(UUID requestId, UUID userId);

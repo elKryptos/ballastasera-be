@@ -26,6 +26,7 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
             "webp", "image/webp");
 
     private static final String VENUE_LOGO_PREFIX = "venues/";
+    private static final String ORGANIZER_LOGO_PREFIX = "organizers/";
 
     private final S3Client s3Client;
 
@@ -83,6 +84,23 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
         String base = logosPublicBaseUrl + "/";
         // Solo borra URLs generadas por uploadVenueLogo: una URL externa se ignora.
         if (logoUrl != null && logoUrl.startsWith(base)) {
+            delete(logosBucket, logoUrl.substring(base.length()));
+        }
+    }
+
+    @Override
+    public String uploadOrganizerLogo(UUID ownerId, byte[] webpContent) {
+        // Clave nueva en cada subida, por lo mismo que en uploadVenueLogo
+        String key = ORGANIZER_LOGO_PREFIX + ownerId + "/logo-" + UUID.randomUUID() + ".webp";
+        putObject(logosBucket, key, webpContent, "image/webp");
+        return logosPublicBaseUrl + "/" + key;
+    }
+
+    @Override
+    public void deleteOrganizerLogo(String logoUrl) {
+        String base = logosPublicBaseUrl + "/";
+        // Solo borra logos de organizador subidos aquí: una URL externa (las que pone el admin a mano) se ignora
+        if (logoUrl != null && logoUrl.startsWith(base + ORGANIZER_LOGO_PREFIX)) {
             delete(logosBucket, logoUrl.substring(base.length()));
         }
     }

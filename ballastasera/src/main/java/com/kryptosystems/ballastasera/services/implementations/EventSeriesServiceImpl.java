@@ -14,6 +14,7 @@ import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
 import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
+import com.kryptosystems.ballastasera.repositories.VenuesRepository;
 import com.kryptosystems.ballastasera.services.manager.EventResolverService;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import com.kryptosystems.ballastasera.services.manager.GeocodingService;
@@ -48,6 +49,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     private final EventResolverService eventResolverService;
     private final WebpConverterService webpConverterService;
     private final ObjectStorageService objectStorageService;
+    private final VenuesRepository venuesRepository;
 
     @Override
     public List<EventSeries> findAll() {
@@ -108,6 +110,7 @@ public class EventSeriesServiceImpl implements EventSeriesService {
         if (!organizer.isVerified()) {
             throw new AccessDeniedException("Organizer not verified yet");
         }
+        assertVenueAllowed(organizer, dto.getVenueId());
         return buildAndSaveSeries(organizer, dto);
     }
 
@@ -137,6 +140,10 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     public EventSeries update(UUID id, UUID requesterId, EventSeriesUpdateDto eventSeriesUpdateDto) {
         EventSeries series = findById(id);
         assertOwnership(series, requesterId);
+        // D12: solo si el body cambia el venue; antes de tocar la entidad
+        if (eventSeriesUpdateDto.getVenueId() != null) {
+            assertVenueAllowed(series.getOrganizer(), eventSeriesUpdateDto.getVenueId());
+        }
         eventSeriesMapper.updateEventSeriesEntityFromDto(eventSeriesUpdateDto, series);
         if (eventSeriesUpdateDto.getCityId() != null) {
             series.setCity(eventResolverService.resolveCity(eventSeriesUpdateDto.getCityId()));
@@ -189,6 +196,8 @@ public class EventSeriesServiceImpl implements EventSeriesService {
     public EventSeries removeVenue(UUID seriesId, UUID requesterId) {
         EventSeries series = findById(seriesId);
         assertOwnership(series, requesterId);
+        // D12: un CLUB/VENUE no puede dejar la serie sin su venue
+        assertVenueAllowed(series.getOrganizer(), null);
         series.setVenue(null);
         return eventSeriesRepository.save(series);
     }
@@ -271,6 +280,17 @@ public class EventSeriesServiceImpl implements EventSeriesService {
          * manual clase por clase no tiene sentido para algo semanal. */
         event.setStatus(EventStatus.PUBLISHED);
         return event;
+    }
+
+    /** D12: un CLUB o VENUE solo publica en sus propios venues (venueId obligatorio y suyo). Solo los métodos
+     * del organizador; los AsAdmin no lo llaman. */
+    private void assertVenueAllowed(Organizers organizer, UUID venueId) {
+        if (!organizer.getType().isVenueBound()) {
+            return;
+        }
+        if (venueId == null || !venuesRepository.existsByIdAndOrganizerId(venueId, organizer.getId())) {
+            throw new AccessDeniedException("Venue not owned by this organizer");
+        }
     }
 
     private void assertOwnership(EventSeries series, UUID requesterId) {

@@ -4,7 +4,9 @@ import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.OrganizerRejectReason;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
+import com.kryptosystems.ballastasera.events.OrganizerLogoDeletedEvent;
 import com.kryptosystems.ballastasera.events.OrganizerRequestReviewedEvent;
+import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestApproveDto;
@@ -19,9 +21,12 @@ import com.kryptosystems.ballastasera.repositories.OrganizerRequestsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
 import com.kryptosystems.ballastasera.repositories.VenuesRepository;
 import com.kryptosystems.ballastasera.services.manager.CitiesService;
+import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
 import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
+import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
@@ -36,7 +41,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +62,8 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     /** Mensaje del rechazo automático de las CLAIM que pierden el organizador. En italiano dice «pagina»
      * porque es lo que ve el usuario en el wizard («Rivendica una pagina esistente»). */
     private static final String PAGE_ASSIGNED_TO_OTHER = "La pagina è stata assegnata a un altro utente.";
+    /** El mismo tope que los logos de venues (VenuesServiceImpl). */
+    private static final int LOGO_MAX_LONG_EDGE = 512;
 
     private final OrganizerRequestsRepository organizerRequestsRepository;
     private final OrganizersRepository organizersRepository;
@@ -64,6 +73,8 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     private final CitiesService citiesService;
     private final OrganizerRequestMapper organizerRequestMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectStorageService objectStorageService;
+    private final WebpConverterService webpConverterService;
 
     @Override
     @Transactional
@@ -98,7 +109,6 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
             // D11: las reglas de tipo ya las aplicó @ValidOrganizerRequest; aquí solo que la ciudad exista (404)
             request.setVenueCity(citiesService.findById(dto.getVenueCityId()));
         }
-        // TODO 5.3: al reenviar una NEW, copiar el logoUrl de la REJECTED anterior cuando vuelva el logo de la solicitud
 
         try {
             // saveAndFlush: el INSERT tiene que salir aquí para capturar la violación del índice
@@ -128,6 +138,35 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         request.setStatus(OrganizerRequestStatus.CANCELLED);
         // La canceló el propio usuario: no hay resultado que enseñarle en GET /me
         request.setAcknowledgedAt(OffsetDateTime.now());
+        discardLogo(request);
+    }
+
+    /** D7: el logo de una NEW se sube una sola vez, justo después de crearla (POST y luego este PATCH).
+     * Mientras está PENDING no se cambia; después del approve se cambia en el organizador. Si falla la
+     * subida, la solicitud sigue sin logo (es opcional). */
+    @Override
+    @Transactional
+    public OrganizerRequests updateLogo(UUID requestId, UUID userId, MultipartFile file) {
+        // WithDetails: el controller la mapea a OrganizerRequestDto (organizer, venue, venueCity)
+        OrganizerRequests request = organizerRequestsRepository.findByIdWithDetails(requestId)
+                .orElseThrow(() -> new EntityNotFoundException("Organizer request not found with id " + requestId));
+        assertOwnership(request, userId);
+        if (request.getStatus() != OrganizerRequestStatus.PENDING) {
+            throw new OrganizerRequestConflictException(REQUEST_NOT_PENDING, "Only pending requests can get a logo");
+        }
+        if (request.getType() != OrganizerRequestType.NEW || request.getLogoUrl() != null) {
+            throw new OrganizerRequestConflictException(LOGO_NOT_ALLOWED, "The logo is uploaded once, only for a new organizer");
+        }
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Failed to read logo file", e);
+        }
+        ImageTypeValidator.detectExtension(content);
+        byte[] webpContent = webpConverterService.convertToWebp(content, LOGO_MAX_LONG_EDGE);
+        request.setLogoUrl(objectStorageService.uploadOrganizerLogo(requestId, webpContent));
+        return request;
     }
 
     @Override
@@ -214,6 +253,7 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         request.setRejectionMessage(message);
         request.setReviewedBy(usersService.findById(adminId));
         request.setReviewedAt(OffsetDateTime.now());
+        discardLogo(request);
 
         // NEW: el nombre que pidió - CLAIM: el del organizador que reclama
         String organizerName = request.getType() == OrganizerRequestType.NEW
@@ -307,6 +347,16 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
     private boolean isOnePendingViolation(DataIntegrityViolationException ex) {
         String cause = ex.getMostSpecificCause().getMessage();
         return cause != null && cause.contains(ONE_PENDING_CONSTRAINT);
+    }
+
+    /** D7: cancelada o rechazada, el logo ya no se va a usar («Modifica e reinvia» lo vuelve a subir).
+     * Se borra del bucket después del commit (OrganizerLogoListener). */
+    private void discardLogo(OrganizerRequests request) {
+        if (request.getLogoUrl() == null) {
+            return;
+        }
+        eventPublisher.publishEvent(new OrganizerLogoDeletedEvent(request.getLogoUrl()));
+        request.setLogoUrl(null);
     }
 
     private void assertOwnership(OrganizerRequests request, UUID userId) {

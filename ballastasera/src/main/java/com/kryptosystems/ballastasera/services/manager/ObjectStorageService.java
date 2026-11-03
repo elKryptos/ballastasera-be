@@ -15,4 +15,9 @@ public interface ObjectStorageService {
     String uploadVenueLogo(UUID venueId, byte[] webpContent);
 
     void deleteVenueLogo(String logoUrl);
+
+    /** ownerId: la solicitud (antes de aprobar) o el organizador (después). */
+    String uploadOrganizerLogo(UUID ownerId, byte[] webpContent);
+
+    void deleteOrganizerLogo(String logoUrl);
 }
