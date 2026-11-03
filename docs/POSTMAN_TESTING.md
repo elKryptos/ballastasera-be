@@ -1547,3 +1547,210 @@ Lo que se queda sigue igual:
 | `GET http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888` | `200` |
 | CLAIM + approve sobre *Salsa Loca*, como en la §10 b) | approve `200`, la página tiene dueño y llega el email |
 | `PATCH http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888/unclaim` | `200`, la página vuelve a estar libre |
+
+---
+
+## 15. Logos de organizador (D7, §5.3)
+
+Plan: `organizer-requests-plan.md` (D7 y §5.3). El logo de una NEW se sube **una sola vez**, justo después de
+crearla; mientras está PENDING no se cambia. Después del approve, el dueño (por NEW o por CLAIM) lo cambia con
+`PATCH /rest/organizers/{id}/logo`. El dueño ya no puede poner `logoUrl` en texto. El logo se borra del bucket
+(prefijo `organizers/` del bucket de logos) al cancelar, rechazar, cambiarlo o borrar el organizador, siempre
+**después del commit**. `release`/`unclaim` no lo tocan.
+
+*Probado en Postman el 03/11/2026: todo pasa* (código del 31/10, 294 tests en verde).
+
+Hace falta tu cuenta USER (`<token user>`) y la ADMIN (`<token admin>`), sin organizadores ni solicitudes
+PENDING en la USER (las SQL de la §10). Para ver el bucket: la consola de RustFS, bucket de logos, carpeta
+`organizers/`.
+
+Las subidas son **form-data** en Postman: Body → form-data, clave `logo`, tipo *File*, un JPG o PNG.
+
+### a) NEW con logo
+
+```
+POST http://localhost:8081/rest/organizer-requests
+Authorization: Bearer <token user>
+Content-Type: application/json
+
+{
+  "type": "NEW",
+  "name": "Prova Logo",
+  "organizerType": "PERSON",
+  "description": "Prova: logo della richiesta.",
+  "instagram": "prova.logo",
+  "contactEmail": "prova.logo@example.com",
+  "termsAccepted": true
+}
+```
+
+**Esperado**: `201`, `"logoUrl": null`. Copia el `id` (`<request_id>`).
+
+```
+PATCH http://localhost:8081/rest/organizer-requests/<request_id>/logo
+Authorization: Bearer <token user>
+Body: form-data, logo = <archivo JPG o PNG>
+```
+
+**Esperado**: `200` con `"logoUrl": "http://localhost/logos/organizers/<request_id>/logo-<uuid>.webp"`. El
+archivo aparece en el bucket.
+
+### b) Segunda subida → 409
+
+La misma petición otra vez → `409` con `errors.code = "LOGO_NOT_ALLOWED"`. El `logoUrl` no cambia y no aparece
+ningún archivo nuevo en el bucket.
+
+### c) Archivo que no es imagen → 415, sin la parte `logo` → 400
+
+Con una NEW sin logo (cancela la de a) y crea otra), sube un `.txt` o `.pdf` como `logo` → `415`
+(«File is not a valid JPEG, PNG or WebP image»). La solicitud sigue sin logo.
+
+Sin la parte `logo` (por ejemplo con la clave `file`) → `400` «Missing request part: logo».
+
+### d) CLAIM → 409
+
+Haz una CLAIM sobre *Salsa Loca* (como en la §10 b) y sube un logo a esa solicitud → `409` con
+`errors.code = "LOGO_NOT_ALLOWED"`. Déjala PENDING para el caso k).
+
+### e) Cancelar con logo → se borra
+
+Con una NEW con logo: `DELETE http://localhost:8081/rest/organizer-requests/<request_id>` → `204`.
+
+```sql
+SELECT status, logo_url FROM organizer_requests WHERE id = '<request_id>';  -- CANCELLED, NULL
+```
+
+El archivo desaparece del bucket.
+
+### f) Rechazar con logo → se borra
+
+Crea otra NEW, súbele logo y rechazala con el admin
+(`PATCH /rest/admin/organizer-requests/<request_id>/reject` con `{ "reason": "INCOMPLETE_DATA" }`) → `200`.
+La misma SQL de e): `REJECTED`, `logo_url` NULL, y el archivo ya no está en el bucket.
+
+### g) Aprobar con logo → pasa al organizador
+
+Otra NEW con logo, apruébala (`PATCH /rest/admin/organizer-requests/<request_id>/approve`) → `200` con
+`organizerId` (`<organizer_id>`).
+
+```sql
+SELECT logo_url FROM organizers WHERE id = '<organizer_id>';  -- la misma URL de la solicitud
+```
+
+`GET http://localhost:8081/rest/organizers/me` con `<token user>` → el organizador con ese `logoUrl`.
+
+### h) El dueño cambia el logo → el anterior se borra
+
+```
+PATCH http://localhost:8081/rest/organizers/<organizer_id>/logo
+Authorization: Bearer <token user>
+Body: form-data, logo = <otro archivo>
+```
+
+**Esperado**: `200` con un `logoUrl` nuevo, ahora con `organizers/<organizer_id>/…`. El archivo anterior (el de
+la solicitud) desaparece del bucket. Con `<token admin>` (no es el dueño) → `403`
+«You are not owner of this organizer».
+
+### i) El dueño ya no pone `logoUrl` en texto; el admin sí
+
+```
+PATCH http://localhost:8081/rest/organizers/<organizer_id>
+Authorization: Bearer <token user>
+Content-Type: application/json
+
+{ "logoUrl": "https://example.com/logo.png", "description": "Descrizione cambiata." }
+```
+
+**Esperado**: `200`. La descripción cambia, el `logoUrl` **no**.
+
+La misma petición a `PATCH http://localhost:8081/rest/admin/organizers/<organizer_id>` con `<token admin>` →
+`200` y el `logoUrl` sí pasa a `https://example.com/logo.png`. En ese caso no se borra nada del bucket: el
+archivo anterior queda huérfano, como antes de D7.
+
+### j) Borrar el organizador → se borra el logo
+
+Vuelve a subir un logo con h) y borra el organizador con el dueño:
+`DELETE http://localhost:8081/rest/organizers/<organizer_id>` con `<token user>` → `204`. El archivo
+desaparece del bucket. Con `DELETE /rest/admin/organizers/<organizer_id>` (admin) es igual.
+
+### k) Dueño por CLAIM y `release` → el logo se queda
+
+Aprueba la CLAIM de d) (*Salsa Loca*) y sube un logo con
+`PATCH http://localhost:8081/rest/organizers/88888888-8888-8888-8888-888888888888/logo` → `200`. Después
+`PATCH http://localhost:8081/rest/organizers/88888888-8888-8888-8888-888888888888/release` → `204`.
+`SELECT logo_url FROM organizers WHERE id = '88888888-8888-8888-8888-888888888888';` → sigue el logo que
+subiste y el archivo sigue en el bucket. Recarga el seed o restaura *Salsa Loca* como en la §12 c).
+
+---
+
+## 16. D12: CLUB y VENUE solo publican en sus venues
+
+Plan: `organizer-requests-plan.md` (fase 3, D12). En los métodos del organizador (no en los `AsAdmin`), un
+organizador CLUB o VENUE tiene que publicar en un venue suyo: `venueId` obligatorio y enlazado a él. Si no →
+`403` «Venue not owned by this organizer». En `update` solo se mira si el body cambia `venueId`. Tampoco
+puede quitar el venue (`DELETE …/{id}/venue`). PERSON, SCHOOL y ASSOCIATION no cambian.
+
+*Sin probar todavía: aplazado el 03/11/2026, se prueba antes de staging* (código del 31/10).
+
+*Tropical Milano* (`11111111-…`) es de tipo VENUE y tiene su venue *Sala Havana* (`33333333-…`). Para probar
+con tu cuenta USER, dásela por SQL un momento:
+
+```sql
+UPDATE organizers SET user_id = '<id user>', claimed = true WHERE id = '11111111-1111-1111-1111-111111111111';
+SELECT id FROM cities WHERE slug = 'milano';
+```
+
+### a) Evento en su venue → 201
+
+```
+POST http://localhost:8081/rest/events
+Authorization: Bearer <token user>
+Content-Type: application/json
+
+{
+  "organizerId": "11111111-1111-1111-1111-111111111111",
+  "venueId": "33333333-3333-3333-3333-333333333333",
+  "cityId": <id de milano>,
+  "title": "Prova D12",
+  "address": "Via Tortona 12",
+  "latitude": 45.4522,
+  "longitude": 9.1620,
+  "startAt": "2026-11-20T21:00:00+01:00",
+  "endAt": "2026-11-21T01:00:00+01:00"
+}
+```
+
+**Esperado**: `201`. Copia el `id` (`<event_id>`).
+
+### b) En un venue de otro organizador o sin venue → 403
+
+- El mismo body con `"venueId": "99999999-9999-9999-9999-999999999999"` (*Salsa Loca · Sala Isola*) → `403`
+  «Venue not owned by this organizer».
+- Sin `venueId` → el mismo `403`.
+
+### c) Update y quitar el venue
+
+- `PATCH http://localhost:8081/rest/events/<event_id>` con `{ "venueId": "99999999-9999-9999-9999-999999999999" }`
+  → `403`, y el evento no cambia.
+- `PATCH http://localhost:8081/rest/events/<event_id>` con `{ "title": "Prova D12 bis" }` → `200` (sin `venueId`
+  no se mira la regla).
+- `DELETE http://localhost:8081/rest/events/<event_id>/venue` → `403`.
+
+### d) Series
+
+`POST http://localhost:8081/rest/event-series` con `<token user>` y el body de la §12 a), cambiando
+`"organizerId": "11111111-1111-1111-1111-111111111111"`, `"address": "Via Tortona 12"`, `"latitude": 45.4522` y
+`"longitude": 9.1620`: con `"venueId": "99999999-9999-9999-9999-999999999999"` → `403`; con
+`"venueId": "33333333-3333-3333-3333-333333333333"` → `201`.
+
+### e) El admin no tiene la regla
+
+`POST http://localhost:8081/rest/admin/events` con el body de a) sin `venueId` y `<token admin>` → `201`.
+
+Limpieza:
+
+```sql
+DELETE FROM events WHERE title LIKE 'Prova D12%';
+DELETE FROM event_series WHERE organizer_id = '11111111-1111-1111-1111-111111111111' AND title = 'Social del venerdì';
+UPDATE organizers SET user_id = '22222222-2222-2222-2222-222222222222' WHERE id = '11111111-1111-1111-1111-111111111111';
+```

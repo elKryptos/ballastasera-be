@@ -15,27 +15,48 @@ Convención de estado (la misma que `ROADMAP.md`):
 - `[~]` en progreso (dejar nota de qué falta)
 - `[x]` hecho y probado (tests + Postman)
 
-## ▶ Dónde retomar (actualizado 31/10/2026)
+## ▶ Dónde retomar (actualizado 03/11/2026)
 
-Rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `b6b6e40`
-(`release` + `unclaim` y su §11 incluidos); nada pendiente de push.
+**Backend:** rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `3432e3b`;
+nada pendiente de push. **Sin commit todavía:** logos, D12 y los tests de la fase 4 (código del 31/10).
 
-Suite: 166 tests en verde (todavía sin tests de `release`/`unclaim`).
+**Frontend:** repo `../ballastasera-fe`, en `main` y limpio. Todavía no tiene rama para esta entrega.
+
+Suite del backend: 294 tests en verde.
 
 | Fase | Estado |
 |---|---|
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
-| 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar) |
-| 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7), menos los logos: decididos el 31/10 (D7, §5.3), por hacer |
-| 3 — Admin | **En curso.** Hecho y probado en Postman (§8): lista, detalle, emails después del commit, approve, reject, handlers 409. D13 (borrar): hecho y probado en Postman (§10). `release` + `unclaim`: hecho y probado en Postman (§11). Retirar los eventos futuros al borrar (B): hecho y probado en Postman (§12). D10 (borrar `pending`, `verify` y `claim` manual): hecho y probado en Postman (§14). Ban en approve: hecho y probado (§8). **← SIGUIENTE: logos (D7, §5.3)** |
-| 4 — Tests | 10 tests unitarios adelantados en la fase 0. Faltan los de `OrganizerRequestsServiceImpl` (create… approve, reject) y `findClaimable` |
-| 5a/5b — Frontend | No empezado |
+| 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar). Se hace antes de staging |
+| 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7 y, los logos, §15) |
+| 3 — Admin | **Hecha y probada en Postman** (§8, §10, §11, §12, §14, §15 i), **salvo D12:** código y tests hechos, **Postman (§16) aplazado por decisión del 03/11** |
+| 4 — Tests | **Hecha** (31/10): 294 tests en verde |
+| 5a/5b — Frontend | **Siguiente.** No empezado. Revisado contra el código del front el 03/11 |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: logos** (D7 y §5.3, decididos el 31/10; incluye el `ignore` de `logoUrl` del dueño). Orden:
-storage → evento de borrado después del commit → logo de la solicitud → logo del organizador → borrados en
-cancel/reject/delete → `ignore` en el `update` del dueño. Hechos el 31/10: B (§12), 404 para rutas que no
-existen (§13), D10 (§14) y el ban en approve (§8). Después: D12 → tests (fase 4) → `schema.sql` + migración.
+**Siguiente paso: terminar el flujo de la solicitud en el front** (fase 5a: modelos, endpoints y servicios, después
+el wizard; luego 5b). **Decidido el 03/11:** gestionar un organizador ya aprobado (editarlo, logo, «Elimina» o «Lascia
+la pagina») se hace después, en la fase 5c, empezando por revisar qué APIs hay y cuáles faltan.
+
+**Pendiente del backend, para antes de staging:**
+1. Probar D12 en Postman (§16).
+2. `schema.sql` + migración (fase 1). No bloquea el front: la base local ya tiene la tabla.
+3. Docs (fase 6).
+
+**Lo que encontró la revisión del 03/11 (ya corregido en las fases 5a, 5b y 5c):**
+- **No existe ninguna página de perfil para el dueño.** La fila «Profilo organizzatore» del menú es un `<div>` sin
+  enlace y `update-organizer` es solo del admin. La fase 5b decía «cambiar el campo `logoUrl` por una subida»,
+  pero hay que crear la página entera (artboard `ProfiloOrganizzatore` del lienzo). Pasa a la fase 5c.
+- **El front no usa ningún endpoint de `organizers`:** hace falta un servicio nuevo, `organizers.service.ts`.
+- **«Annullato» no estaba en ninguna casilla.** El backend ya manda `status`, pero `EventDetailDto` del front no lo
+  tiene y `evento/:id` muestra un evento cancelado como si siguiera en pie. Pasa a la fase 5c.
+- **Dos tareas ya no eran válidas:** corregir `admin.claimOrganizer` (el endpoint se borró con D10) y el aviso de
+  «Elimina» sobre eventos que siguen publicados (desde B se cancelan al borrar).
+- **«Crea il locale»:** `create-venue` no lee query params, así que el prellenado y la vuelta con el id hay que
+  hacerlos.
+- **APIs borradas en el backend (D10), quitadas del front el 03/11 (sin commit):** `organizers.create` y
+  `admin.claimOrganizer` no las usaba nadie. `getPendingOrganizers` y `verifyOrganizer` sí, las usaba
+  `pending-organizers`, así que se borró también la página.
 
 **Lo hecho el 29/10 que no estaba en el plan:**
 - `OTHER` sin mensaje se valida en `OrganizerRequestRejectDto` con un `@AssertTrue`
@@ -63,23 +84,15 @@ existen (§13), D10 (§14) y el ban en approve (§8). Después: D12 → tests (f
 IntelliJ (con el modo auto desactivado); después compilar, `mvnw test`, probar en Postman. Claude
 actualiza `POSTMAN_TESTING.md` directamente. Commit con una sola línea en inglés, sin referencia a Claude.
 
-**Decisiones abiertas:**
-- Logos (D7, §5.3): **decididos el 31/10, entran en esta entrega.** Dos APIs como en venues: el `POST` de la
-  solicitud sigue en JSON y el logo se sube con `PATCH /rest/organizer-requests/{id}/logo` **una sola vez**
-  (NEW, PENDING y sin logo; si no → 409). Mientras está PENDING no se cambia. Después del approve, el dueño
-  (NEW o CLAIM) lo cambia con `PATCH /rest/organizers/{id}/logo`. El logo vive lo mismo que lo que lo usa:
-  se borra del bucket al cancelar, al rechazar, al cambiarlo y al borrar el organizador (dueño o admin),
-  siempre **después del commit**. Ya no se copia el logo al reenviar: el `TODO 5.3` de `create` se quita.
-- D13 **confirmada el 27/10 y ampliada el 29/10** con `release` (dueño) + `unclaim` (admin): ver la tabla
-  de decisiones. Revisada el 29/10: el creador solo borra, nunca suelta. `code` del 409, caché y email ya
-  decididos (fase 3). Queda implementarla.
-- D13 ampliada otra vez el 29/10: al borrar un organizador se cancelan sus eventos futuros y se desactivan
-  sus series, `status` en `EventDetailDto`, y antes se arregla el 500 de las series sin organizador. Va
-  después de `release`/`unclaim` (fase 3).
-- Revisión del plan contra el código (29/10), todo decidido: `unclaim` de una página creada con NEW → 409
-  `ORGANIZER_CREATED_BY_OWNER`; borrar la asignación manual `PATCH /admin/organizers/{id}/claim` junto con D10;
-  `approve` → 403 si el usuario está baneado; el dueño ya no puede poner `logoUrl`; el filtro JWT que no mira
-  el baneo va a `ROADMAP.md`. Ver los últimos puntos de la fase 3.
+**Decisiones abiertas (frontend):**
+- **Forma de trabajar en el front:** si Claude escribe directamente o archivo por archivo con diff, como en el
+  backend. El «modo B» acordado el 24/10 no quedó definido.
+- **Idiomas del wizard:** la fase 5a pide textos en `it`, `en` y `es` con transloco, pero hoy transloco solo se usa
+  en la landing, `install-banner` y `navbar.ts`. El resto (menú, admin, mapa, detalle) está en italiano directo en
+  el HTML. Sin decidir: traducir estas pantallas o dejarlas en italiano como las demás.
+
+Las decisiones del backend (logos, `release`/`unclaim`, eventos retirados, revisión del 29/10) ya están cerradas e
+implementadas: ver D7, D13 y la fase 3.
 
 ---
 
@@ -160,6 +173,9 @@ USER ──Diventa organizzatore──► PENDING ──approve──► APPROVE
 ---
 
 ## 2. Plan por días
+
+*Calendario original, ya superado (la implementación empezó el 25/10). Las fechas de los títulos de la sección 6
+son de este calendario. El estado real está en «Dónde retomar».*
 
 | Día | Fases | Resultado al final del día |
 |---|---|---|
@@ -1132,7 +1148,7 @@ Estado 26/10/2026: **hecha y probada en Postman** (`fdfd05e` + `03f0b29`; prueba
      En CLAIM no se guarda nada: el local es el que el admin ya enlazó al organizador.
   8. `save`; capturar `DataIntegrityViolationException` → 409 `PENDING_REQUEST_EXISTS`.
 - [x] **`findMyLatest(userId)`** → `Optional`; el controller devuelve 204 si está vacío.
-- [ ] **`updateLogo(requestId, userId, file)`** + `PATCH /rest/organizer-requests/{id}/logo`: ownership
+- [~] **`updateLogo(requestId, userId, file)`** + `PATCH /rest/organizer-requests/{id}/logo`: ownership
       (`request.user.id == userId`, si no → 403), `status == PENDING` (si no → 409 `REQUEST_NOT_PENDING`),
       `type == NEW` y `logoUrl == null` (si no → 409 `LOGO_NOT_ALLOWED`: se sube una sola vez), luego la
       tubería de la sección 5.3.
@@ -1142,13 +1158,17 @@ Estado 26/10/2026: **hecha y probada en Postman** (`fdfd05e` + `03f0b29`; prueba
 - [x] **`findClaimable(name, limit)`** en `OrganizersService`: `name.trim()`. El controller valida
       `@Size(min = 3, max = 120)` en `name` y `@Min(1) @Max(10)` en `limit` (por defecto 5) → 400.
       Endpoint `GET /rest/organizers/claimable` en `OrganizersController`.
-- [ ] **`OrganizersService.updateLogo(id, requesterId, file)`** + `PATCH /rest/organizers/{id}/logo`
+- [x] **`OrganizersService.updateLogo(id, requesterId, file)`** + `PATCH /rest/organizers/{id}/logo`
       (ownership con el `assertOwnership` que ya existe; vale para dueños por NEW y por CLAIM). Borra el
       anterior después del commit. `@CacheEvict` igual que `update`.
-- [ ] `ObjectStorageService.uploadOrganizerLogo` / `deleteOrganizerLogo` (sección 5.3).
-- [ ] `OrganizerLogoDeletedEvent` + listener `AFTER_COMMIT` (sección 5.3), publicado por `cancel`, `reject`,
+- [x] `ObjectStorageService.uploadOrganizerLogo` / `deleteOrganizerLogo` (sección 5.3).
+- [x] `OrganizerLogoDeletedEvent` + listener `AFTER_COMMIT` (sección 5.3), publicado por `cancel`, `reject`,
       `updateLogo` del organizador (el anterior), `delete` y `deleteAsAdmin`.
-- [ ] Constante `LOGO_NOT_ALLOWED` en `OrganizerRequestConflictException` (+ fila en §4.6).
+- [x] Constante `LOGO_NOT_ALLOWED` en `OrganizerRequestConflictException` (+ fila en §4.6).
+      *Logos: código hecho el 31/10 por Claude (control dado por el usuario para esta tanda), tests en verde;
+      probado en Postman el 03/11 (`POSTMAN_TESTING.md` §15). Listener aparte (`OrganizerLogoListener`), no en
+      `OrganizerEmailListener`. `cancel`/`reject` además ponen `logoUrl = null` en la solicitud. El `update`
+      del dueño usa `OrganizerMapper.updateOwnedOrganizerFromDto` (ignora `logoUrl`). Quitado el `TODO 5.3`.*
 - [x] `SecurityConfig`: `GET /rest/organizers/claimable` en `permitAll`.
 - [x] Javadoc corto en cada endpoint, con el estilo del controller (quién puede llamarlo y para qué pantalla).
 - [x] Borrar `POST /rest/organizers` (`OrganizersController.create`), `OrganizersService.createForUser`
@@ -1314,12 +1334,17 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
     `demoteToUser`).
   - **Tests.** `OrganizersServiceImplTest`: dueño de una NEW borra → ok · dueño de una CLAIM borra → 403/409
     y no se borra nada · `deleteAsAdmin` sigue borrando cualquiera.
-- [ ] **D12: CLUB y VENUE solo publican en sus venues.** En `EventsServiceImpl.create` / `update` y en
+- [~] **D12: CLUB y VENUE solo publican en sus venues.** En `EventsServiceImpl.create` / `update` y en
       `EventSeriesServiceImpl.create` / `update` (los métodos del organizador, **no** los `AsAdmin`):
       si `organizer.getType().isVenueBound()`, `venueId` es obligatorio y tiene que estar en
       `venuesRepository.findByOrganizerId(organizer.getId())`; si no → 403 `AccessDeniedException`
       («Venue not owned by this organizer»). Un método privado en cada servicio, llamado justo antes de
       `resolveVenue`. En `update` solo se comprueba si el body cambia `venueId`.
+      *Código hecho el 31/10, tests en verde; Postman (`POSTMAN_TESTING.md` §16) aplazado el 03/11: se prueba
+      antes de staging. Con `venuesRepository.existsByIdAndOrganizerId` en vez de `findByOrganizerId`. La comprobación va justo
+      después de `assertOwnership`, antes de tocar la entidad (`EventSeriesServiceImpl.update` no es
+      `@Transactional`). Añadido: `removeVenue` de eventos y de series también da 403 a un CLUB/VENUE (si no,
+      podía dejar el evento sin su venue y saltarse D12).*
 - [x] Borrar `GET /rest/admin/organizers/pending`, `PATCH /rest/admin/organizers/{id}/verify`,
       `OrganizersService.findPendingVerification` y `verify`, y `OrganizersRepository.findByIsVerifiedFalse` (D10).
       *Hecho el 31/10 y probado en Postman (`POSTMAN_TESTING.md` §14), 165 tests en verde (sale el caso
@@ -1333,12 +1358,12 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
       (`endpoints.ts` apunta a una ruta que no existe y nadie lo llama). Asignar una página = CLAIM aprobada.
       `OrganizersService.claim()` se queda: lo usa `approve`. Después, en D13 ya no existe «asignado a mano»
       (el criterio `isCreatedByOwner` no cambia) y el caso c de `POSTMAN_TESTING.md` §10 se puede quitar.
-- [ ] **Revisión del 29/10 contra el código:**
+- [x] **Revisión del 29/10 contra el código:**
   - ✅ `approve`: si el usuario de la solicitud está baneado → 403, como en `create` (si lo banean mientras
     está PENDING, hoy se aprobaría y subiría a ORGANIZER). *Hecho el 31/10 y probado en Postman
     (`POSTMAN_TESTING.md` §8, «Usuario baneado»): `403` con «Banned users cannot become organizers», la
     solicitud sigue PENDING y el admin la rechaza.*
-  - `OrganizersServiceImpl.update` (el dueño) ignora `logoUrl`: método del mapper con
+  - ✅ (probado en Postman el 03/11, §15 i) `OrganizersServiceImpl.update` (el dueño) ignora `logoUrl`: método del mapper con
     `@Mapping(target = "logoUrl", ignore = true)`. Hoy el dueño puede poner cualquier URL externa como logo
     (el problema de D7). `updateAsAdmin` lo sigue aceptando (lo usa `update-organizer` del frontend). El
     dueño lo cambia con `PATCH /rest/organizers/{id}/logo`. *31/10: se hace junto con los logos (§5.3).*
@@ -1357,7 +1382,7 @@ nuevo organizador CLUB, crear un evento en otro venue da 403.
 Mismo estilo que los tests existentes: Mockito para servicios, `@AutoConfigureMockMvc` + `@MockitoBean`
 para controllers.
 
-- [ ] `OrganizerRequestsServiceImplTest`:
+- [x] `OrganizerRequestsServiceImplTest`:
   - create NEW ok · create CLAIM ok
   - create con PENDING existente → `PENDING_REQUEST_EXISTS`
   - create con un organizador ya propio → `ORGANIZER_LIMIT_REACHED`
@@ -1376,35 +1401,44 @@ para controllers.
     · NEW CLUB sin `venueId` → `VENUE_REQUIRED` · CLAIM de una página con venue → ok sin body · CLAIM de
     una SCHOOL sin venue → `VENUE_REQUIRED`
   - `deleteAsAdmin` cancela las CLAIM PENDING antes de borrar
-- [ ] `EventsServiceImplTest` / `EventSeriesServiceImplTest` (D12): CLUB en su venue → ok · CLUB en otro
+- [x] `EventsServiceImplTest` / `EventSeriesServiceImplTest` (D12): CLUB en su venue → ok · CLUB en otro
       venue o sin venue → 403 · PERSON y SCHOOL en cualquier venue → ok · `createAsAdmin` sin cambios
   - approve / reject de una no PENDING → 409 · reject OTHER sin mensaje → 400
-- [ ] `UsersServiceImplTest`: `demoteToUser` (ORGANIZER sin organizadores → USER; con organizadores → sigue igual; ADMIN → sigue igual).
-- [ ] `OrganizerRequestsControllerTest`: 201 / 204 / 400 de validación (NEW sin nombre, CLAIM sin
+- [x] `UsersServiceImplTest`: `demoteToUser` (ORGANIZER sin organizadores → USER; con organizadores → sigue igual; ADMIN → sigue igual).
+- [x] `OrganizerRequestsControllerTest`: 201 / 204 / 400 de validación (NEW sin nombre, CLAIM sin
       target, NEW CLUB sin dirección, NEW PERSON con dirección, dirección sin ciudad,
       `termsAccepted=false`, Instagram inválido) / 409 con `errors.code`.
-- [ ] `AdminControllerTest`: lista por estado, approve y reject (200 / 400 / 409).
-- [ ] `SecurityConfigTest`: anónimo → 401 en `/rest/organizer-requests/me`; USER → 403 en
+- [x] `AdminControllerTest`: lista por estado, approve y reject (200 / 400 / 409).
+- [x] `SecurityConfigTest`: anónimo → 401 en `/rest/organizer-requests/me`; USER → 403 en
       `/rest/admin/organizer-requests`; anónimo → 200 en `/rest/organizers/claimable?name=sal`.
-- [ ] `OrganizerRequestCreateDto`: test de validación como `VenueDtoValidationTest`.
+- [x] `OrganizerRequestCreateDto`: test de validación como `VenueDtoValidationTest`.
 
 **Terminado cuando:** `mvn test` en verde. Anotar el número de tests en `ROADMAP.md`, igual que en el bloque 1.
+
+*31/10: hecha. 294 tests en verde (antes 165). Nuevos: `OrganizerRequestsServiceImplTest` (40),
+`EventSeriesServiceImplTest` (11, D12 + series sin organizador), `OrganizerRequestsControllerTest` (16),
+`OrganizerRequestCreateDtoValidationTest` (14), `OrganizerLogoListenerTest` (2). Ampliados:
+`OrganizersServiceImplTest` (6 → 25: logos, `release`/`unclaim`, eventos retirados, `claim`, `findClaimable`),
+`EventsServiceImplTest` (22 → 30, D12), `S3ObjectStorageServiceImplTest` (15 → 20), `AdminControllerTest`
+(10 → 18), `SecurityConfigTest` (14 → 20). `demoteToUser` ya tenía sus tests. Número en `ROADMAP.md`: en la fase 6.*
 
 ### Fase 5a — Frontend: base y wizard (jue 22)
 
 Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id`).
 
-- [ ] `core/models/organizer-request.model.ts` (sección 4.7).
+- [ ] Rama `feature/organizer-requests` en `ballastasera-fe` (desde `main`).
+- [ ] `core/models/organizer-request.model.ts` (sección 4.7, comprobada contra los DTOs del backend el 03/11).
 - [ ] `endpoints.ts`:
   - nuevo `organizerRequests: { create, me, logo(id), cancel(id), acknowledge(id) }`
-  - `organizers.claimable` y `organizers.logo(id)`
+  - `organizers.claimable`
   - `admin.organizerRequests`, `admin.organizerRequest(id)`, `admin.approveRequest(id)`, `admin.rejectRequest(id)`
-  - corregir `admin.claimOrganizer` a `/rest/admin/organizers/${id}/claim`
 - [ ] `core/services/organizer-requests.service.ts`: métodos HTTP + un signal `myRequest` (con su
       estado de carga). Se carga después del login si `role` es `USER` o `ORGANIZER`, y se vuelve a
       cargar al crear, cancelar o hacer acknowledge.
-- [ ] `FEATURE_FLAGS.organizerRequestPage` (+ cada `environment*.ts`): protege las rutas nuevas y la
-      tarjeta del menú hasta que todo esté listo.
+- [ ] `core/services/organizers.service.ts` (nuevo: hoy ningún servicio del front usa `endpoints.organizers`):
+      `claimable`, `getBySlug`, `venues(id)` y `myOrganizers`. Lo de editar un organizador se añade en la fase 5c.
+- [ ] `FEATURE_FLAGS.organizerRequestPage`: protege las rutas nuevas y la tarjeta del menú hasta que todo esté
+      listo. `false` en `environment.ts` (prod) y `true` en `environment.staging.ts`.
 - [ ] `features/organizer-request/`: un `OrganizerRequestFormStore` (signals) que guarda el borrador
       entre pasos, y estas rutas bajo `diventa-organizzatore`, con
       `canMatch: [featureFlagGuard(...), roleGuard('USER')]`:
@@ -1437,12 +1471,15 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
       El logo no se prellena (el reject lo borró): en `profilo`, el círculo del logo sale vacío con
       «Carica di nuovo il logo».
 - [ ] Textos en `public/i18n/it.json`, `en.json` y `es.json` (transloco), con claves bajo `organizerRequest.*`.
+      **Pendiente de decidir** (ver «Decisiones abiertas»): el resto de la app logueada está en italiano directo
+      en el HTML.
 - [ ] Tests vitest: el servicio (204 → `null`), el store (mapeo de tipos, modo CLAIM, cuándo aparece
       «Il tuo locale») y el guard de redirección.
 
 ### Fase 5b — Frontend: menú, admin y bienvenida (vie 23, mañana)
 
-- [ ] **`shared/navbar/navbar.html`**, tarjeta «Organizza» (`*appRole="'USER'"`) según `myRequest`:
+- [ ] **`shared/navbar/navbar.html`**, tarjeta «Organizza» (`*appRole="'USER'"`, hoy estática con el chip
+      «In sviluppo»: se quita al enlazarla) según `myRequest`:
   - sin solicitud, `CANCELLED` o `APPROVED` → «Organizzi serate?» + «Diventa organizzatore» → `/diventa-organizzatore`.
     Un `CANCELLED` con `rejectionMessage` y `acknowledgedAt` null lo canceló el admin al borrar la página
     («La pagina è stata rimossa.», sin email): mostrar el mensaje una vez y llamar a `acknowledge`
@@ -1454,7 +1491,8 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
 - [ ] **Bienvenida de organizador** (`benvenuto-organizzatore`, pantalla «Approvata»): se muestra una
       sola vez si `role === 'ORGANIZER'` y `myRequest.status === 'APPROVED'` con
       `acknowledgedAt === null`. Al salir (cualquier botón) → `acknowledge`. «Completa il profilo:
-      manca ancora il logo» solo si el organizador no tiene `logoUrl`.
+      manca ancora il logo» (solo si el organizador no tiene `logoUrl`) lleva a la página de la fase 5c: no se
+      muestra hasta que exista.
 - [ ] Cuando la app vuelve a tener el foco (`visibilitychange`) o cada 5 minutos con la pestaña
       visible, si hay una solicitud PENDING: volver a pedir `/auth/me` + `myRequest`. Así el
       usuario ve la aprobación sin recargar la página.
@@ -1467,25 +1505,52 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
     descripción, «2º intento» si `previousRejections > 0`
   - bloque **«Locale»**: en CLAIM, los venues que ya tiene el organizador (`targetOrganizerVenues`, con
     enlace a `luogo/:id`); en NEW de tipo local, la dirección propuesta con el botón «Crea il locale»
-    (abre `admin/create-venue` prellenado y vuelve con el id); si falta el venue, aviso «Manca il locale»
+    (abre `admin/create-venue` prellenado y vuelve con el id; `create-venue` todavía no lee query params, hay
+    que añadirlo); si falta el venue, aviso «Manca il locale»
   - «Approva» → confirmación → `approve` (con `{ venueId }` si se acaba de crear el local)
   - «Rifiuta» → panel con los 4 motivos + «Altro» (radio), mensaje facoltativo (obligatorio con
     «Altro»), «Invia rifiuto»
   - un 409 `CONCURRENT_UPDATE` o `REQUEST_NOT_PENDING` → aviso «Già revisionata» + recargar la lista
-- [ ] **Perfil del organizador (D13):** un solo botón. «Elimina» si `myRequest` es una NEW APPROVED con
-      `organizerId` igual al suyo; si no, «Lascia la pagina» (`PATCH /rest/organizers/{id}/release`).
-      Confirmación de «Elimina»: «Gli eventi futuri resteranno pubblicati senza organizzatore: annullali
-      prima». Confirmación de «Lascia»: «I contatti e gli eventi resteranno pubblici: modificali prima».
-- [ ] **Perfil del organizador: logo.** El campo `logoUrl` en texto se cambia por subida de archivo
-      (`PATCH /rest/organizers/{id}/logo`) con preview, para dueños por NEW y por CLAIM. El backend ya
-      ignora `logoUrl` en el `update` del dueño.
-- [ ] Admin: botón «Rimuovi proprietario» en el organizador → `PATCH /rest/admin/organizers/{id}/unclaim`.
-- [ ] `admin-home`: cambiar el enlace de «Organizzatori in attesa» a la página nueva.
-- [ ] Borrar `features/admin/pending-organizers`, su ruta, `FEATURE_FLAGS.pendingOrganizersPage` (y su
-      valor en cada `environment*.ts`), `AdminService.getPendingOrganizers/verifyOrganizer` y
-      `endpoints.organizers.create` / `endpoints.admin.getPendingOrganizers` / `verifyOrganizer` (D10).
-      También `endpoints.organizers.claimOrganizer` (apunta a una ruta que no existe y el backend borra la
-      asignación manual).
+- [ ] `admin-home`: añadir el enlace a la página nueva `admin/organizer-requests`.
+- [x] Borrar `features/admin/pending-organizers`, su ruta, `FEATURE_FLAGS.pendingOrganizersPage` (y su valor en
+      `environment.ts` y `environment.staging.ts`), `AdminService.getPendingOrganizer` / `verifyOrganizer`, su enlace
+      en `admin-home` y `endpoints.organizers.create` / `endpoints.admin.getPendingOrganizers` / `verifyOrganizer` /
+      `claimOrganizer` (D10). También `PageDto`, que solo usaba esa página. *Hecho el 03/11, sin commit.*
+
+### Fase 5c — Frontend: gestionar un organizador ya aprobado (después de 5a y 5b)
+
+Decidido el 03/11: va después de terminar el flujo de la solicitud. Hasta entonces, un organizador aprobado no
+puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el admin.
+
+- [ ] **Primero, revisar qué APIs hay y cuáles faltan.** Punto de partida, ya en el backend: `GET /rest/organizers/me`,
+      `PATCH /rest/organizers/{id}`, `PATCH /rest/organizers/{id}/logo`, `DELETE /rest/organizers/{id}`,
+      `PATCH /rest/organizers/{id}/release`, `GET /rest/organizers/{id}/venues` y
+      `PATCH /rest/admin/organizers/{id}/unclaim`.
+- [ ] `endpoints.ts`: `organizers.logo(id)`, `organizers.release(id)` y `admin.unclaimOrganizer(id)`.
+      `organizers.service.ts`: `update`, `uploadLogo`, `release` y `delete`.
+- [ ] `core/models/organizer.model.ts`: el dueño no manda `logoUrl` ni `type` (`OrganizerUpdateDto` del backend no
+      tiene `type`). Hoy los dos son obligatorios en el tipo del front, y `update-organizer` del admin sigue
+      mandando `logoUrl`.
+- [ ] **Página nueva: perfil del organizador** (`features/organizer-profile/`, ruta `profilo-organizzatore`,
+      `canMatch: [featureFlagGuard(FEATURE_FLAGS.organizerRequestPage), roleGuard('ORGANIZER')]`; diseño: artboard
+      `ProfiloOrganizzatore` del lienzo). No existe nada todavía: `update-organizer` es solo del admin. La fila
+      «Profilo organizzatore» del menú pasa de `<div>` a `<a routerLink>`.
+  - Datos de `GET /rest/organizers/me`. Formulario con `PATCH /rest/organizers/{id}`: nombre, descripción (contador
+    /2000), Instagram, email, teléfono, web y Facebook. `type` no se cambia (el backend no lo acepta).
+  - **Logo:** subida de archivo con preview («Cambia logo», `PATCH /rest/organizers/{id}/logo`), para dueños por NEW y
+    por CLAIM. El backend ignora `logoUrl` en el `update` del dueño. Se puede partir de `venue-logo-editor`.
+  - **Locale:** los venues de `GET /rest/organizers/{id}/venues`, solo lectura (D11).
+  - **Un solo botón (D13):** «Elimina» si `myRequest` es una NEW APPROVED con `organizerId` igual al suyo; si no,
+    «Lascia la pagina» (`PATCH /rest/organizers/{id}/release`). Confirmación de «Elimina»: «Le serate future
+    verranno annullate e le serie disattivate». Confirmación de «Lascia»: «I contatti e gli eventi resteranno
+    pubblici: modificali prima». Después de los dos: recargar `/auth/me` (el rol baja a `USER`) y `myRequest`.
+- [ ] «Completa il profilo: manca ancora il logo» en la bienvenida (fase 5b), enlazado a esta página.
+- [ ] **Evento cancelado (B):** añadir `status` a `EventDetailDto` en `event.model.ts` y mostrar «Annullato» en
+      `evento/:id` cuando sea `CANCELLED`, sin el badge «Live» / «Inizia tra…» de `eventBadge`. Hoy un enlace
+      guardado muestra el evento como si siguiera en pie.
+- [ ] Admin: botón «Rimuovi proprietario» → `PATCH /rest/admin/organizers/{id}/unclaim`, en `update-organizer`
+      (`OrganizerDetailDto` trae `claimed`; el `OrganizerSummaryDto` de `verified-organizer-list` no). Traducir el
+      409 `ORGANIZER_CREATED_BY_OWNER` («Creata dal proprietario: va eliminata») y `ORGANIZER_NOT_CLAIMED`.
 
 ### Fase 6 — Documentación y despliegue (vie 23, tarde)
 
@@ -1535,6 +1600,8 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
 ## 8. Checklist de cierre
 
 - [ ] Fases 0–6 marcadas `[x]`
+- [ ] D12 probado en Postman (`POSTMAN_TESTING.md` §16), aplazado el 03/11
+- [ ] `ballastasera_schema.sql` y `docs/migrations/2026-10-organizer-requests.sql` escritos (fase 1)
 - [ ] `mvn test` en verde y tests de vitest en verde
 - [ ] Flujo end-to-end en staging con las 5 variantes (aprobada, rechazada → reenviada, CLAIM con su venue y una competidora, NEW CLUB con dirección, cancelada)
 - [ ] `API.md`, `ROADMAP.md` y `POSTMAN_TESTING.md` actualizados
