@@ -485,7 +485,8 @@ class OrganizerRequestsServiceImplTest {
         OrganizerRequests result = organizerRequestsService.approve(REQUEST_ID, ADMIN_ID, null);
 
         assertThat(mapped.isVerified()).isTrue();
-        assertThat(mapped.isClaimed()).isTrue();
+        // D15: la NEW deja claimed = false (lo creó su dueño); true solo por una CLAIM
+        assertThat(mapped.isClaimed()).isFalse();
         assertThat(mapped.getUser()).isSameAs(user);
         assertThat(mapped.getSlug()).isEqualTo("salsa-loca-milano");
         assertThat(mapped.getLogoUrl()).isEqualTo(LOGO_URL);

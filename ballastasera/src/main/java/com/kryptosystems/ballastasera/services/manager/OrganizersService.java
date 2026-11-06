@@ -41,6 +41,9 @@ public interface OrganizersService {
     /** Regresa los organizadores que ya han sido verificados. */
     Page<Organizers> findVerified(Pageable pageable);
 
+    /** Lista del admin (D15): verificados con su dueño cargado. */
+    Page<Organizers> findVerifiedWithOwner(Pageable pageable);
+
     Organizers findVerifiedBySlug(String slug);
 
     void verifyExistsById(UUID id);

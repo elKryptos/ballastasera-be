@@ -20,5 +20,6 @@ public class OrganizerDetailDto {
     private String instagram;
     private String facebook;
     private boolean verified;
+    /** D15: true si llegó por una CLAIM. En el perfil del dueño: false → «Elimina», true → «Deja el organizador creado». */
     private boolean claimed;
 }

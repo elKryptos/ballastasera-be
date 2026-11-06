@@ -249,6 +249,11 @@ public class OrganizersServiceImpl implements OrganizersService {
     }
 
     @Override
+    public Page<Organizers> findVerifiedWithOwner(Pageable pageable) {
+        return organizersRepository.findVerifiedWithOwner(pageable);
+    }
+
+    @Override
     public List<Organizers> findClaimable(String name, int limit) {
         // name (mín. 3) y limit (1-10) ya los valida el controller
         return organizersRepository.findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(

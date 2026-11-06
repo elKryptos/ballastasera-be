@@ -1,9 +1,6 @@
 package com.kryptosystems.ballastasera.models.mappers;
 
-import com.kryptosystems.ballastasera.models.dtos.OrganizerCreateDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerDetailDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerSummaryDto;
-import com.kryptosystems.ballastasera.models.dtos.OrganizerUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -12,6 +9,13 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
 public interface OrganizerMapper {
+
+    /** Lista del admin. User llega cargado por el LEFT JOIN FETCH de findVerifiedWithOwner (sin N+1);
+     * sin dueño, los tres owner* quedan null. */
+    @Mapping(target = "ownerId", source = "user.id")
+    @Mapping(target = "ownerName", source = "user.displayName")
+    @Mapping(target = "ownerEmail", source = "user.email")
+    OrganizerAdminDto toOrganizerAdminDto(Organizers organizer);
 
     OrganizerSummaryDto toOrganizerSummaryDto(Organizers organizer);
 

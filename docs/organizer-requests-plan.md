@@ -145,15 +145,18 @@ USER ──Diventa organizzatore──► PENDING ──approve──► APPROVE
 | D9 | **El rol cambia sin repetir el login** | `JwtAuthenticationFilter` vuelve a leer el usuario de la base de datos en cada request. El frontend solo tiene que volver a pedir `/rest/auth/me`. El claim `role` del JWT queda viejo, pero no se usa para autorizar |
 | D10 | **Los endpoints viejos se borran en la misma entrega** (`POST /rest/organizers`, `pending` y `verify`), y backend y frontend se despliegan juntos | En prod no hay ninguna solicitud ni ningún organizador con dueño (sección 3.2), así que no hay nada que mantener en paralelo |
 | D11 | **Organizador y venue los enlaza siempre el admin.** `CLUB`, `VENUE` y `SCHOOL` necesitan al menos un venue para aprobarse (`OrganizerType.requiresVenue()`). **CLAIM**: el admin ya creó el organizador con su venue enlazado (`createVenueAsAdmin` + `organizerId`). El usuario lo ve en el wizard y no elige nada · **NEW**: la solicitud lleva dirección + ciudad del local. El admin crea el venue con el endpoint que ya existe y pasa su id en el approve. Los usuarios nunca eligen ni crean venues | El usuario ve su local desde la solicitud, sin búsquedas ni venues «libres» que se puedan pedir dos veces. El admin controla qué entra en el mapa y con quién está enlazado |
-| D12 | **CLUB y VENUE solo publican en sus venues.** Al crear o editar un evento o una serie como organizador, `venueId` es obligatorio y tiene que estar en `findByOrganizerId(org.id)` (`OrganizerType.isVenueBound()`). `SCHOOL`, `PERSON` y `ASSOCIATION` siguen eligiendo cualquier venue (o ninguno), como hoy. `createAsAdmin` no cambia | Un club no puede publicar en la otra punta de la ciudad. Un DJ, una asociación o una escuela que hace un stage en otro local sí tienen que poder hacerlo |
+| D12 | **CLUB y VENUE solo publican en sus venues.** Al crear o editar un evento o una serie como organizador, `venueId` es obligatorio y tiene que estar en `findByOrganizerId(org.id)` (`OrganizerType.isVenueBound()`). `SCHOOL` y `PERSON` siguen eligiendo cualquier venue (o ninguno), como hoy. `createAsAdmin` no cambia | Un club no puede publicar en la otra punta de la ciudad. Un DJ, una ASD o una escuela que hace un stage en otro local sí tienen que poder hacerlo |
 | D13 | **✅ CONFIRMADA (27/10/2026), ampliada el 29/10. El dueño no puede borrar un organizador que creó el admin, pero sí puede soltarlo.** **Borrar:** `DELETE /rest/organizers/{id}` → 403 `AccessDeniedException` si el organizador no viene de una solicitud NEW APPROVED de ese usuario (`existsByOrganizerIdAndUserIdAndTypeAndStatus`), es decir, si llegó por una CLAIM o el admin se lo asignó con `PATCH /admin/organizers/{id}/claim`. Esos solo los borra el admin (`deleteAsAdmin`). Los de una NEW los sigue borrando su dueño. **Soltar:** se le quita el dueño sin borrar nada (`user = null`, `claimed = false`, `demoteToUser`). El organizador, su venue y sus eventos siguen ahí, y vuelve a salir en `claimable`. Dos endpoints con la misma lógica: `PATCH /rest/organizers/{id}/release` (dueño, solo los que **no** vienen de su NEW; los suyos los borra) y `PATCH /rest/admin/organizers/{id}/unclaim` (admin, cualquiera con dueño: para errores en un approve o si el usuario lo pide por email). **Frontend:** un solo botón en el perfil, «Elimina» si viene de su NEW y «Lascia la pagina» si no, deducido de `GET /rest/organizer-requests/me` (sin campo `deletable`). **Revisado el 29/10: el creador solo borra, nunca suelta.** Si pudiera soltar, su NEW APPROVED seguiría enlazada y, al volver a reclamarla, podría borrar lo que otro hizo después; además sus datos (`contactEmail`, `phone`) quedarían públicos en una página que ya no controla. Al borrar, el venue queda libre (`ON DELETE SET NULL`) y quien venga después lo enlaza con una NEW (`venueId` en el approve) | El organizador, su venue y sus eventos los puso el admin: un usuario no tiene que poder hacerlos desaparecer (si lo borra, el venue y los eventos quedan sin organizador por `ON DELETE SET NULL`). Pero tiene que poder dejarlo, y el admin tiene que poder corregir una CLAIM mal aprobada sin SQL a mano |
+| D14 | **✅ Hecho el 06/11/2026: `ASSOCIATION` eliminado de `OrganizerType`.** Quedan `PERSON`, `VENUE`, `CLUB` y `SCHOOL`. Una ASD con sede donde da clases es `SCHOOL` (en el front: «Scuola di ballo o ASD»); una sin sede fija, `PERSON`. Quitado del enum Java, del tipo `organizer_type` de PostgreSQL (se recrea: PostgreSQL no borra valores de un ENUM, ver §3.2) y del front. En el front los tipos están ya en un solo sitio: `ORGANIZER_TYPES` sale de las claves de `ORGANIZER_TYPE_LABELS`, y el wizard y los formularios del admin los usan (el compilador avisa si falta uno) | Funcionaba igual que `PERSON` (sin venue obligatorio y sin D12): solo cambiaba la etiqueta. Y muchas escuelas son ASD a nivel legal: eligiendo «Associazione» se saltaban la venue obligatoria de D11. En prod no había ninguna fila con ese valor |
+| D15 | **✅ Decidido el 06/11/2026: `claimed` significa «llegó por una CLAIM».** La NEW aprobada deja `claimed = false` (antes `true`). Las tres combinaciones: con `user` y `claimed = true` → página del admin que un usuario reclamó (se puede borrar o hacer unclaim); con `user` y `claimed = false` → la creó su dueño con una NEW (solo se borra, D13); sin `user` → del admin, sin dueño (sale en `claimable`). `claimed = true` solo puede ser una página del admin: una CLAIM solo pide organizadores sin dueño, y uno de NEW nunca se queda sin dueño (release 403, unclaim 409). `GET /rest/admin/organizers/verified` devuelve `OrganizerAdminDto` (`claimed` + `ownerId`, `ownerName`, `ownerEmail`) para que la lista decida los botones; `OrganizerDetailDto.claimed` le sirve también al perfil del dueño en la 5c. `isCreatedByOwner` (D13) no cambia: sigue consultando `organizer_requests`. Sin cambios de esquema; en prod todos los organizadores tienen `user = null` y `claimed = false` | Hasta ahora `claimed` valía siempre lo mismo que `user != null`, y el admin no podía distinguir una NEW de una CLAIM. El motivo para poner `true` en la NEW (problema 1: que `PATCH /admin/organizers/{id}/claim` no pudiera reasignarla) ya no existe: ese endpoint se borró y `claim()` mira también `user`. Se descartó una columna nueva `origin`: habría dejado tres campos que se solapan (`user`, `claimed`, `origin`) y una migración en prod antes del deploy |
 
 ### Problemas en el código actual que se arreglan aquí
 
 1. `createForUser` no pone `claimed=true`. Un organizador creado por un usuario queda `claimed=false`,
    y `PATCH /admin/organizers/{id}/claim` podría reasignarlo a otro usuario. En prod no hay ningún caso
    (todos los organizadores son unclaimed) y `createForUser` se borra en la fase 2, así que basta con no
-   repetir el error en `approve` (fase 3).
+   repetir el error en `approve` (fase 3). *Revisado el 06/11 (D15): ese endpoint ya no existe y `claim()`
+   comprueba `user != null`, así que la NEW vuelve a dejar `claimed = false` a propósito.*
 2. `OrganizerAlreadyClaimedException` no tiene handler y devuelve **500** en vez de 409.
 3. Un usuario puede crear N organizadores pendientes (`POST /rest/organizers` no tiene ningún control).
 4. `UsersServiceImpl.demoteToUser` y `becomeOrganizer` **devuelven `null`**: no están implementados.
@@ -295,6 +298,22 @@ Se ejecuta **una vez** en cada base, antes de desplegar el backend nuevo:
 --  Develop, staging y prod. Sin datos que migrar. Ver docs/organizer-requests-plan.md §3.
 -- ============================================================================
 BEGIN;
+
+-- D14: organizer_type sin ASSOCIATION. PostgreSQL no borra valores de un ENUM, así que se recrea el tipo.
+-- Va antes del CREATE TABLE organizer_requests: así esa tabla nace con el tipo nuevo. Solo actúa si el
+-- tipo todavía tiene ASSOCIATION (en develop ya se hizo a mano el 06/11). Si alguna fila lo usara, el
+-- USING fallaría y la transacción entera haría rollback.
+DO $$ BEGIN
+    IF 'ASSOCIATION' = ANY (enum_range(NULL::organizer_type)::text[]) THEN
+        ALTER TYPE organizer_type RENAME TO organizer_type_old;
+        CREATE TYPE organizer_type AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL');
+        -- El DEFAULT 'PERSON' está ligado al tipo viejo: se quita antes del cambio y se vuelve a poner
+        ALTER TABLE organizers ALTER COLUMN type DROP DEFAULT;
+        ALTER TABLE organizers ALTER COLUMN type TYPE organizer_type USING type::text::organizer_type;
+        ALTER TABLE organizers ALTER COLUMN type SET DEFAULT 'PERSON';
+        DROP TYPE organizer_type_old;
+    END IF;
+END $$;
 
 DO $$ BEGIN
     CREATE TYPE organizer_request_type AS ENUM ('NEW', 'CLAIM');
@@ -541,7 +560,7 @@ no hace falta una clase nueva:
 
 ```java
 public enum OrganizerType {
-    PERSON, VENUE, CLUB, SCHOOL, ASSOCIATION;
+    PERSON, VENUE, CLUB, SCHOOL; // ASSOCIATION quitado el 06/11 (D14)
 
     /** D11: necesita al menos un venue para aprobarse. */
     public boolean requiresVenue() {
@@ -669,8 +688,8 @@ public class OrganizerRequestCreateDto {
     @Pattern(regexp = "(?s).*\\S.*", message = "name must not be blank")
     private String name;
 
-    /** Solo NEW (obligatorio). Passo 1: Insegnante/DJ/promoter=PERSON, Scuola=SCHOOL,
-     *  Discoteca/club=CLUB, Locale/bar=VENUE, Associazione=ASSOCIATION. */
+    /** Solo NEW (obligatorio). Passo 1: Insegnante/DJ/promoter=PERSON, Scuola o ASD=SCHOOL,
+     *  Discoteca/club=CLUB, Locale/bar=VENUE. */
     private OrganizerType organizerType;
 
     @Size(max = 500)
@@ -718,7 +737,7 @@ Error 400 con `errors.name`, `errors.organizerType` o `errors.targetOrganizerId`
 
 El validador también comprueba el local: `venueAddress` y `venueCityId` van los dos o ninguno
 (`errors.venueAddress`); en CLAIM se ignoran. En NEW, `organizerType.requiresVenue()` exige la
-dirección, y un tipo que no la exige (PERSON, ASSOCIATION) no puede traerla (`errors.venueAddress`).
+dirección, y un tipo que no la exige (PERSON) no puede traerla (`errors.venueAddress`).
 
 No hay `logoUrl`: el logo se sube aparte (sección 5.3).
 
@@ -1098,7 +1117,7 @@ int linkOrganizerIfFree(@Param("venueId") UUID venueId, @Param("organizer") Orga
 - [x] `OrganizersRepository`:
       `List<Organizers> findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(String name, Limit limit)`.
       *Cambiado en la fase 2 (`03f0b29`): el `findTop10…` original no filtraba `UserIsNull`, y un
-      organizador creado por su dueño y verificado sigue con `claimed=false` (ej. Tropical Milano).
+      organizador creado por su dueño y verificado sigue con `claimed=false` (desde D15, a propósito).
       Con `Limit` la base devuelve solo `limit` filas.*
 - [x] `models/mappers/OrganizerRequestMapper` (MapStruct, `componentModel = "spring"`):
       `toDto`, `toAdminDto`, `toEntity(OrganizerRequestCreateDto)`. Mappings: `organizerName` (`name`
@@ -1199,7 +1218,9 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
      que rechazarla; es un caso raro, solo pasa si se le asignó una página por la vía directa mientras tanto.
   3. **NEW**: crear `Organizers` con los datos de la solicitud: slug con
      `SlugUtils.uniqueSlug(name, slug -> organizersRepository.findBySlug(slug).isPresent())`,
-     `isVerified = true`, `claimed = true`, `user = request.user`, `logoUrl = request.logoUrl`.
+     `isVerified = true`, `claimed = false` (D15, 06/11; antes `true`), `user = request.user`, `logoUrl = request.logoUrl`.
+     En develop, los organizadores ya aprobados con una NEW se corrigen una vez:
+     `UPDATE organizers o SET claimed = false WHERE EXISTS (SELECT 1 FROM organizer_requests r WHERE r.organizer_id = o.id AND r.type = 'NEW' AND r.status = 'APPROVED');`
      `request.organizer = saved`. `usersService.promoteToOrganizer(userId)`. Email
      `sendOrganizerApprovedEmail` (ya existe).
   4. **CLAIM**: `organizersService.claim(target.id, user.id)`. Ya lanza `OrganizerAlreadyClaimedException`
@@ -1321,7 +1342,8 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
     toca nada · serie sin organizador → detalle 200 y PATCH/DELETE del usuario → 403.
 
   Preguntas originales (27/10), ya resueltas arriba:
-  - **Cómo saberlo.** `claimed` no sirve: el approve de una NEW también pone `claimed = true`. Criterio
+  - **Cómo saberlo.** `claimed` no sirve: el approve de una NEW también pone `claimed = true` (*cambiado el
+    06/11, D15: la NEW deja `false` y `claimed` ya distingue NEW de CLAIM; `isCreatedByOwner` no cambia*). Criterio
     propuesto: `delete` solo deja borrar si existe una solicitud NEW APPROVED de ese usuario con ese
     `organizer_id` (método nuevo `existsByOrganizerIdAndUserIdAndTypeAndStatus`). Así quedan protegidos
     también los asignados a mano con `PATCH /admin/organizers/{id}/claim`, que no tienen solicitud.
@@ -1540,17 +1562,23 @@ puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el 
   - **Logo:** subida de archivo con preview («Cambia logo», `PATCH /rest/organizers/{id}/logo`), para dueños por NEW y
     por CLAIM. El backend ignora `logoUrl` en el `update` del dueño. Se puede partir de `venue-logo-editor`.
   - **Locale:** los venues de `GET /rest/organizers/{id}/venues`, solo lectura (D11).
-  - **Un solo botón (D13):** «Elimina» si `myRequest` es una NEW APPROVED con `organizerId` igual al suyo; si no,
-    «Lascia la pagina» (`PATCH /rest/organizers/{id}/release`). Confirmación de «Elimina»: «Le serate future
+  - **Un solo botón (D13):** «Elimina» si `claimed` es `false` en `GET /rest/organizers/me` (lo creó él con una NEW,
+    D15); si es `true`, «Lascia la pagina» (`PATCH /rest/organizers/{id}/release`). Antes de D15 se deducía de
+    `myRequest`; ya no hace falta. Confirmación de «Elimina»: «Le serate future
     verranno annullate e le serie disattivate». Confirmación de «Lascia»: «I contatti e gli eventi resteranno
     pubblici: modificali prima». Después de los dos: recargar `/auth/me` (el rol baja a `USER`) y `myRequest`.
 - [ ] «Completa il profilo: manca ancora il logo» en la bienvenida (fase 5b), enlazado a esta página.
 - [ ] **Evento cancelado (B):** añadir `status` a `EventDetailDto` en `event.model.ts` y mostrar «Annullato» en
       `evento/:id` cuando sea `CANCELLED`, sin el badge «Live» / «Inizia tra…» de `eventBadge`. Hoy un enlace
       guardado muestra el evento como si siguiera en pie.
-- [ ] Admin: botón «Rimuovi proprietario» → `PATCH /rest/admin/organizers/{id}/unclaim`, en `update-organizer`
-      (`OrganizerDetailDto` trae `claimed`; el `OrganizerSummaryDto` de `verified-organizer-list` no). Traducir el
-      409 `ORGANIZER_CREATED_BY_OWNER` («Creata dal proprietario: va eliminata») y `ORGANIZER_NOT_CLAIMED`.
+- [ ] Admin: botón «Rimuovi titolare» → `PATCH /rest/admin/organizers/{id}/unclaim`, **en la lista**
+      `verified-organizer-list` (decidido el 06/11; el detalle por id se queda para editar datos). La lista recibe
+      `OrganizerAdminDto` (D15): el botón solo sale con `ownerId` y `claimed = true`. Etiqueta por fila: «Creato
+      dall'admin · senza titolare», «Creato dall'admin · titolare: <ownerName>» o «Creato da <ownerName>».
+      `getVerifiedOrganizers` y el selector de `admin-pickers.ts` pasan al tipo `OrganizerAdminDto` (lee los
+      mismos campos). Traducir los 409 `ORGANIZER_CREATED_BY_OWNER` («Creata dal titolare: va eliminata») y
+      `ORGANIZER_NOT_CLAIMED`, por si acaso. El diálogo de «Elimina», si tiene titolare: avisar que baja a utente
+      y que sus serate future se cancelan.
 
 ### Fase 6 — Documentación y despliegue (vie 23, tarde)
 
@@ -1569,6 +1597,9 @@ puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el 
      CLUB con dirección (creas el venue y apruebas), cancelar.
 
 ### Fase 7 — Paso a prod (fin de semana, después de validar staging)
+
+Lo que hay que ejecutar en la base de prod, en orden, está en `docs/prod-db-antes-del-release.md`
+(D14 y `organizer_requests`; D15 no toca la base de prod).
 
 - [ ] Backup de prod (`pg_dump`).
 - [ ] Ejecutar `2026-10-organizer-requests.sql`.

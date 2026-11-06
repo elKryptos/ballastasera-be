@@ -719,8 +719,8 @@ GET http://localhost:8081/rest/organizers/claimable?name=sal
 GET http://localhost:8081/rest/organizers/claimable?name=tro
 ```
 
-**Esperado**: `200` con `[]`. *Tropical Milano* está verificado pero tiene dueño (`claimed` sigue en
-`false` porque lo creó su dueño y lo verificó el admin): no tiene que salir.
+**Esperado**: `200` con `[]`. *Tropical Milano* está verificado pero tiene dueño (`user_id` no es null): no
+tiene que salir. Desde D15 el seed le pone `claimed = true` (dueño asignado a mano, como una CLAIM).
 
 ```
 GET http://localhost:8081/rest/organizers/claimable?name=sa
@@ -1688,7 +1688,7 @@ subiste y el archivo sigue en el bucket. Recarga el seed o restaura *Salsa Loca*
 Plan: `organizer-requests-plan.md` (fase 3, D12). En los métodos del organizador (no en los `AsAdmin`), un
 organizador CLUB o VENUE tiene que publicar en un venue suyo: `venueId` obligatorio y enlazado a él. Si no →
 `403` «Venue not owned by this organizer». En `update` solo se mira si el body cambia `venueId`. Tampoco
-puede quitar el venue (`DELETE …/{id}/venue`). PERSON, SCHOOL y ASSOCIATION no cambian.
+puede quitar el venue (`DELETE …/{id}/venue`). PERSON y SCHOOL no cambian (ASSOCIATION ya no existe, D14).
 
 *Sin probar todavía: aplazado el 03/11/2026, se prueba antes de staging* (código del 31/10).
 
@@ -1754,3 +1754,67 @@ DELETE FROM events WHERE title LIKE 'Prova D12%';
 DELETE FROM event_series WHERE organizer_id = '11111111-1111-1111-1111-111111111111' AND title = 'Social del venerdì';
 UPDATE organizers SET user_id = '22222222-2222-2222-2222-222222222222' WHERE id = '11111111-1111-1111-1111-111111111111';
 ```
+
+---
+
+## 17. D15: lista de organizadores del admin con `claimed` y titular
+
+Plan: `organizer-requests-plan.md` (D15). `claimed` significa «llegó por una CLAIM»: la NEW aprobada deja
+`claimed = false`. `GET /rest/admin/organizers/verified` devuelve `OrganizerAdminDto`: lo de antes (sin
+`whatsapp`) más `claimed`, `ownerId`, `ownerName` y `ownerEmail`.
+
+*✅ Probado desde el front el 07/11/2026* (la lista del admin con titularidad y «Rimuovi titolare»); en
+Postman, sin pasar todavía. Código del 06/11.
+
+**Antes:** si tu base de develop ya tenía organizadores aprobados con una NEW, corrígelos una vez (si no,
+saldrían con `claimed = true`):
+
+```sql
+UPDATE organizers o SET claimed = false
+WHERE EXISTS (SELECT 1 FROM organizer_requests r
+              WHERE r.organizer_id = o.id AND r.type = 'NEW' AND r.status = 'APPROVED');
+UPDATE organizers SET claimed = true WHERE id = '11111111-1111-1111-1111-111111111111';  -- Tropical Milano (seed)
+```
+
+### a) Las tres combinaciones en la lista
+
+```
+GET http://localhost:8081/rest/admin/organizers/verified?page=0&size=20
+```
+
+con `<token admin>`. **Esperado**: `200`, y en `content`:
+
+| Organizador | `ownerId` | `claimed` | Botones en el front |
+|---|---|---|---|
+| *Salsa Loca Milano* (`88888888-…`), sin dueño | `null` (y `ownerName`/`ownerEmail` `null`) | `false` | Aggiorna · Elimina |
+| *Tropical Milano* (`11111111-…`), dueño Marco | `22222222-…`, `ownerEmail` `organizer.seed@ballastasera.test` | `true` | Aggiorna · Elimina · Rimuovi titolare |
+| Uno creado con una NEW aprobada (§8 / §10) | el usuario que la pidió | `false` | Aggiorna · Elimina |
+
+Si no tienes ninguno de NEW: crea y aprueba una NEW como en la §10 y vuelve a llamar.
+
+### b) La NEW aprobada nace con `claimed = false`
+
+Después de aprobar una NEW (§10):
+
+```sql
+SELECT user_id, claimed FROM organizers WHERE id = '<id creado>';   -- el usuario, false
+```
+
+### c) La CLAIM aprobada nace con `claimed = true`
+
+Después de aprobar la CLAIM de Ana sobre *Salsa Loca* (§8):
+
+```sql
+SELECT user_id, claimed FROM organizers WHERE id = '88888888-8888-8888-8888-888888888888';   -- Ana, true
+```
+
+En la lista, *Salsa Loca* sale con Ana como titular y `claimed = true`. Después de un `unclaim` (§11) vuelve
+a `ownerId = null` y `claimed = false`.
+
+### d) Los demás endpoints no cambian
+
+- `GET http://localhost:8081/rest/organizers?page=0&size=20` (público) → `200` con `OrganizerSummaryDto`:
+  **sin** `ownerEmail` ni `claimed`.
+- `GET http://localhost:8081/rest/admin/organizers/{id}` → `200` con `OrganizerDetailDto`, como antes.
+- El selector de organizador de los formularios del admin (crear evento, crear venue) sigue mostrando la
+  lista: usa `id`, `name` e `instagram` de esta misma respuesta.

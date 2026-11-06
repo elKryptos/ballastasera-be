@@ -4,8 +4,7 @@ public enum OrganizerType {
     PERSON,
     VENUE,
     CLUB,
-    SCHOOL,
-    ASSOCIATION;
+    SCHOOL;
 
     /** D11: es necesario al menos un venue para ser aprobado. */
     public boolean requiresVenue() {

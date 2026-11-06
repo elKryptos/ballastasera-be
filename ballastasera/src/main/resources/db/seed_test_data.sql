@@ -18,13 +18,14 @@ VALUES (
            'tropicalmilano_marco', false, 'ORGANIZER'
        );
 
-INSERT INTO organizers (id, user_id, name, slug, type, description, logo_url, website, phone, contact_email, instagram, facebook, is_verified)
+-- claimed = true (D15): tiene dueño pero no viene de una NEW, así que cuenta como una CLAIM (página del admin)
+INSERT INTO organizers (id, user_id, name, slug, type, description, logo_url, website, phone, contact_email, instagram, facebook, is_verified, claimed)
 VALUES (
            '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222',
            'Tropical Milano', 'tropical-milano', 'VENUE',
            'Locale storico di salsa e bachata a Milano.', NULL,
            'https://tropicalmilano.it', '+39 02 1234567', 'info@tropicalmilano.it',
-           'tropicalmilano', 'tropicalmilano', true
+           'tropicalmilano', 'tropicalmilano', true, true
        );
 
 -- ----------------------------------------------------------------------------

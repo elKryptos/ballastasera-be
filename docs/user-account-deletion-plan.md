@@ -29,8 +29,10 @@ cuidado y el orden que tiene que seguir el servicio. Revisar contra el código a
 
 `events`, `event_series` y `revoked_tokens` no tienen FK a `users`.
 
-**No cambiar `organizers.user_id` a `SET NULL`:** dejaría páginas con `claimed = true` y sin dueño, que no
-salen en `claimable` y nadie gestiona. La solución es que el servicio deje al usuario sin organizadores
+**No cambiar `organizers.user_id` a `SET NULL`:** dejaría páginas sin dueño que nadie gestiona. Las que
+llegaron por CLAIM se quedarían con `claimed = true` y no saldrían en `claimable`. Las creadas con una NEW
+(`claimed = false` desde D15) saldrían en `claimable` con los datos del usuario borrado, y otro podría
+reclamarlas. La solución es que el servicio deje al usuario sin organizadores
 **antes** de borrarlo o marcarlo. Así el `CASCADE` no tiene nada que borrar y queda solo como red de
 seguridad.
 

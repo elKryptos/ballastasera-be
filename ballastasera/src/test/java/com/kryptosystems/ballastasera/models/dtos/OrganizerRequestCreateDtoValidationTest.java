@@ -77,8 +77,8 @@ class OrganizerRequestCreateDtoValidationTest {
     }
 
     @Test
-    void rejectsANewAssociationWithAddress() {
-        OrganizerRequestCreateDto dto = newRequest(OrganizerType.ASSOCIATION);
+    void rejectsANewPersonWithAddress() {
+        OrganizerRequestCreateDto dto = newRequest(OrganizerType.PERSON);
         dto.setVenueAddress("Via Roma 1");
         dto.setVenueCityId(1L);
 

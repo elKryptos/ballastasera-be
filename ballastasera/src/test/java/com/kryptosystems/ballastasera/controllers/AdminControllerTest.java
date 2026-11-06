@@ -6,11 +6,13 @@ import com.kryptosystems.ballastasera.exceptions.InvalidMediaTypeException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
 import com.kryptosystems.ballastasera.exceptions.core.BackendErrorResponse;
 import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
+import com.kryptosystems.ballastasera.models.dtos.OrganizerAdminDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestAdminDto;
 import com.kryptosystems.ballastasera.models.dtos.OrganizerRequestRejectDto;
 import com.kryptosystems.ballastasera.models.dtos.VenueDetailDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
+import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
@@ -374,6 +376,25 @@ class AdminControllerTest {
         mockMvc.perform(patch("/rest/admin/organizers/{id}/unclaim", ORGANIZER_ID))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errors.code").value("ORGANIZER_NOT_CLAIMED"));
+    }
+
+    /** D15: la lista del admin lleva claimed y el dueño para decidir los botones. */
+    @Test
+    void getVerifiedReturnsOwnerAndClaimedForTheAdminList() throws Exception {
+        Organizers organizer = new Organizers();
+        OrganizerAdminDto dto = new OrganizerAdminDto();
+        dto.setId(ORGANIZER_ID);
+        dto.setClaimed(true);
+        dto.setOwnerEmail("ana@example.com");
+        when(organizersService.findVerifiedWithOwner(PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(organizer), PageRequest.of(0, 20), 1));
+        when(organizerMapper.toOrganizerAdminDto(organizer)).thenReturn(dto);
+
+        mockMvc.perform(get("/rest/admin/organizers/verified"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(ORGANIZER_ID.toString()))
+                .andExpect(jsonPath("$.content[0].claimed").value(true))
+                .andExpect(jsonPath("$.content[0].ownerEmail").value("ana@example.com"));
     }
 
     @AfterEach

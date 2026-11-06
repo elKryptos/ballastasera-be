@@ -63,6 +63,9 @@ public class Organizers {
     @Column(name = "is_verified", nullable = false)
     private boolean isVerified = false;
 
+    /** D15. true: llegó por una CLAIM (la página la creó el admin y un usuario la reclamó; se puede soltar).
+     * false con user: la creó su dueño con una NEW (solo se borra, D13). false sin user: del admin, sin dueño
+     * (sale en claimable). Quien asigne un dueño a una página del admin tiene que poner true. */
     @Column(name = "claimed", nullable = false)
     private boolean claimed = false;
 

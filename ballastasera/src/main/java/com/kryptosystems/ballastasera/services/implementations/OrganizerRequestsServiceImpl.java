@@ -278,7 +278,8 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         organizer.setSlug(SlugUtils.uniqueSlug(request.getName(),
                 slug -> organizersRepository.findBySlug(slug).isPresent()));
         organizer.setVerified(true);
-        organizer.setClaimed(true);
+        // D15: false, la creó su dueño. true solo cuando llega por una CLAIM
+        organizer.setClaimed(false);
         organizer.setUser(request.getUser());
         Organizers saved = organizersRepository.save(organizer);
         request.setOrganizer(saved);

@@ -34,7 +34,7 @@ public class OrganizerRequestValidator implements ConstraintValidator<ValidOrgan
         if (hasAddress != hasCity) {
             return violation(context, "venueAddress", "venueAddress and venueCityId go together");
         }
-        // D11: CLUB/VENUE/SCHOOL necesitan la dirección; PERSON/ASSOCIATION no pueden traerla
+        // D11: CLUB/VENUE/SCHOOL necesitan la dirección; PERSON no pueden traerla
         if (dto.getOrganizerType().requiresVenue() && !hasAddress) {
             valid = violation(context, "venueAddress", "venueAddress is required for this organizer type");
         } else if (!dto.getOrganizerType().requiresVenue() && hasAddress) {

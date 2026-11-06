@@ -34,7 +34,7 @@ public class OrganizerRequestCreateDto {
     private String name;
 
     /** Solo NEW (obligatorio). Passo 1: Insegnante/DJ/promoter=PERSON, Scuola=SCHOOL,
-     *  Discoteca/club=CLUB, Locale/bar=VENUE, Associazione=ASSOCIATION. */
+     *  Discoteca/club=CLUB, Locale/bar=VENUE */
     private OrganizerType organizerType;
 
     @Size(max = 500)

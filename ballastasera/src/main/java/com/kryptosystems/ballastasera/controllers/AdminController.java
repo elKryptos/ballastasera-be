@@ -72,11 +72,11 @@ public class AdminController {
 
     /** Lista de organizadores ya verificados. */
     @GetMapping(GET_ORGANIZER_VERIFIED)
-    public ResponseEntity<Page<OrganizerSummaryDto>> getVerified(@RequestParam(defaultValue = "0") int page,
+    public ResponseEntity<Page<OrganizerAdminDto>> getVerified(@RequestParam(defaultValue = "0") int page,
                                                                  @RequestParam(defaultValue = "20") int size) {
-        Page<OrganizerSummaryDto> result = organizersService
-                .findVerified(PageRequest.of(page, size))
-                .map(organizerMapper::toOrganizerSummaryDto);
+        Page<OrganizerAdminDto> result = organizersService
+                .findVerifiedWithOwner(PageRequest.of(page, size))
+                .map(organizerMapper::toOrganizerAdminDto);
         return ResponseEntity.ok(result);
     }
 

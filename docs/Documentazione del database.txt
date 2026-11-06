@@ -93,7 +93,7 @@ PostgreSQL rifiuta. È la prima difesa contro i dati sporchi.
 | Tipo | Valori | Usato in | Significato |
 |------|--------|----------|-------------|
 | `user_role` | `user`, `organizer`, `admin` | `users.role` | Ruolo dell'account. `user` = consulta; `organizer` = pubblica; `admin` = gestione/moderazione. |
-| `organizer_type` | `person`, `venue`, `club`, `school`, `association` | `organizers.type` | Che cosa è chi pubblica: persona, locale, discoteca, scuola, associazione. |
+| `organizer_type` | `person`, `venue`, `club`, `school` | `organizers.type`, `organizer_requests.organizer_type` | Che cosa è chi pubblica: persona, locale, discoteca, scuola. Un'ASD con una sede dove fa lezione è `school`, una senza sede fissa è `person` (`association` rimosso il 06/11/2026). |
 | `event_status` | `draft`, `pending`, `published`, `cancelled` | `events.status` | Stato dell'evento nel flusso di moderazione (bozza → in attesa → pubblicato / annullato). |
 | `attendance_status` | `interested`, `going` | `event_attendance.status` | "Mi interessa" oppure "ci vado". |
 
@@ -149,8 +149,8 @@ segna la partecipazione o pubblica eventi.
 
 ### 4.3 `organizers` — profilo pubblico di chi pubblica
 
-Il profilo visibile di chi organizza: una persona, un locale, una discoteca, una
-scuola o un'associazione (campo `type`). Contiene nome pubblico, logo, contatti,
+Il profilo visibile di chi organizza: una persona, un locale, una discoteca o una
+scuola, anche se è un'ASD (campo `type`). Contiene nome pubblico, logo, contatti,
 social e il badge `is_verified` gestito dagli admin.
 
 | Colonna | Tipo | Note |

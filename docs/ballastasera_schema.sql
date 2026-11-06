@@ -5,7 +5,7 @@
 --  Idee guida:
 --   * Utenti con login Google (OAuth) — ma la consultazione è pubblica.
 --   * Chi pubblica ("organizer") può essere una persona, un locale, una
---     discoteca, una scuola o un'associazione.
+--     discoteca o una scuola (anche un'ASD).
 --   * Ogni evento è geolocalizzato (lat/lng) per la mappa Leaflet.
 --   * Progettato partendo da Milano ma già multi-città / multi-Italia.
 --
@@ -25,7 +25,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- Tipi enumerati
 -- ----------------------------------------------------------------------------
 CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
-CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL', 'ASSOCIATION');
+CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL');
 CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
 CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
 CREATE TYPE event_type        AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR', 'RESTAURANT');
@@ -74,7 +74,7 @@ CREATE TABLE users (
 
 -- ============================================================================
 --  ORGANIZERS — profilo pubblico di chi pubblica eventi
---  (una persona, un locale, una discoteca, una scuola, un'associazione)
+--  (una persona, un locale, una discoteca, una scuola o ASD)
 --  Un utente può gestire più profili (es. gestisce 2 locali).
 -- ============================================================================
 CREATE TABLE organizers (
@@ -91,7 +91,7 @@ CREATE TABLE organizers (
     instagram     TEXT,
     facebook      TEXT,
     is_verified   BOOLEAN NOT NULL DEFAULT FALSE, -- badge "verificato" gestito da admin
-    claimed       BOOLEAN NOT NULL DEFAULT FALSE, -- true cuando un usuario real reclamo el perfil
+    claimed       BOOLEAN NOT NULL DEFAULT FALSE, -- true: llegó por una CLAIM (perfil del admin reclamado). false con user_id: lo creó su dueño con una NEW
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
