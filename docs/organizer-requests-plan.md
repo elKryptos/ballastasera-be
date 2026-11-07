@@ -1196,6 +1196,16 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
       CLAIM PENDING de ese organizador (`findByOrganizerIdAndTypeAndStatus(id, CLAIM, PENDING)`), con
       `rejectionMessage = "La pagina è stata rimossa."`. Así `ON DELETE SET NULL` no rompe
       `chk_org_request_claim`.
+- [x] **Email al dueño cuando el admin borra su organizador** *(07/11, `6060a36`)*. Antes `deleteAsAdmin` no
+      avisaba a nadie. El email de `unclaim` no servía: dice «non è più associato al tuo account» y «invia una
+      nuova richiesta», como si la página siguiera existiendo. Evento propio, igual que los demás emails:
+      `OrganizerDeletedEvent` (valores, no la entidad) + `onOrganizerDeleted` en `OrganizerEmailListener`
+      (`AFTER_COMMIT`) + `EmailService.sendOrganizerDeletedEmail`. Asunto «Il tuo profilo organizzatore è
+      stato eliminato.»; el texto dice que los eventos en programa se han anulado (`retireUpcomingEvents`) y
+      que puede mandar una solicitud nueva. Se publica dentro del `if (owner != null)`: sin dueño no sale
+      nada. El `delete` del propio dueño no manda email (lo decide él, como el `release`). Tests: con dueño
+      publica el evento con su email y el nombre · sin dueño, ningún evento. Probado el 07/11 desde el
+      frontend (`POSTMAN_TESTING.md` §9).
 - [x] **D13 (confirmada el 27/10): el dueño no borra un organizador creado por el admin.** Criterio con
       `existsByOrganizerIdAndUserIdAndTypeAndStatus`, 403 `AccessDeniedException`; el frontend lo deduce de
       `GET /organizer-requests/me`. *Código hecho el 29/10, 166 tests en verde: método del repositorio,
@@ -1231,6 +1241,7 @@ En `AdminController` (constantes `GET_ORGANIZER_REQUESTS = "/organizer-requests"
       `claimed`. `VENUE_DETAIL` no, porque `organizerId`/`organizerName` no cambian.
     - Email solo en `unclaim` (el `release` lo decide el propio dueño): `OrganizerUnclaimedEvent` +
       `OrganizerEmailListener` + `EmailService.sendOrganizerUnclaimedEmail`, después del commit.
+      *(07/11: `deleteAsAdmin` también avisa al dueño, con su propio email; ver la casilla de problema 9.)*
     - `isCreatedByOwner(organizer, userId)` sale de `assertDeletableByOwner`: `delete`, `release` y
       `unclaimAsAdmin` usan la misma condición.
     - ~~Los eventos de un organizador borrado quedan publicados sin organizador (`ON DELETE SET NULL`), como
@@ -1351,6 +1362,7 @@ para controllers.
     · NEW CLUB sin `venueId` → `VENUE_REQUIRED` · CLAIM de una página con venue → ok sin body · CLAIM de
     una SCHOOL sin venue → `VENUE_REQUIRED`
   - `deleteAsAdmin` cancela las CLAIM PENDING antes de borrar
+  - `deleteAsAdmin` con dueño publica `OrganizerDeletedEvent`; sin dueño, ningún evento (07/11)
 - [x] `EventsServiceImplTest` / `EventSeriesServiceImplTest` (D12): CLUB en su venue → ok · CLUB en otro
       venue o sin venue → 403 · PERSON y SCHOOL en cualquier venue → ok · `createAsAdmin` sin cambios
   - approve / reject de una no PENDING → 409 · reject OTHER sin mensaje → 400
