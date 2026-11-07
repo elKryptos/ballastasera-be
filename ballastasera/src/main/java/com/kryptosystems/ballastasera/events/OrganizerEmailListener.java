@@ -38,4 +38,9 @@ public class OrganizerEmailListener {
     public void onOrganizerUnclaimed(OrganizerUnclaimedEvent event) {
         emailService.sendOrganizerUnclaimedEmail(event.getToEmail(), event.getOrganizerName());
     }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrganizerDeleted(OrganizerDeletedEvent event) {
+        emailService.sendOrganizerDeletedEmail(event.getToEmail(), event.getOrganizerName());
+    }
 }

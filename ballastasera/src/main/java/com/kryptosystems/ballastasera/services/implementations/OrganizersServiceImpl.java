@@ -5,8 +5,9 @@ import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
+import com.kryptosystems.ballastasera.events.OrganizerDeletedEvent;
 import com.kryptosystems.ballastasera.events.OrganizerLogoDeletedEvent;
- import com.kryptosystems.ballastasera.events.OrganizerUnclaimedEvent;
+import com.kryptosystems.ballastasera.events.OrganizerUnclaimedEvent;
 import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
 import com.kryptosystems.ballastasera.exceptions.OrganizerRequestConflictException;
@@ -161,6 +162,7 @@ public class OrganizersServiceImpl implements OrganizersService {
         organizersRepository.delete(organizer);
         if (owner != null) {
             usersService.demoteToUser(owner.getId());
+            eventPublisher.publishEvent(new OrganizerDeletedEvent(owner.getEmail(), organizer.getName()));
         }
         discardLogo(organizer.getLogoUrl());
     }

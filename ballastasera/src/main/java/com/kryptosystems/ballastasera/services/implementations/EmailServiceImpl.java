@@ -100,6 +100,22 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    @Async
+    public void sendOrganizerDeletedEmail(String toEmail, String organizerName) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject("Il tuo profilo organizzatore è stato eliminato.")
+                .html(buildDeletedEmail(organizerName))
+                .build();
+        try {
+            resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di rimozione a {}", toEmail, e);
+        }
+    }
+
     private String buildEmailContent(String organizerName) {
         return "<h1>Profilo verificato</h1>" +
                 "<p>Il tuo profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> è stato verificato.</p>" +
@@ -130,6 +146,14 @@ public class EmailServiceImpl implements EmailService {
                 "<p>Motivo: " + rejectReasonLabel(reason) + ".</p>" +
                 messageBlock +
                 "<p>Puoi correggere i dati e inviare una nuova richiesta da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
+                "<p>A presto sulla pista!</p>";
+    }
+
+    private String buildDeletedEmail(String organizerName) {
+        return "<h1>Profilo eliminato</h1>" +
+                "<p>Il profilo organizzatore <strong>" + HtmlUtils.htmlEscape(organizerName) + "</strong> è stato eliminato da Ballastasera.</p>" +
+                "<p>Gli eventi in programma sono stati annullati.</p>" +
+                "<p>Se pensi che si tratti di un errore o vuoi creare un nuovo profilo, puoi inviare una richiesta da <a href=\"" + frontendUrl + "\">Ballastasera</a>.</p>" +
                 "<p>A presto sulla pista!</p>";
     }
 

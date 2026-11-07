@@ -9,4 +9,5 @@ public interface EmailService {
     /** message es opcional: si es null, el email lleva solo el motivo. */
     void sendOrganizerRejectedEmail(String toEmail, String organizerName, OrganizerRejectReason reason, String message);
     void sendOrganizerUnclaimedEmail(String toEmail, String organizerName);
+    void sendOrganizerDeletedEmail(String toEmail, String organizerName);
 }

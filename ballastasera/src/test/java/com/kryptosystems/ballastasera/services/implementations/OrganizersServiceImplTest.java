@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
+import com.kryptosystems.ballastasera.events.OrganizerDeletedEvent;
 import com.kryptosystems.ballastasera.events.OrganizerLogoDeletedEvent;
 import com.kryptosystems.ballastasera.events.OrganizerUnclaimedEvent;
 import com.kryptosystems.ballastasera.exceptions.OrganizerAlreadyClaimedException;
@@ -414,6 +415,33 @@ class OrganizersServiceImplTest {
         InOrder inOrder = inOrder(organizersRepository, usersService);
         inOrder.verify(organizersRepository).delete(organizer);
         inOrder.verify(usersService).demoteToUser(OWNER_ID);
+    }
+
+    /** Sin logo: el único evento publicado es el de borrado. */
+    @Test
+    void deleteAsAdminNotifiesTheOwnerThatTheOrganizerWasDeleted() {
+        Users owner = user(OWNER_ID);
+        owner.setEmail("owner@example.com");
+        Organizers organizer = organizer(owner);
+        organizer.setName("Salsa Club");
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
+
+        organizersService.deleteAsAdmin(ORGANIZER_ID);
+
+        ArgumentCaptor<OrganizerDeletedEvent> captor = ArgumentCaptor.forClass(OrganizerDeletedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().getToEmail()).isEqualTo("owner@example.com");
+        assertThat(captor.getValue().getOrganizerName()).isEqualTo("Salsa Club");
+    }
+
+    @Test
+    void deleteAsAdminDoesNotNotifyWhenOrganizerHasNoOwner() {
+        Organizers organizer = organizer(null);
+        when(organizersRepository.findById(ORGANIZER_ID)).thenReturn(Optional.of(organizer));
+
+        organizersService.deleteAsAdmin(ORGANIZER_ID);
+
+        verifyNoInteractions(eventPublisher);
     }
 
     /** Problema 9 del plan: las CLAIM PENDING pasan a CANCELLED. Si no, ON DELETE SET NULL las dejaría
