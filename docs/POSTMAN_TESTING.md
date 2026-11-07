@@ -1143,6 +1143,34 @@ Authorization: Bearer <token admin>
 *Sin probar: `DELETE /rest/organizers/{id}` del dueño siendo USER → vuelve a USER. Hace falta el token de
 una segunda cuenta de Google que no sea admin; la lógica es la misma del caso A.*
 
+### Email al dueño cuando el admin borra el organizador
+
+Desde `6060a36`, `deleteAsAdmin` publica `OrganizerDeletedEvent` si el organizador tenía dueño. Después del
+commit, el dueño recibe el email «Il tuo profilo organizzatore è stato eliminato.» (título *Profilo
+eliminato*, con el nombre del organizador y el aviso de que los eventos en programa se han anulado). Sin
+dueño no sale nada. El `DELETE /rest/organizers/{id}` del propio dueño no manda email, igual que el `release`.
+
+**✅ Probado el 07/11** desde el frontend (borrado del admin, el email llega), además de los tests
+unitarios de `OrganizersServiceImplTest`.
+
+**a) Con dueño → llega el email.** Haz la CLAIM con tu cuenta sobre *Salsa Loca* y apruébala, como en la
+§10 b) (si ya tiene dueño, recarga el seed). Después:
+
+```
+DELETE http://localhost:8081/rest/admin/organizers/88888888-8888-8888-8888-888888888888
+Authorization: Bearer <token admin>
+```
+
+**Esperado**: `204` y te llega el email «Il tuo profilo organizzatore è stato eliminato.» con *Salsa Loca*.
+**No** llega el de `unclaim` («…non è più associato al tuo account.»). Sigues `ADMIN` (caso C de arriba).
+
+**b) Sin dueño → ningún email.** Recarga el seed (*Salsa Loca* sin dueño, con las CLAIM PENDING) y repite el
+mismo `DELETE` → `204`, las CLAIM pasan a `CANCELLED` como en el primer caso de esta sección y no llega
+ningún email (ni a Ana ni a Marco: su aviso es el `rejection_message`).
+
+**c) Organizador que no existe.** `DELETE http://localhost:8081/rest/admin/organizers/00000000-0000-0000-0000-000000000000`
+→ `404` y ningún email.
+
 ---
 
 ## 10. D13: el dueño solo borra lo que creó con una NEW (organizador)
@@ -1343,7 +1371,8 @@ Authorization: Bearer <token admin>
 ```
 
 **Esperado**: `409` con `errors.code = "ORGANIZER_CREATED_BY_OWNER"`. Sigues siendo el dueño y no llega
-ningún email. Limpia con `DELETE http://localhost:8081/rest/admin/organizers/<organizer_id>` → `204`.
+ningún email. Limpia con `DELETE http://localhost:8081/rest/admin/organizers/<organizer_id>` → `204`
+(desde `6060a36` esto sí te manda el email «Il tuo profilo organizzatore è stato eliminato.», ver §9).
 
 ### f) `unclaim` sin dueño y organizador que no existe
 
