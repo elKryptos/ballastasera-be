@@ -15,33 +15,39 @@ Convención de estado (la misma que `ROADMAP.md`):
 - `[~]` en progreso (dejar nota de qué falta)
 - `[x]` hecho y probado (tests + Postman)
 
-## ▶ Dónde retomar (actualizado 03/11/2026)
+## ▶ Dónde retomar (actualizado 07/11/2026)
 
-**Backend:** rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `3432e3b`;
-nada pendiente de push. **Sin commit todavía:** logos, D12 y los tests de la fase 4 (código del 31/10).
+**Backend:** rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `df6e95b`.
+**Pendiente de push:** `6060a36`, `60d3e2c` y `73eb783` (email al dueño cuando el admin borra su organizador,
+con sus docs) y el commit de esta actualización. **Diseñadas, sin aplicar:** las 5 API de gestión de serate
+(fase 5d); el código está en la casilla del backend de la 5d.
 
-**Frontend:** repo `../ballastasera-fe`, en `main` y limpio. Todavía no tiene rama para esta entrega.
+**Frontend:** repo `../ballastasera-fe`, rama `feature/organizer-requests`. En el remoto hasta `9ee4b5d`.
+**Pendiente de push:** `7fe94b8` (cuenta, perfil del organizador y menú, fase 5c). Nada sin commit.
 
-Suite del backend: 294 tests en verde.
+Suite del backend: 299 tests. Los dos que levantan el contexto de Spring (`BallastaseraApplicationTests`,
+`CitiesRepositoryTest`) necesitan la base local arrancada.
 
 | Fase | Estado |
 |---|---|
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
-| 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql`. El SQL para staging y prod ya está en `docs/prod-db-antes-del-release.md` (prod no tiene nada que migrar). Se hace antes de staging |
-| 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7 y, los logos, §15) |
-| 3 — Admin | **Hecha y probada en Postman** (§8, §10, §11, §12, §14, §15 i), **salvo D12:** código y tests hechos, **Postman (§16) aplazado por decisión del 03/11** |
-| 4 — Tests | **Hecha** (31/10): 294 tests en verde |
-| 5a/5b — Frontend | **Siguiente.** No empezado. Revisado contra el código del front el 03/11 |
+| 1 — Modelo | Hecho en código y en la base local. **Falta:** tipos + tabla en `ballastasera_schema.sql`. El SQL para staging y prod está en `docs/prod-db-antes-del-release.md` |
+| 2 — Endpoints del usuario | **Hecha y probada en Postman** (§7 y, los logos, §15) |
+| 3 — Admin | **Hecha y probada** (§8–§12, §14, §15 i), con D14, D15 (06/11) y el email de `deleteAsAdmin` (07/11, probado desde el front), **salvo D12:** código y tests hechos, **Postman (§16) aplazado por decisión del 03/11** |
+| 4 — Tests | **Hecha** |
+| 5a/5b — Frontend | **Hechas en código** (`555b910`, `716dffc`): wizard CLAIM + NEW, cola del admin, tarjeta del menú, bienvenida y línea del perfil. Textos en italiano directo, sin transloco. Las casillas de abajo todavía no están marcadas |
+| 5c — Gestionar un organizador aprobado | **Hecha en código** (`9ee4b5d` y `7fe94b8`): «Il tuo account» (`il-tuo-account`, flag `accountPage`: apagado en prod, encendido en staging), «La tua pagina» (`profilo-organizzatore`), «Rimuovi titolare» en el admin, menú con «Le tue serate» en una fila y «Serate pubblicate». **Falta:** «Annullato» en `evento/:id`. Sin recorrer todavía en el navegador |
+| 5d — Gestión de serate | **Nueva (07/11).** Diseño en el lienzo (fila «3 · Gestire le serate»). Backend: 5 endpoints diseñados, los aplica el usuario (~4 h). Frontend: no empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso: terminar el flujo de la solicitud en el front** (fase 5a: modelos, endpoints y servicios, después
-el wizard; luego 5b). **Decidido el 03/11:** gestionar un organizador ya aprobado (editarlo, logo, «Elimina» o «Lascia
-la pagina») se hace después, en la fase 5c, empezando por revisar qué APIs hay y cuáles faltan.
+**Siguiente paso:** aplicar las 5 API de la fase 5d. Después Claude revisa el diff, escribe los tests y la sección
+de `POSTMAN_TESTING.md`, y se empieza el front de las pantallas de serate. Pendiente aparte: marcar las casillas de
+5a/5b con lo que ya está hecho.
 
 **Pendiente del backend, para antes de staging:**
 1. Probar D12 en Postman (§16).
-2. `schema.sql` + migración (fase 1). No bloquea el front: la base local ya tiene la tabla.
-3. Docs (fase 6).
+2. `ballastasera_schema.sql`: tipos + tabla `organizer_requests` y `organizer_type` sin `ASSOCIATION` (D14).
+3. Docs (fase 6): `API.md`, `ROADMAP.md`.
 
 **Lo que encontró la revisión del 03/11 (ya corregido en las fases 5a, 5b y 5c):**
 - **No existe ninguna página de perfil para el dueño.** La fila «Profilo organizzatore» del menú es un `<div>` sin
@@ -54,7 +60,7 @@ la pagina») se hace después, en la fase 5c, empezando por revisar qué APIs ha
   «Elimina» sobre eventos que siguen publicados (desde B se cancelan al borrar).
 - **«Crea il locale»:** `create-venue` no lee query params, así que el prellenado y la vuelta con el id hay que
   hacerlos.
-- **APIs borradas en el backend (D10), quitadas del front el 03/11 (sin commit):** `organizers.create` y
+- **APIs borradas en el backend (D10), quitadas del front el 03/11:** `organizers.create` y
   `admin.claimOrganizer` no las usaba nadie. `getPendingOrganizers` y `verifyOrganizer` sí, las usaba
   `pending-organizers`, así que se borró también la página.
 
@@ -84,12 +90,9 @@ la pagina») se hace después, en la fase 5c, empezando por revisar qué APIs ha
 IntelliJ (con el modo auto desactivado); después compilar, `mvnw test`, probar en Postman. Claude
 actualiza `POSTMAN_TESTING.md` directamente. Commit con una sola línea en inglés, sin referencia a Claude.
 
-**Decisiones abiertas (frontend):**
-- **Forma de trabajar en el front:** si Claude escribe directamente o archivo por archivo con diff, como en el
-  backend. El «modo B» acordado el 24/10 no quedó definido.
-- **Idiomas del wizard:** la fase 5a pide textos en `it`, `en` y `es` con transloco, pero hoy transloco solo se usa
-  en la landing, `install-banner` y `navbar.ts`. El resto (menú, admin, mapa, detalle) está en italiano directo en
-  el HTML. Sin decidir: traducir estas pantallas o dejarlas en italiano como las demás.
+**Decisiones del frontend (cerradas el 03/11):** Claude escribe el front componente por componente, sin lógica
+repetida. Las pantallas nuevas van en italiano directo en el HTML, como el resto de la app logueada (transloco solo
+en la landing, `install-banner` y `navbar.ts`).
 
 Las decisiones del backend (logos, `release`/`unclaim`, eventos retirados, revisión del 29/10) ya están cerradas e
 implementadas: ver D7, D13 y la fase 3.
@@ -1484,19 +1487,28 @@ Rutas en italiano, como las existentes (`benvenuto`, `le-tue-serate`, `luogo/:id
 Decidido el 03/11: va después de terminar el flujo de la solicitud. Hasta entonces, un organizador aprobado no
 puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el admin.
 
-- [ ] **Primero, revisar qué APIs hay y cuáles faltan.** Punto de partida, ya en el backend: `GET /rest/organizers/me`,
+**Hecha en código el 07/11 (`7fe94b8`), salvo «Annullato».** Sin recorrer todavía en el navegador.
+
+- [x] **Primero, revisar qué APIs hay y cuáles faltan.** Estaban todas: `GET /rest/organizers/me`,
       `PATCH /rest/organizers/{id}`, `PATCH /rest/organizers/{id}/logo`, `DELETE /rest/organizers/{id}`,
-      `PATCH /rest/organizers/{id}/release`, `GET /rest/organizers/{id}/venues` y
-      `PATCH /rest/admin/organizers/{id}/unclaim`.
-- [ ] `endpoints.ts`: `organizers.logo(id)`, `organizers.release(id)` y `admin.unclaimOrganizer(id)`.
-      `organizers.service.ts`: `update`, `uploadLogo`, `release` y `delete`.
-- [ ] `core/models/organizer.model.ts`: el dueño no manda `logoUrl` ni `type` (`OrganizerUpdateDto` del backend no
-      tiene `type`). Hoy los dos son obligatorios en el tipo del front, y `update-organizer` del admin sigue
-      mandando `logoUrl`.
-- [ ] **Página nueva: perfil del organizador** (`features/organizer-profile/`, ruta `profilo-organizzatore`,
-      `canMatch: [featureFlagGuard(FEATURE_FLAGS.organizerRequestPage), roleGuard('ORGANIZER')]`; diseño: artboard
-      `ProfiloOrganizzatore` del lienzo). No existe nada todavía: `update-organizer` es solo del admin. La fila
-      «Profilo organizzatore» del menú pasa de `<div>` a `<a routerLink>`.
+      `PATCH /rest/organizers/{id}/release`, `GET /rest/organizers/{id}/venues`,
+      `PATCH /rest/admin/organizers/{id}/unclaim` y `PATCH /rest/auth/me`.
+- [x] `endpoints.ts`: `organizers.logo(id)`, `organizers.release(id)` y `admin.unclaimOrganizer(id)`.
+      `organizers.service.ts`: `update`, `uploadLogo`, `release` y `delete`, más el estado `myOrganizer` con
+      `ensureMine()`. La página del usuario se pide una sola vez y la comparten el menú, la cuenta, el perfil y la
+      bienvenida. Lo que se guarda la actualiza sin volver a pedirla, y dejar o eliminar la página la olvida.
+- [x] `core/models/organizer.model.ts`: `OrganizerOwnerUpdateDto`, que es `OrganizerUpdateDto` sin `type` ni
+      `logoUrl`. El backend ignora los `null`, así que un campo vaciado se manda como `""`.
+- [x] **«Il tuo account»** (`features/account/`, ruta `il-tuo-account`, flag nuevo `accountPage`; artboards
+      `Account` y `AccountUtente` del lienzo). Se abre con la tarjeta del perfil del menú.
+  - Nombre, foto y email de Google, en solo lectura. Instagram y «Profilo visibile» con `PATCH /rest/auth/me`.
+  - Organizador: tarjeta de su página, que lleva al perfil. Usuario: «Diventa organizzatore» o el estado de su
+    solicitud, el mismo texto del menú (`requestStatusOf`). Al final, «Esci».
+- [x] **Página nueva: perfil del organizador** (`features/organizer-profile/`, ruta `profilo-organizzatore`,
+      `canMatch: [featureFlagGuard(FEATURE_FLAGS.organizerRequestPage), roleGuard('ORGANIZER', 'ADMIN')]`: un admin
+      también puede tener página; diseño: artboard `ProfiloOrganizzatore` del lienzo). **Cambio respecto al plan:**
+      se entra desde «Il tuo account», no desde una fila del menú. La fila «Profilo organizzatore» de Gestione se
+      quitó.
   - Datos de `GET /rest/organizers/me`. Formulario con `PATCH /rest/organizers/{id}`: nombre, descripción (contador
     /2000), Instagram, email, teléfono, web y Facebook. `type` no se cambia (el backend no lo acepta).
   - **Logo:** subida de archivo con preview («Cambia logo», `PATCH /rest/organizers/{id}/logo`), para dueños por NEW y
@@ -1506,12 +1518,16 @@ puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el 
     D15); si es `true`, «Lascia la pagina» (`PATCH /rest/organizers/{id}/release`). Antes de D15 se deducía de
     `myRequest`; ya no hace falta. Confirmación de «Elimina»: «Le serate future
     verranno annullate e le serie disattivate». Confirmación de «Lascia»: «I contatti e gli eventi resteranno
-    pubblici: modificali prima». Después de los dos: recargar `/auth/me` (el rol baja a `USER`) y `myRequest`.
-- [ ] «Completa il profilo: manca ancora il logo» en la bienvenida (fase 5b), enlazado a esta página.
+    pubblici: modificali prima». Después de los dos se relee solo `/auth/me`, porque el rol baja a `USER`.
+    **Cambio respecto al plan:** `myRequest` no se recarga, porque ni `release` ni `delete` cambian la solicitud.
+- [x] «Completa il profilo: manca ancora il logo» en la bienvenida (fase 5b), enlazado a esta página.
+- [x] Menú: «Parteciperò» y «Serate che ti piacciono» son una sola fila, «Le tue serate», porque la página ya tiene
+      las dos pestañas. «Le mie serate» de Gestione pasa a «Serate pubblicate», para no confundirla con la anterior;
+      sigue sin página hasta la 5d.
 - [ ] **Evento cancelado (B):** añadir `status` a `EventDetailDto` en `event.model.ts` y mostrar «Annullato» en
       `evento/:id` cuando sea `CANCELLED`, sin el badge «Live» / «Inizia tra…» de `eventBadge`. Hoy un enlace
       guardado muestra el evento como si siguiera en pie.
-- [ ] Admin: botón «Rimuovi titolare» → `PATCH /rest/admin/organizers/{id}/unclaim`, **en la lista**
+- [x] Admin: botón «Rimuovi titolare» → `PATCH /rest/admin/organizers/{id}/unclaim`, **en la lista**
       `verified-organizer-list` (decidido el 06/11; el detalle por id se queda para editar datos). La lista recibe
       `OrganizerAdminDto` (D15): el botón solo sale con `ownerId` y `claimed = true`. Etiqueta por fila: «Creato
       dall'admin · senza titolare», «Creato dall'admin · titolare: <ownerName>» o «Creato da <ownerName>».
@@ -1519,6 +1535,54 @@ puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el 
       mismos campos). Traducir los 409 `ORGANIZER_CREATED_BY_OWNER` («Creata dal titolare: va eliminata») y
       `ORGANIZER_NOT_CLAIMED`, por si acaso. El diálogo de «Elimina», si tiene titolare: avisar que baja a utente
       y que sus serate future se cancelan.
+
+### Fase 5d — Gestión de serate (admin y organizador)
+
+Añadida el 07/11. Hoy el admin solo crea un evento y su flyer, sin lista, sin edición y sin borrado. El organizador
+tiene en el backend crear, editar, cambiar de estado y borrar, pero ninguna lista de sus serate y ninguna página en el
+front. Diseño: lienzo, fila «3 · Gestire le serate» (artboards `AdminSerate`, `SerataNuova`, `SerataModifica` y
+`SeratePubblicate`, más dos notas con lo que falta en el backend y el porqué del form).
+
+**Pestañas** (las mismas en el admin y en el organizador). Una serata sin `endAt` termina en su `startAt`:
+- **Prossime:** no anuladas que aún no han terminado, en curso incluidas.
+- **Annullate:** anuladas que aún no han pasado.
+- **Passate:** terminadas, en cualquier estado.
+
+- [ ] **Backend** (diseñado el 07/11, lo aplica el usuario):
+  - Enum nuevo `EventManagementTab` (`UPCOMING`, `CANCELLED`, `PAST`): qué estados entran y si se miran las que
+    aún no han terminado o las terminadas. Como `@RequestParam`, un valor inventado da 400.
+  - `EventCardDto`: campo `status`. No hace falta DTO nuevo: `organizerName` ya estaba.
+  - `EventsRepository.findIdsForManagement`, con el `WHERE` en una constante (`MANAGEMENT_FROM_WHERE`) que usan la
+    query y su `countQuery`. Primero una página de ids y después `findAllWithDetailsByIdIn`, como en el mapa: un
+    `JOIN FETCH` de `danceStyles` con paginación la haría en memoria.
+  - Service: `findForManagement(tab, organizerId, search, pageable)`, `findMineForManagement(requesterId, tab,
+    pageable)`, `updateAsAdmin` y `updateStatusAsAdmin`. Para no repetir, privados `applyUpdate` y `applyStatus`
+    (comunes al dueño y al admin) y `loadInOrder` (también lo usa `findMapEvents`). El admin no pasa por D12, como
+    `createAsAdmin`. `resolveSeries` acepta un evento sin organizador. `deleteAsAdmin` ya existía.
+  - `GET /rest/admin/events?tab&organizerId&q&page&size` → `Page<EventCardDto>`.
+  - `PATCH /rest/admin/events/{id}` y `PATCH /rest/admin/events/{id}/status` → `EventDetailDto`.
+  - `DELETE /rest/admin/events/{id}` → 204.
+  - `GET /rest/organizers/me/events?tab&page&size` → `Page<EventCardDto>`. Sin página de organizador devuelve una
+    página vacía.
+  - **`SecurityConfig`:** `authenticated()` para `GET /rest/organizers/me/events` **antes** de la regla pública
+    `/rest/organizers/{id}/events`, que si no también la cubre.
+  - Tests en `EventsServiceImplTest`: el admin sin chequeo de dueño ni D12, el dueño con los dos, el orden de cada
+    pestaña, `q` → `%texto%`, y el organizador sin página → página vacía. Más la sección de `POSTMAN_TESTING.md`.
+- [ ] **Frontend** (después del backend):
+  - `AdminSerate`: lista con las tres pestañas, buscador y filtro por organizador. Cada serata abre su modificación.
+  - Un solo formulario, `SerataNuova`, para el admin y el organizador. El admin tiene además «Chi la organizza».
+    Respecto a `admin/create-event`:
+    - el flyer se elige dentro del formulario y se sube después del `POST`, sin guardar antes;
+    - día, hora de inicio y hora de fin, con aviso si la serata acaba al día siguiente;
+    - tipo y estilos como chips;
+    - locale o dirección libre con autocompletado, sin latitud ni longitud a mano;
+    - «Gratis» o «A pagamento», sin preguntar la moneda;
+    - Instagram como @handle y WhatsApp como número.
+  - Un CLUB o VENUE (D12) solo ve sus locales en el selector.
+  - `SerataModifica`: resumen por bloques con «Modifica», contadores de «ci vado» y like, y «Annulla la serata»
+    antes que «Elimina». El diálogo de «Elimina» avisa si hay gente apuntada.
+  - `SeratePubblicate` (organizador): las mismas pestañas y «Pubblica una serata». La fila «Serate pubblicate» y
+    «Pubblica una serata» del menú pasan a ser enlaces.
 
 ### Fase 6 — Documentación y despliegue (vie 23, tarde)
 
@@ -1555,10 +1619,9 @@ Lo que hay que ejecutar en la base de prod, en orden, está en `docs/prod-db-ant
 
 ## 7. Fuera de alcance esta semana
 
-- Páginas del organizador «Pubblica una serata» y «Le mie serate». Hoy crear eventos solo existe en el
-  admin (`admin/create-event`). Es el siguiente bloque, y la bienvenida enlaza ahí. La regla D12 ya
-  queda en el backend esta semana. En ese bloque, el selector de venue de un CLUB/VENUE mostrará solo
-  `GET /rest/organizers/{id}/venues`.
+- ~~Páginas del organizador «Pubblica una serata» y «Le mie serate».~~ Pasaron a la fase 5d el 07/11 («Le mie
+  serate» se llama ahora «Serate pubblicate»). El selector de venue de un CLUB/VENUE muestra solo
+  `GET /rest/organizers/{id}/venues` (D12).
 - Que un organizador conecte o cree venues por su cuenta (D11: siempre lo hace el admin).
 - Más de un organizador por usuario (D3: solo hay que cambiar la constante y la UI de selección).
 - Job de limpieza de logos huérfanos. Desde el 31/10 casi no hace falta: el logo se borra al cancelar,
