@@ -998,7 +998,7 @@ con el debugger:
 ningún email. Probado el 29/10.
 
 *Si recargas el seed creando la base desde cero: `ballastasera_schema.sql` todavía no tiene
-`organizer_requests`. Antes del seed hay que ejecutar el bloque del plan §3.2. Tu usuario admin se crea
+`organizer_requests`. Antes del seed hay que ejecutar el paso 2 de `prod-db-antes-del-release.md`. Tu usuario admin se crea
 otra vez al hacer login (`UPDATE users SET role = 'ADMIN' …`). Después vuelve a hacer login para tener un
 token con el id nuevo.*
 

@@ -27,7 +27,7 @@ Suite del backend: 294 tests en verde.
 | Fase | Estado |
 |---|---|
 | 0 — Arreglos | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §9) |
-| 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql` y el script `docs/migrations/2026-10-organizer-requests.sql` (prod no tiene nada que migrar). Se hace antes de staging |
+| 1 — Modelo | Hecho en código y en la base local. **Aplazado por decisión:** tipos + tabla en `ballastasera_schema.sql`. El SQL para staging y prod ya está en `docs/prod-db-antes-del-release.md` (prod no tiene nada que migrar). Se hace antes de staging |
 | 2 — Endpoints del usuario | **Hecha y probada en Postman** (`POSTMAN_TESTING.md` §7 y, los logos, §15) |
 | 3 — Admin | **Hecha y probada en Postman** (§8, §10, §11, §12, §14, §15 i), **salvo D12:** código y tests hechos, **Postman (§16) aplazado por decisión del 03/11** |
 | 4 — Tests | **Hecha** (31/10): 294 tests en verde |
@@ -63,7 +63,7 @@ la pagina») se hace después, en la fase 5c, empezando por revisar qué APIs ha
   (`isMessageProvidedForOther` → `400` con `errors.messageProvidedForOther`), no en el servicio.
 - Handler 400 de `HttpMessageNotReadableException` (sin body, JSON roto, enum que no existe): antes
   daba 500 en todos los `@RequestBody`. Si se sabe el campo, va en `errors.<campo>`.
-- Para recrear la base local desde cero: `ballastasera_schema.sql` + el bloque de la §3.2 + el seed
+- Para recrear la base local desde cero: `ballastasera_schema.sql` + el paso 2 de `prod-db-antes-del-release.md` + el seed
   (el schema todavía no tiene `organizer_requests`).
 - En prod todos los organizadores los creó el admin. Ningún usuario ha creado uno: el frontend no lo
   permitía y el antiguo `POST /rest/organizers` no se usó. D13 no tiene casos antiguos.
@@ -201,7 +201,7 @@ Resumen de todo lo SQL de esta entrega (no hay más cambios de esquema: D12 y el
 | Archivo | Qué | Sección |
 |---|---|---|
 | `docs/ballastasera_schema.sql` | 3 tipos nuevos + tabla `organizer_requests` + 4 índices | 3.1 |
-| `docs/migrations/2026-10-organizer-requests.sql` | Lo mismo, para develop, staging y prod (idempotente con los tipos) | 3.2 |
+| `docs/prod-db-antes-del-release.md` | Lo mismo, para staging y prod, con las comprobaciones (en vez del archivo `docs/migrations/…` que se planeó) | 3.2 |
 | — (se pega en psql/IntelliJ, no se guarda) | Comprobación de las restricciones, sin dejar datos | 3.2b |
 | — (solo local/staging) | Marcha atrás | 3.2c |
 | `src/main/resources/db/seed_test_data.sql` | Datos de prueba del flujo | 3.2d |
@@ -278,95 +278,22 @@ la dirección propuesta lleve también la ciudad.
 No hay CHECK de «PERSON no lleva dirección»: la regla vive en el servicio, junto con la de «CLUB sin
 dirección», que depende del tipo.
 
-### 3.2 Script para develop, staging y prod: `docs/migrations/2026-10-organizer-requests.sql`
+### 3.2 Script para staging y prod: en `docs/prod-db-antes-del-release.md`
 
 **Estado de prod:** todos los organizadores los creó el admin como unclaimed y nadie ha podido pedir
 ser organizador todavía (el flujo no existe). **No hay datos que migrar.** El script solo crea los
 tipos, la tabla y los índices, que siguen haciendo falta porque no hay Flyway.
 
-Los tipos van dentro de un `DO` que ignora `duplicate_object`. Así el mismo script sirve también en
-develop, donde ya creaste los tipos: allí solo crea la tabla y los índices. Antes, comprobar que los
-valores de los tipos de develop coinciden:
+**El SQL ya no está aquí** (cambiado el 07/11/2026): para que haya una sola copia, está en
+`docs/prod-db-antes-del-release.md`, paso 1 (D14: `organizer_type` sin `ASSOCIATION`) y paso 2 (los tres
+tipos, la tabla `organizer_requests`, sus CHECK y sus índices), con las comprobaciones de antes y después.
+Se ejecuta **una vez** en cada base, antes de desplegar el backend nuevo. El archivo
+`docs/migrations/2026-10-organizer-requests.sql` que se planeó al principio no se crea.
+
+Los tipos van dentro de un `DO` que ignora `duplicate_object`, así que repetir el script tras un fallo no
+se queja de ellos. Si una base ya tenía los tipos creados a mano, antes comprobar que sus valores coinciden:
 `SELECT typname, enum_range(NULL::organizer_request_status) FROM pg_type WHERE typname = 'organizer_request_status';`
 (y lo mismo con los otros dos). Si alguno es distinto: `DROP TYPE <nombre>;` y volver a ejecutar.
-
-Se ejecuta **una vez** en cada base, antes de desplegar el backend nuevo:
-
-```sql
--- ============================================================================
---  2026-10 · Diventa organizzatore: tabla organizer_requests
---  Develop, staging y prod. Sin datos que migrar. Ver docs/organizer-requests-plan.md §3.
--- ============================================================================
-BEGIN;
-
--- D14: organizer_type sin ASSOCIATION. PostgreSQL no borra valores de un ENUM, así que se recrea el tipo.
--- Va antes del CREATE TABLE organizer_requests: así esa tabla nace con el tipo nuevo. Solo actúa si el
--- tipo todavía tiene ASSOCIATION (en develop ya se hizo a mano el 06/11). Si alguna fila lo usara, el
--- USING fallaría y la transacción entera haría rollback.
-DO $$ BEGIN
-    IF 'ASSOCIATION' = ANY (enum_range(NULL::organizer_type)::text[]) THEN
-        ALTER TYPE organizer_type RENAME TO organizer_type_old;
-        CREATE TYPE organizer_type AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL');
-        -- El DEFAULT 'PERSON' está ligado al tipo viejo: se quita antes del cambio y se vuelve a poner
-        ALTER TABLE organizers ALTER COLUMN type DROP DEFAULT;
-        ALTER TABLE organizers ALTER COLUMN type TYPE organizer_type USING type::text::organizer_type;
-        ALTER TABLE organizers ALTER COLUMN type SET DEFAULT 'PERSON';
-        DROP TYPE organizer_type_old;
-    END IF;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE organizer_request_type AS ENUM ('NEW', 'CLAIM');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-    CREATE TYPE organizer_request_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-    CREATE TYPE organizer_reject_reason AS ENUM ('INSTAGRAM_NOT_FOUND', 'INCOMPLETE_DATA',
-                                                 'NOT_DANCE_ORGANIZER', 'DUPLICATE', 'OTHER');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-CREATE TABLE organizer_requests (
-    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type               organizer_request_type   NOT NULL,
-    status             organizer_request_status NOT NULL DEFAULT 'PENDING',
-    organizer_id       UUID REFERENCES organizers(id) ON DELETE SET NULL,
-    venue_address      VARCHAR(150),
-    venue_city_id      BIGINT REFERENCES cities(id),
-    venue_id           UUID REFERENCES venues(id) ON DELETE SET NULL,
-    name               TEXT,
-    organizer_type     organizer_type,
-    description        TEXT,
-    logo_url           TEXT,
-    website            TEXT,
-    phone              TEXT,
-    contact_email      TEXT NOT NULL,
-    instagram          TEXT NOT NULL,
-    facebook           TEXT,
-    message            TEXT,
-    terms_accepted_at  TIMESTAMPTZ NOT NULL,
-    rejection_reason   organizer_reject_reason,
-    rejection_message  TEXT,
-    reviewed_by        UUID REFERENCES users(id) ON DELETE SET NULL,
-    reviewed_at        TIMESTAMPTZ,
-    acknowledged_at    TIMESTAMPTZ,
-    version            BIGINT NOT NULL DEFAULT 0,
-    submitted_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT chk_org_request_new   CHECK (type <> 'NEW'   OR (name IS NOT NULL AND organizer_type IS NOT NULL)),
-    CONSTRAINT chk_org_request_claim CHECK (type <> 'CLAIM' OR organizer_id IS NOT NULL OR status <> 'PENDING'),
-    CONSTRAINT chk_org_request_venue_proposal CHECK ((venue_address IS NULL) = (venue_city_id IS NULL))
-);
-CREATE UNIQUE INDEX uq_org_requests_one_pending ON organizer_requests(user_id) WHERE status = 'PENDING';
-CREATE INDEX idx_org_requests_status    ON organizer_requests(status, submitted_at);
-CREATE INDEX idx_org_requests_organizer ON organizer_requests(organizer_id);
-CREATE INDEX idx_org_requests_user      ON organizer_requests(user_id, submitted_at DESC);
-
-COMMIT;
-```
 
 Si el script falla a mitad, el `BEGIN`/`COMMIT` deja la base como estaba. En staging, si su base no
 coincide con prod, lo más simple es recrearla (`down -v` + `up`) con el `ballastasera_schema.sql` actualizado.
@@ -1074,7 +1001,8 @@ script de migración están **aplazados por decisión** (prod no tiene datos que
 de la fase 6/7.
 
 - [ ] Tipos y tabla en `docs/ballastasera_schema.sql` (sección 3.1: tipos arriba, tabla después de `venues`). *Aplazado.*
-- [ ] `docs/migrations/2026-10-organizer-requests.sql` (sección 3.2) y ejecutarlo en develop. *Aplazado.*
+- [x] SQL para staging y prod: `docs/prod-db-antes-del-release.md`, pasos 1 y 2 (sección 3.2). *Escrito el 07/11;
+      develop ya tiene la tabla.*
 - [~] Ejecutar la comprobación 3.2b en develop: los 6 `OK`. *Pasada en local; falta develop.*
 - [ ] Probar en local: `down -v` + `up` (esquema limpio + seed) y, por separado, el script 3.2 sobre una
       base con el esquema viejo + el seed viejo (tiene que crear la tabla sin errores).
@@ -1589,7 +1517,7 @@ puede cambiar sus datos ni dejar la página desde la app; lo tiene que hacer el 
 - [ ] `docs/POSTMAN_TESTING.md`: flujo completo USER → ADMIN.
 - [ ] **Staging, en este orden:**
   1. Backup (`pg_dump`).
-  2. Ejecutar `2026-10-organizer-requests.sql` (solo DDL, sin datos que migrar).
+  2. Ejecutar los pasos 1–3 de `docs/prod-db-antes-del-release.md` (solo DDL, sin datos que migrar).
   3. Desplegar backend y frontend juntos (D10), con `organizerRequestPage` activado en staging. Vaciar la
      caché `eventDetail` de Redis: las entradas antiguas no tienen `status` (D13, eventos retirados).
   4. Probar el flujo end-to-end con dos cuentas (USER y ADMIN): NEW aprobada, NEW rechazada →
@@ -1602,7 +1530,7 @@ Lo que hay que ejecutar en la base de prod, en orden, está en `docs/prod-db-ant
 (D14 y `organizer_requests`; D15 no toca la base de prod).
 
 - [ ] Backup de prod (`pg_dump`).
-- [ ] Ejecutar `2026-10-organizer-requests.sql`.
+- [ ] Ejecutar los pasos 1–3 de `docs/prod-db-antes-del-release.md`.
 - [ ] Desplegar backend y frontend juntos. Vaciar la caché `eventDetail` de Redis (igual que en staging).
 - [ ] Desde el admin, enlazar cada organizador unclaimed de tipo CLUB/VENUE/SCHOOL con su venue
       (`updateVenueAsAdmin` con `organizerId`, fase 0). Es trabajo de datos a mano, no una migración:
@@ -1632,7 +1560,7 @@ Lo que hay que ejecutar en la base de prod, en orden, está en `docs/prod-db-ant
 
 - [ ] Fases 0–6 marcadas `[x]`
 - [ ] D12 probado en Postman (`POSTMAN_TESTING.md` §16), aplazado el 03/11
-- [ ] `ballastasera_schema.sql` y `docs/migrations/2026-10-organizer-requests.sql` escritos (fase 1)
+- [ ] `ballastasera_schema.sql` con `organizer_requests` (fase 1). El SQL de staging y prod ya está en `docs/prod-db-antes-del-release.md`
 - [ ] `mvn test` en verde y tests de vitest en verde
 - [ ] Flujo end-to-end en staging con las 5 variantes (aprobada, rechazada → reenviada, CLAIM con su venue y una competidora, NEW CLUB con dirección, cancelada)
 - [ ] `API.md`, `ROADMAP.md` y `POSTMAN_TESTING.md` actualizados

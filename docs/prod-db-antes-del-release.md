@@ -17,7 +17,7 @@ de D15 es solo para develop (ver `organizer-requests-plan.md`, fase 3, approve).
 |---|---|---|---|
 | 0 | Backup (`pg_dump`) | Antes de cada paso | — |
 | 1 | `organizer_type` sin `ASSOCIATION` (D14) | Se puede hacer ya | ☐ Pendiente |
-| 2 | Tabla `organizer_requests` + sus tres tipos | Justo antes del deploy | ☐ Pendiente (el script todavía no existe como archivo) |
+| 2 | Tabla `organizer_requests` + sus tres tipos | Justo antes del deploy, después del 1 | ☐ Pendiente |
 | 3 | Comprobaciones | Después de 1–2 | ☐ |
 
 Después del deploy hay trabajo de datos, no de esquema: ver la última sección.
@@ -67,28 +67,89 @@ SELECT typname FROM pg_type WHERE typname LIKE 'organizer_type%';               
 ```
 Luego, en DBeaver: Invalidate/Reconnect (si no, el editor sigue mostrando el valor viejo).
 
-Si se hace ya, el bloque D14 del script del paso 2 no hará nada en prod: solo actúa si el tipo todavía
-tiene `ASSOCIATION`.
+El paso 2 da por hecho este paso: la columna `organizer_requests.organizer_type` usa este tipo, así que
+tiene que existir ya sin `ASSOCIATION`.
 
 ---
 
 ## 2. Tabla `organizer_requests` (fase 1 del plan)
 
-El SQL está en `organizer-requests-plan.md` §3.2. Falta guardarlo como archivo en
-`docs/migrations/2026-10-organizer-requests.sql` (el plan lo da por existente, pero aún no está).
+Es la única fuente de este SQL: el plan (§3.2) remite aquí. No hay datos que migrar: en prod nadie ha
+podido pedir ser organizador todavía. Los tipos van dentro de un `DO` que ignora `duplicate_object`, así
+que repetir el script tras un fallo no se queja de los tipos.
 
-Qué crea:
-- Los tipos `organizer_request_type`, `organizer_request_status` y `organizer_reject_reason` (dentro de
-  `DO … duplicate_object`, para que el mismo script sirva en develop).
-- La tabla `organizer_requests`, con sus FK a `users`, `organizers`, `venues` y `cities`, y los CHECK
-  `chk_org_request_new`, `chk_org_request_claim` y `chk_org_request_venue_proposal`.
-- El índice único parcial `uq_org_requests_one_pending` y los índices de estado, organizador y usuario.
-- Al principio, el bloque D14 del paso 1, que solo actúa si hace falta.
+**Antes:**
+```sql
+SELECT enum_range(NULL::organizer_type);              -- {PERSON,VENUE,CLUB,SCHOOL}: si no, falta el paso 1
+SELECT to_regclass('public.organizer_requests');      -- NULL: la tabla todavía no existe
+```
 
-No hay datos que migrar: en prod nadie ha podido pedir ser organizador todavía.
+**El cambio.** En DBeaver, ejecútalo como script (Alt+X). Si da cualquier error, `ROLLBACK;`: el
+`BEGIN`/`COMMIT` deja la base como estaba.
+```sql
+-- ============================================================================
+--  Diventa organizzatore: tabla organizer_requests
+--  Staging y prod. Sin datos que migrar. Ver docs/organizer-requests-plan.md §3.
+-- ============================================================================
+BEGIN;
 
-**Antes de staging:** probar el script en una copia de develop. Las comprobaciones de los CHECK están en
-§3.2b del plan.
+DO $$ BEGIN
+    CREATE TYPE organizer_request_type AS ENUM ('NEW', 'CLAIM');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE TYPE organizer_request_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE TYPE organizer_reject_reason AS ENUM ('INSTAGRAM_NOT_FOUND', 'INCOMPLETE_DATA',
+                                                 'NOT_DANCE_ORGANIZER', 'DUPLICATE', 'OTHER');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE organizer_requests (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type               organizer_request_type   NOT NULL,
+    status             organizer_request_status NOT NULL DEFAULT 'PENDING',
+    organizer_id       UUID REFERENCES organizers(id) ON DELETE SET NULL,
+    venue_address      VARCHAR(150),
+    venue_city_id      BIGINT REFERENCES cities(id),
+    venue_id           UUID REFERENCES venues(id) ON DELETE SET NULL,
+    name               TEXT,
+    organizer_type     organizer_type,
+    description        TEXT,
+    logo_url           TEXT,
+    website            TEXT,
+    phone              TEXT,
+    contact_email      TEXT NOT NULL,
+    instagram          TEXT NOT NULL,
+    facebook           TEXT,
+    message            TEXT,
+    terms_accepted_at  TIMESTAMPTZ NOT NULL,
+    rejection_reason   organizer_reject_reason,
+    rejection_message  TEXT,
+    reviewed_by        UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at        TIMESTAMPTZ,
+    acknowledged_at    TIMESTAMPTZ,
+    version            BIGINT NOT NULL DEFAULT 0,
+    submitted_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_org_request_new   CHECK (type <> 'NEW'   OR (name IS NOT NULL AND organizer_type IS NOT NULL)),
+    CONSTRAINT chk_org_request_claim CHECK (type <> 'CLAIM' OR organizer_id IS NOT NULL OR status <> 'PENDING'),
+    CONSTRAINT chk_org_request_venue_proposal CHECK ((venue_address IS NULL) = (venue_city_id IS NULL))
+);
+CREATE UNIQUE INDEX uq_org_requests_one_pending ON organizer_requests(user_id) WHERE status = 'PENDING';
+CREATE INDEX idx_org_requests_status    ON organizer_requests(status, submitted_at);
+CREATE INDEX idx_org_requests_organizer ON organizer_requests(organizer_id);
+CREATE INDEX idx_org_requests_user      ON organizer_requests(user_id, submitted_at DESC);
+
+COMMIT;
+```
+
+**Después:** las comprobaciones de la sección 3.
+
+**Antes de staging:** probar el script en una base de develop recreada desde cero
+(`ballastasera_schema.sql` + este paso + el seed). Las comprobaciones de los CHECK están en §3.2b del plan.
 
 ---
 
