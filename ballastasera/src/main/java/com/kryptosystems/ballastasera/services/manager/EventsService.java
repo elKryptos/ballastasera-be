@@ -1,9 +1,12 @@
 package com.kryptosystems.ballastasera.services.manager;
 
+import com.kryptosystems.ballastasera.enums.EventManagementTab;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.dtos.EventCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,8 +41,14 @@ public interface EventsService {
     /** Edita un evento propio. No permite cambiar de organizer ni de status. */
     Events update(UUID id, UUID requesterId, EventUpdateDto dto);
 
+    /** Admin edita cualquier evento: sin chequeo de ownership ni D12. */
+    Events updateAsAdmin(UUID id, EventUpdateDto dto);
+
     /** Publicar / despublicar / cancelar un evento propio. */
     Events updateStatus(UUID requesterId, UUID id, EventStatus status);
+
+    /** Admin cambia de status cualquier evento: sin chequeo de ownership */
+    Events updateStatusAsAdmin(UUID id, EventStatus status);
 
     Events updateFlyer(UUID id, UUID requesterId, MultipartFile file);
 
@@ -55,10 +64,17 @@ public interface EventsService {
     /** Borra un evento propio (ownership check incluido). */
     void delete(UUID id, UUID requesterId);
 
+    /** Admin elimina un evento cualquiera. */
     void deleteAsAdmin(UUID id);
 
     /** Remueve el venue del evento si presente. Debe ser el organizador y owner del evento. */
     Events removeVenue(UUID eventId, UUID requesterId);
 
     List<Events> findPublishedByOrganizerId(UUID organizerId);
+
+    /** Gestión de serate del admin: todas, filtrables por organizador y por título. */
+    Page<Events> findForManagement(EventManagementTab tab, UUID organizerId, String search, Pageable pageable);
+
+    /** «Serate pubblicate»: las serate de los organizadores de requesterId. Sin página de organizador, página vacía. */
+    Page<Events> findMineForManagement(UUID requesterId, EventManagementTab tab, Pageable pageable);
 }

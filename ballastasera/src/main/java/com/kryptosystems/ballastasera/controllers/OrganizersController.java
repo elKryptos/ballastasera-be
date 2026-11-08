@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.enums.EventManagementTab;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.mappers.EventSeriesMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
@@ -33,6 +34,7 @@ import static com.kryptosystems.ballastasera.utilities.RestConstants.ORGANIZERS;
 @RequiredArgsConstructor
 public class OrganizersController {
 
+    private static final String GET_MY_EVENTS = "/me/events";
     private static final String GET_BY_SLUG = "/{slug}";
     private static final String GET_MY_ORGANIZERS = "/me";
     private static final String GET_CLAIMABLE = "/claimable";
@@ -48,11 +50,22 @@ public class OrganizersController {
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
     private final EventsService eventService;
-    private final EventsMapper eventsMapper;
+    private final EventsMapper eventMapper;
     private final VenuesService venueService;
     private final VenuesMapper venuesMapper;
     private final EventSeriesService eventSeriesService;
     private final EventSeriesMapper eventSeriesMapper;
+
+    /** «Serate pubblicate»: las serate de todos los organizadores del usuario. */
+    @GetMapping(GET_MY_EVENTS)
+    public ResponseEntity<Page<EventCardDto>> getMyEvents(@AuthenticationPrincipal UserPrincipal principal,
+                                                          @RequestParam EventManagementTab tab,
+                                                          @RequestParam(defaultValue = "0") @Min(0) int page,
+                                                          @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+        Page<EventCardDto> result = eventService.findMineForManagement(principal.getId(), tab, PageRequest.of(page, size))
+                .map(eventMapper::toEventCardDto);
+        return ResponseEntity.ok(result);
+    }
 
     /** Público, nadie necesita loguearse. Sirve para la página de perfil del organizador
      * que esté verificado que ve cualquier visitante (como el detalle de un evento). */
@@ -119,7 +132,7 @@ public class OrganizersController {
         organizersService.verifyExistsById(id);
         List<EventCardDto> events = eventService.findPublishedByOrganizerId(id)
                 .stream()
-                .map(eventsMapper::toEventCardDto)
+                .map(eventMapper::toEventCardDto)
                 .toList();
         return ResponseEntity.ok(events);
     }

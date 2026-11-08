@@ -46,7 +46,7 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
                         // Must be declared before the public /rest/organizers/{slug} route.
-                        .requestMatchers(HttpMethod.GET, "/rest/organizers/me").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/rest/organizers/me", "/rest/organizers/me/events").authenticated()
                         .requestMatchers(HttpMethod.GET,
                                 "/rest/health",
                                 "/v3/api-docs/**",// Swagger UI -> quitar en prod

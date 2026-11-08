@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
+import com.kryptosystems.ballastasera.enums.EventManagementTab;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.exceptions.InvalidEventTimingException;
@@ -15,9 +16,13 @@ import com.kryptosystems.ballastasera.utilities.SlugUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +39,6 @@ import java.util.stream.Collectors;
 public class EventsServiceImpl implements EventsService {
 
     private final EventsRepository eventsRepository;
-    private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsMapper eventsMapper;
     private final OrganizersRepository organizersRepository;
     private final EventSeriesRepository eventSeriesRepository;
@@ -99,18 +103,7 @@ public class EventsServiceImpl implements EventsService {
         OffsetDateTime to = OffsetDateTime.now().plus(MAP_DURATION);
         Slice<UUID> ids = eventsRepository.findActiveOrUpcomingIdsInBounds(
                 minLat, maxLat, minLng, maxLng, cityId, to, PageRequest.of(0, MAP_LIMIT));
-        if (!ids.hasContent()) {
-            return new SliceImpl<>(List.of(), ids.getPageable(), false);
-        }
-
-        Map<UUID, Events> eventsById = eventsRepository.findAllWithDetailsByIdIn(ids.getContent()).stream()
-                .collect(Collectors.toMap(Events::getId, e -> e));
-
-        List<Events> events = ids.stream()
-                .map(eventsById::get)
-                .filter(Objects::nonNull)
-                .toList();
-        return new SliceImpl<>(events, ids.getPageable(), ids.hasNext());
+        return new SliceImpl<>(loadInOrder(ids.getContent()), ids.getPageable(), ids.hasNext());
     }
 
     @Override
@@ -169,45 +162,18 @@ public class EventsServiceImpl implements EventsService {
     public Events update(UUID id, UUID requesterId, EventUpdateDto dto) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
-        Organizers organizer = event.getOrganizer();
         // D12: solo si el body cambia el venue; antes de tocar la entidad
         if (dto.getVenueId() != null) {
-            assertVenueAllowed(organizer, dto.getVenueId());
+            assertVenueAllowed(event.getOrganizer(), dto.getVenueId());
         }
-        eventsMapper.updateEventEntityFromDto(dto, event);
-        if (event.getEndAt() != null && !event.getStartAt().isBefore(event.getEndAt())) {
-            throw new InvalidEventTimingException(
-                    "endAt (" + event.getEndAt() + ") must be after startAt (" + event.getStartAt() + ")"
-            );
-        }
-        if (dto.getCityId() != null) {
-           event.setCity(eventResolverService.resolveCity(dto.getCityId()));
-        }
-        if (dto.getVenueId() != null) {
-            event.setVenue(eventResolverService.resolveVenue(dto.getVenueId(), event.getCity().getId()));
-        }
-        if (dto.getSeriesId() != null) {
-            event.setSeries(resolveSeries(dto.getSeriesId(), organizer));
-        }
-        if (dto.getDanceStyleIds() != null) {
-            event.setDanceStyles(eventResolverService.resolveDanceStyles(dto.getDanceStyleIds()));
-        }
-        if (dto.getTitle() != null) {
-            event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
-                    slug -> eventsRepository.findBySlug(slug)
-                            .map(existing -> !existing.getId().equals(id))
-                            .orElse(false)));
-        }
-        /** Solo re-geocodificamos si cambio la direccion y el cliente no mando
-         * coordenadas explicitas (ej. ajusto el pin a mano en el mapa). */
-        boolean addressChanged = dto.getAddress() != null;
-        boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
-        if (addressChanged && !coordsProvidedByClient) {
-            GeocodingService.GeoPoint point = eventResolverService.resolveCoordinates(dto.getAddress(), event.getCity().getName());
-            event.setLatitude(point.latitude());
-            event.setLongitude(point.longitude());
-        }
-        return eventsRepository.save(event);
+        return applyUpdate(event, dto);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
+    public Events updateAsAdmin(UUID id, EventUpdateDto dto) {
+        return applyUpdate(findById(id), dto);
     }
 
     @Override
@@ -215,6 +181,14 @@ public class EventsServiceImpl implements EventsService {
     public Events updateStatus(UUID requesterId, UUID id, EventStatus status) {
         Events event = findById(id);
         assertOwnership(event, requesterId);
+        event.setStatus(status);
+        return eventsRepository.save(event);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#id")
+    public Events updateStatusAsAdmin(UUID id, EventStatus status) {
+        Events event = findById(id);
         event.setStatus(status);
         return eventsRepository.save(event);
     }
@@ -280,6 +254,16 @@ public class EventsServiceImpl implements EventsService {
         );
     }
 
+    @Override
+    public Page<Events> findForManagement(EventManagementTab tab, UUID organizerId, String search, Pageable pageable) {
+        return loadManagementPage(tab, organizerId, null, search, pageable);
+    }
+
+    @Override
+    public Page<Events> findMineForManagement(UUID requesterId, EventManagementTab tab, Pageable pageable) {
+        return loadManagementPage(tab, null, requesterId, null, pageable);
+    }
+
     private Events applyFlyer(Events event, MultipartFile file) {
         byte[] content;
         try {
@@ -332,10 +316,73 @@ public class EventsServiceImpl implements EventsService {
         if (seriesId == null) return null;
         EventSeries series = eventSeriesRepository.findById(seriesId)
                 .orElseThrow(() -> new EntityNotFoundException("Event series not found with id " + seriesId));
-        if (!series.getOrganizer().getId().equals(organizer.getId())) {
+        UUID seriesOrganizerId = series.getOrganizer() != null ? series.getOrganizer().getId() : null;
+        UUID eventOrganizerId = organizer != null ? organizer.getId() : null;
+        if (!Objects.equals(seriesOrganizerId, eventOrganizerId)) {
             throw new AccessDeniedException("Event series does not belong to this organizer");
         }
         return series;
+    }
+
+    private Events applyUpdate(Events event, EventUpdateDto dto) {
+        UUID id = event.getId();
+        eventsMapper.updateEventEntityFromDto(dto, event);
+        if (event.getEndAt() != null && !event.getStartAt().isBefore(event.getEndAt())) {
+            throw new InvalidEventTimingException(
+                    "endAt (" + event.getEndAt() + ") must be after startAt (" + event.getStartAt() + ")"
+            );
+        }
+        if (dto.getCityId() != null) {
+            event.setCity(eventResolverService.resolveCity(dto.getCityId()));
+        }
+        if (dto.getVenueId() != null) {
+            event.setVenue(eventResolverService.resolveVenue(dto.getVenueId(), event.getCity().getId()));
+        }
+        if (dto.getSeriesId() != null) {
+            event.setSeries(resolveSeries(dto.getSeriesId(), event.getOrganizer()));
+        }
+        if (dto.getDanceStyleIds() != null) {
+            event.setDanceStyles(eventResolverService.resolveDanceStyles(dto.getDanceStyleIds()));
+        }
+        if (dto.getTitle() != null) {
+            event.setSlug(SlugUtils.uniqueSlug(dto.getTitle(),
+                    slug -> eventsRepository.findBySlug(slug)
+                            .map(existing -> !existing.getId().equals(id))
+                            .orElse(false)));
+        }
+        /** Solo re geo codificamos si cambio la dirección y el cliente no mando
+         * coordenadas (ej. ajusto el pin a mano en el mapa). */
+        boolean addressChanged = dto.getAddress() != null;
+        boolean coordsProvidedByClient = dto.getLatitude() != null && dto.getLongitude() != null;
+        if (addressChanged && !coordsProvidedByClient) {
+            GeocodingService.GeoPoint point = eventResolverService.resolveCoordinates(dto.getAddress(), event.getCity().getName());
+            event.setLatitude(point.latitude());
+            event.setLongitude(point.longitude());
+        }
+        return eventsRepository.save(event);
+    }
+
+    private Page<Events> loadManagementPage(EventManagementTab tab, UUID organizerId, UUID ownerId,
+                                            String search, Pageable pageable) {
+        Sort.Direction direction = tab.isEnded() ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Pageable sorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(direction, "startAt").and(Sort.by(direction, "id")));
+        String titlePattern = (search == null || search.isBlank())
+                ? "%"
+                : "%" + search.trim().toLowerCase() + "%";
+        Page<UUID> ids = eventsRepository.findIdsForManagement(tab.getStatuses(), tab.isEnded(), OffsetDateTime.now(),
+                organizerId, ownerId, titlePattern, sorted);
+        return new PageImpl<>(loadInOrder(ids.getContent()), ids.getPageable(), ids.getTotalElements());
+    }
+
+    /** Carga con detalles un lote de ids respetando su orden (findAllWithDetailsByIdIn no lo garantiza). */
+    private List<Events> loadInOrder(List<UUID> ids) {
+        if (ids.isEmpty()) return List.of();
+        Map<UUID, Events> eventsById = eventsRepository.findAllWithDetailsByIdIn(ids).stream()
+                .collect(Collectors.toMap(Events::getId, e -> e));
+        return ids.stream().map(eventsById::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
 }

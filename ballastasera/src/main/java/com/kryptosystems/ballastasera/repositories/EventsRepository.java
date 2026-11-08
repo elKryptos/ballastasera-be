@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -107,4 +109,15 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
     Optional<Events> findByIdWithDetails(@Param("id") UUID id);
 
     List<Events> findByOrganizerIdAndStatusOrderByStartAtDesc(UUID organizerId, EventStatus status);
+
+    @Query("""
+            SELECT e.id FROM Events e LEFT JOIN e.organizer o WHERE e.status IN :statuses
+            AND (:organizerId IS NULL OR o.id = :organizerId)
+            AND (:ownerId IS NULL OR o.user.id = :ownerId)
+            AND LOWER(e.title) LIKE :titlePattern
+            AND ((:ended = true AND e.endAt <= :now)
+            OR (:ended = false AND e.endAt > :now))
+            """)
+    Page<UUID> findIdsForManagement(Collection<EventStatus> statuses, boolean ended, OffsetDateTime now,
+                                    UUID organizerId, UUID ownerId, String titlePattern, Pageable pageable);
 }

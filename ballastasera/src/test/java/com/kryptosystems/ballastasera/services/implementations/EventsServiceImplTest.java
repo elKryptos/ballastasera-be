@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.EventManagementTab;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerType;
@@ -13,7 +14,6 @@ import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
-import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventSeriesRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
@@ -24,14 +24,23 @@ import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -58,9 +68,6 @@ class EventsServiceImplTest {
 
     @Mock
     private EventsRepository eventsRepository;
-
-    @Mock
-    private EventAttendanceRepository eventAttendanceRepository;
 
     @Mock
     private EventsMapper eventsMapper;
@@ -614,6 +621,234 @@ class EventsServiceImplTest {
         );
 
         verify(eventsRepository, never()).delete(any(Events.class));
+    }
+
+    // ---------- Admin: sin chequeo de ownership ni D12 ----------
+
+    @Test
+    void updateAsAdminEditsAnEventOfAnotherUserWithoutTheVenueRule() {
+        Organizers club = organizer(ORGANIZER_ID, OTHER_USER_ID, true);
+        club.setType(OrganizerType.CLUB);
+        Events event = event(club);
+        Cities city = new Cities();
+        city.setId(1L);
+        event.setCity(city);
+        Venues venue = new Venues();
+        venue.setId(VENUE_ID);
+        EventUpdateDto dto = new EventUpdateDto();
+        dto.setVenueId(VENUE_ID);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventResolverService.resolveVenue(VENUE_ID, 1L)).thenReturn(venue);
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.updateAsAdmin(EVENT_ID, dto);
+
+        assertSame(event, result);
+        assertSame(venue, event.getVenue());
+        verify(eventsMapper).updateEventEntityFromDto(dto, event);
+        verifyNoInteractions(venuesRepository);
+    }
+
+    /** organizer_id es ON DELETE SET NULL: el admin puede editar un evento que se quedó sin organizador. */
+    @Test
+    void updateAsAdminLinksAnOrphanEventToAnOrphanSeries() {
+        Events event = event(null);
+        EventSeries series = new EventSeries();
+        series.setId(SERIES_ID);
+        EventUpdateDto dto = new EventUpdateDto();
+        dto.setSeriesId(SERIES_ID);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventSeriesRepository.findById(SERIES_ID)).thenReturn(Optional.of(series));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        eventsService.updateAsAdmin(EVENT_ID, dto);
+
+        assertSame(series, event.getSeries());
+    }
+
+    @Test
+    void updateAsAdminRejectsASeriesOfAnotherOrganizerForAnOrphanEvent() {
+        Events event = event(null);
+        EventSeries series = new EventSeries();
+        series.setId(SERIES_ID);
+        series.setOrganizer(organizer(OTHER_ORGANIZER_ID, OTHER_USER_ID, true));
+        EventUpdateDto dto = new EventUpdateDto();
+        dto.setSeriesId(SERIES_ID);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventSeriesRepository.findById(SERIES_ID)).thenReturn(Optional.of(series));
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.updateAsAdmin(EVENT_ID, dto));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void updateAsAdminRejectsASeriesOfAnotherOrganizer() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+        EventSeries series = new EventSeries();
+        series.setId(SERIES_ID);
+        series.setOrganizer(organizer(OTHER_ORGANIZER_ID, OTHER_USER_ID, true));
+        EventUpdateDto dto = new EventUpdateDto();
+        dto.setSeriesId(SERIES_ID);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventSeriesRepository.findById(SERIES_ID)).thenReturn(Optional.of(series));
+
+        assertThrows(AccessDeniedException.class, () -> eventsService.updateAsAdmin(EVENT_ID, dto));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void updateAsAdminRejectsMissingEvent() {
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class,
+                () -> eventsService.updateAsAdmin(EVENT_ID, new EventUpdateDto()));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void updateStatusAsAdminChangesTheStatusOfAnEventOfAnotherUser() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+        event.setStatus(EventStatus.PUBLISHED);
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventsRepository.save(event)).thenReturn(event);
+
+        Events result = eventsService.updateStatusAsAdmin(EVENT_ID, EventStatus.CANCELLED);
+
+        assertSame(event, result);
+        assertEquals(EventStatus.CANCELLED, event.getStatus());
+    }
+
+    @Test
+    void updateStatusAsAdminRejectsMissingEvent() {
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class,
+                () -> eventsService.updateStatusAsAdmin(EVENT_ID, EventStatus.CANCELLED));
+        verify(eventsRepository, never()).save(any(Events.class));
+    }
+
+    @Test
+    void deleteAsAdminRemovesAnEventOfAnotherUserAndItsFlyers() {
+        Events event = event(organizer(ORGANIZER_ID, OTHER_USER_ID, true));
+
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        eventsService.deleteAsAdmin(EVENT_ID);
+
+        verify(eventsRepository).delete(event);
+        verify(objectStorageService).deleteEventFlyerRaw(EVENT_ID);
+        verify(objectStorageService).deleteEventFlyerFinal(EVENT_ID);
+    }
+
+    @Test
+    void deleteAsAdminRejectsMissingEvent() {
+        when(eventsRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> eventsService.deleteAsAdmin(EVENT_ID));
+        verify(eventsRepository, never()).delete(any(Events.class));
+        verifyNoInteractions(objectStorageService);
+    }
+
+    // ---------- Gestión de serate: findForManagement / findMineForManagement ----------
+
+    @Test
+    void findForManagementUpcomingFiltersActiveNotEndedEventsInAscendingOrder() {
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        when(eventsRepository.findIdsForManagement(eq(EventManagementTab.UPCOMING.getStatuses()), eq(false),
+                any(OffsetDateTime.class), eq(ORGANIZER_ID), isNull(), eq("%salsa night%"), pageable.capture()))
+                .thenReturn(Page.empty());
+
+        eventsService.findForManagement(EventManagementTab.UPCOMING, ORGANIZER_ID, "  Salsa Night ", PageRequest.of(2, 10));
+
+        assertEquals(Set.of(EventStatus.DRAFT, EventStatus.PENDING, EventStatus.PUBLISHED),
+                EventManagementTab.UPCOMING.getStatuses());
+        assertEquals(2, pageable.getValue().getPageNumber());
+        assertEquals(10, pageable.getValue().getPageSize());
+        assertEquals(Sort.by(Sort.Direction.ASC, "startAt").and(Sort.by(Sort.Direction.ASC, "id")),
+                pageable.getValue().getSort());
+    }
+
+    @Test
+    void findForManagementCancelledFiltersOnlyCancelledNotEndedEventsInAscendingOrder() {
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        when(eventsRepository.findIdsForManagement(eq(Set.of(EventStatus.CANCELLED)), eq(false),
+                any(OffsetDateTime.class), isNull(), isNull(), eq("%"), pageable.capture()))
+                .thenReturn(Page.empty());
+
+        eventsService.findForManagement(EventManagementTab.CANCELLED, null, null, PageRequest.of(0, 20));
+
+        assertEquals(Sort.Direction.ASC, pageable.getValue().getSort().getOrderFor("startAt").getDirection());
+    }
+
+    @Test
+    void findForManagementPastFiltersEndedEventsOfAnyStatusNewestFirst() {
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        when(eventsRepository.findIdsForManagement(eq(EnumSet.allOf(EventStatus.class)), eq(true),
+                any(OffsetDateTime.class), isNull(), isNull(), eq("%"), pageable.capture()))
+                .thenReturn(Page.empty());
+
+        eventsService.findForManagement(EventManagementTab.PAST, null, "   ", PageRequest.of(0, 20));
+
+        assertEquals(Sort.by(Sort.Direction.DESC, "startAt").and(Sort.by(Sort.Direction.DESC, "id")),
+                pageable.getValue().getSort());
+    }
+
+    @Test
+    void findMineForManagementFiltersByOwnerWithoutSearch() {
+        when(eventsRepository.findIdsForManagement(eq(EventManagementTab.UPCOMING.getStatuses()), eq(false),
+                any(OffsetDateTime.class), isNull(), eq(REQUESTER_ID), eq("%"), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        eventsService.findMineForManagement(REQUESTER_ID, EventManagementTab.UPCOMING, PageRequest.of(0, 20));
+
+        verify(eventsRepository).findIdsForManagement(eq(EventManagementTab.UPCOMING.getStatuses()), eq(false),
+                any(OffsetDateTime.class), isNull(), eq(REQUESTER_ID), eq("%"), any(Pageable.class));
+    }
+
+    /** Usuario sin página de organizador: la query no encuentra nada y no se cargan detalles. */
+    @Test
+    void findMineForManagementReturnsAnEmptyPageWithoutLoadingDetails() {
+        when(eventsRepository.findIdsForManagement(any(), eq(false), any(OffsetDateTime.class), isNull(),
+                eq(REQUESTER_ID), eq("%"), any(Pageable.class)))
+                .thenAnswer(invocation -> new PageImpl<UUID>(List.of(), invocation.getArgument(6), 0));
+
+        Page<Events> result = eventsService.findMineForManagement(REQUESTER_ID, EventManagementTab.UPCOMING,
+                PageRequest.of(0, 20));
+
+        assertEquals(0, result.getTotalElements());
+        assertEquals(List.of(), result.getContent());
+        verify(eventsRepository, never()).findAllWithDetailsByIdIn(any());
+    }
+
+    /** loadInOrder: los detalles llegan en cualquier orden, la página respeta el de los ids y su total. */
+    @Test
+    void findForManagementKeepsTheOrderOfTheIdsAndTheTotal() {
+        UUID firstId = UUID.fromString("20000000-0000-0000-0000-00000000000b");
+        UUID secondId = UUID.fromString("20000000-0000-0000-0000-00000000000a");
+        UUID missingId = UUID.fromString("20000000-0000-0000-0000-00000000000c");
+        Events first = new Events();
+        first.setId(firstId);
+        Events second = new Events();
+        second.setId(secondId);
+
+        when(eventsRepository.findIdsForManagement(any(), eq(false), any(OffsetDateTime.class), isNull(), isNull(),
+                eq("%"), any(Pageable.class)))
+                .thenAnswer(invocation -> new PageImpl<>(List.of(firstId, secondId, missingId),
+                        invocation.getArgument(6), 45));
+        when(eventsRepository.findAllWithDetailsByIdIn(List.of(firstId, secondId, missingId)))
+                .thenReturn(List.of(second, first));
+
+        Page<Events> result = eventsService.findForManagement(EventManagementTab.UPCOMING, null, null,
+                PageRequest.of(1, 3));
+
+        assertEquals(List.of(first, second), result.getContent());
+        assertEquals(45, result.getTotalElements());
+        assertEquals(1, result.getNumber());
     }
 
     private EventCreateDto createDto(UUID organizerId) {

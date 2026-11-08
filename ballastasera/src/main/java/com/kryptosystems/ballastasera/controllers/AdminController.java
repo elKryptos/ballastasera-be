@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.controllers;
 
+import com.kryptosystems.ballastasera.enums.EventManagementTab;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
 import com.kryptosystems.ballastasera.models.dtos.*;
@@ -18,6 +19,7 @@ import com.kryptosystems.ballastasera.services.manager.VenuesService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,6 +40,7 @@ import static com.kryptosystems.ballastasera.utilities.RestConstants.ADMIN;
 @RequiredArgsConstructor
 public class AdminController {
 
+    private static final String GET_EVENTS = "/events";
     private static final String GET_ORGANIZER_VERIFIED = "/organizers/verified";
     private static final String GET_ORGANIZER_BY_ID = "/organizers/{id}";
     private static final String CREATE_UNCLAIMED_ORGANIZER = "/organizers/unclaimed";
@@ -45,8 +48,11 @@ public class AdminController {
     private static final String DELETE_ORGANIZER = "/organizers/{id}";
     private static final String UNCLAIM_ORGANIZER = "/organizers/{id}/unclaim";
     private static final String CREATE_EVENT = "/events";
+    private static final String UPDATE_EVENT = "/events/{id}";
+    private static final String UPDATE_EVENT_STATUS = "/events/{id}/status";
     private static final String UPDATE_EVENT_FLYER = "/events/{id}/flyer";
     private static final String DELETE_EVENT_FLYER = "/events/{id}/flyer";
+    private static final String DELETE_EVENT = "/events/{id}";
     private static final String CREATE_EVENT_SERIES = "/event-series";
     private static final String UPDATE_EVENT_SERIES_FLYER = "/event-series/{seriesId}/flyer";
     private static final String GENERATE_EVENT_SERIES_OCCURRENCES = "/event-series/{id}/occurrences";
@@ -69,6 +75,18 @@ public class AdminController {
     private final EventSeriesService eventSeriesService;
     private final OrganizerRequestsService organizerRequestsService;
     private final OrganizerRequestMapper organizerRequestMapper;
+
+    /** Gestión de serate: pestaña obligatoria, organizador y título opcionales. */
+    @GetMapping(GET_EVENTS)
+    public ResponseEntity<Page<EventCardDto>> getEvents(@RequestParam EventManagementTab tab,
+                                                        @RequestParam(required = false) UUID organizerId,
+                                                        @RequestParam(required = false) @Size(max = 120) String q,
+                                                        @RequestParam(defaultValue = "0") @Min(0) int page,
+                                                        @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+        Page<EventCardDto> result = eventsService.findForManagement(tab, organizerId, q, PageRequest.of(page, size))
+                .map(eventsMapper::toEventCardDto);
+        return ResponseEntity.ok(result);
+    }
 
     /** Lista de organizadores ya verificados. */
     @GetMapping(GET_ORGANIZER_VERIFIED)
@@ -121,6 +139,20 @@ public class AdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(eventsMapper.toEventDetailDto(event));
     }
 
+    /** Admin edita cualquier evento, sin chequeo de ownership ni D12. */
+    @PatchMapping(UPDATE_EVENT)
+    public ResponseEntity<EventDetailDto> updateEvent(@PathVariable UUID id, @Valid @RequestBody EventUpdateDto body) {
+        var event = eventsService.updateAsAdmin(id, body);
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+    }
+
+    /** Admin publica / despublica / cancela cualquier evento. */
+    @PatchMapping(UPDATE_EVENT_STATUS)
+    public ResponseEntity<EventDetailDto> updateEventStatus(@PathVariable UUID id, @Valid @RequestBody EventStatusUpdateDto body) {
+        var event = eventsService.updateStatusAsAdmin(id, body.getStatus());
+        return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+    }
+
     /** Admin sube o reemplaza el flyer de un evento sin chequeo de ownership. */
     @PatchMapping(value = UPDATE_EVENT_FLYER, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EventDetailDto> updateEventFlyer(@PathVariable UUID id,
@@ -134,6 +166,13 @@ public class AdminController {
     public ResponseEntity<EventDetailDto> deleteEventFlyer(@PathVariable UUID id) {
         var event = eventsService.deleteFlyerAsAdmin(id);
         return ResponseEntity.ok(eventsMapper.toEventDetailDto(event));
+    }
+
+    /** Admin elimina cualquier evento (flyers incluidos). */
+    @DeleteMapping(DELETE_EVENT)
+    public ResponseEntity<Void> deleteEvent(@PathVariable UUID id) {
+        eventsService.deleteAsAdmin(id);
+        return ResponseEntity.noContent().build();
     }
 
     /** Admin crea una serie de eventos para cualquier organizer, sin chequeo de ownership. */

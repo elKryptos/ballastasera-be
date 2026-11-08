@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.EventType;
 import com.kryptosystems.ballastasera.enums.FlyerStatus;
 import lombok.Getter;
@@ -33,6 +34,7 @@ public class EventCardDto {
     private String currency;
     private Double latitude;
     private Double longitude;
+    private EventStatus status;
     private String address;
     private String organizerName;
     private String organizerInstagram;
