@@ -15,17 +15,16 @@ Convención de estado (la misma que `ROADMAP.md`):
 - `[~]` en progreso (dejar nota de qué falta)
 - `[x]` hecho y probado (tests + Postman)
 
-## ▶ Dónde retomar (actualizado 07/11/2026)
+## ▶ Dónde retomar (actualizado 08/11/2026)
 
-**Backend:** rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `df6e95b`.
-**Pendiente de push:** `6060a36`, `60d3e2c` y `73eb783` (email al dueño cuando el admin borra su organizador,
-con sus docs) y el commit de esta actualización. **Diseñadas, sin aplicar:** las 5 API de gestión de serate
-(fase 5d); el código está en la casilla del backend de la 5d.
+**Backend:** rama `feature/organizer-requests`. El push lo hace el usuario. En el remoto: todo hasta `b19f8c8`.
+**Sin commit:** el backend de la fase 5d (las 5 API de gestión de serate) con sus tests, y esta actualización
+del plan.
 
-**Frontend:** repo `../ballastasera-fe`, rama `feature/organizer-requests`. En el remoto hasta `9ee4b5d`.
-**Pendiente de push:** `7fe94b8` (cuenta, perfil del organizador y menú, fase 5c). Nada sin commit.
+**Frontend:** repo `../ballastasera-fe`, rama `feature/organizer-requests`. En el remoto hasta `7fe94b8`.
+Nada pendiente de push ni sin commit.
 
-Suite del backend: 299 tests. Los dos que levantan el contexto de Spring (`BallastaseraApplicationTests`,
+Suite del backend: 314 tests. Los dos que levantan el contexto de Spring (`BallastaseraApplicationTests`,
 `CitiesRepositoryTest`) necesitan la base local arrancada.
 
 | Fase | Estado |
@@ -37,12 +36,12 @@ Suite del backend: 299 tests. Los dos que levantan el contexto de Spring (`Balla
 | 4 — Tests | **Hecha** |
 | 5a/5b — Frontend | **Hechas en código** (`555b910`, `716dffc`): wizard CLAIM + NEW, cola del admin, tarjeta del menú, bienvenida y línea del perfil. Textos en italiano directo, sin transloco. Las casillas de abajo todavía no están marcadas |
 | 5c — Gestionar un organizador aprobado | **Hecha en código** (`9ee4b5d` y `7fe94b8`): «Il tuo account» (`il-tuo-account`, flag `accountPage`: apagado en prod, encendido en staging), «La tua pagina» (`profilo-organizzatore`), «Rimuovi titolare» en el admin, menú con «Le tue serate» en una fila y «Serate pubblicate». **Falta:** «Annullato» en `evento/:id`. Sin recorrer todavía en el navegador |
-| 5d — Gestión de serate | **Nueva (07/11).** Diseño en el lienzo (fila «3 · Gestire le serate»). Backend: 5 endpoints diseñados, los aplica el usuario (~4 h). Frontend: no empezado |
+| 5d — Gestión de serate | Diseño en el lienzo (fila «3 · Gestire le serate»). **Backend hecho (08/11)** con tests unitarios; sin Postman, por decisión del 08/11. Frontend: no empezado |
 | 6/7 — Docs y despliegue | No empezado |
 
-**Siguiente paso:** aplicar las 5 API de la fase 5d. Después Claude revisa el diff, escribe los tests y la sección
-de `POSTMAN_TESTING.md`, y se empieza el front de las pantallas de serate. Pendiente aparte: marcar las casillas de
-5a/5b con lo que ya está hecho.
+**Siguiente paso:** commit del backend de la 5d y front de las pantallas de serate (`AdminSerate`, `SerataNuova`,
+`SerataModifica`, `SeratePubblicate`). Pendiente aparte: marcar las casillas de 5a/5b con lo que ya está hecho, y en
+la fase 6 añadir a `docs/API.md` también las API de la 5d.
 
 **Pendiente del backend, para antes de staging:**
 1. Probar D12 en Postman (§16).
@@ -1543,22 +1542,26 @@ tiene en el backend crear, editar, cambiar de estado y borrar, pero ninguna list
 front. Diseño: lienzo, fila «3 · Gestire le serate» (artboards `AdminSerate`, `SerataNuova`, `SerataModifica` y
 `SeratePubblicate`, más dos notas con lo que falta en el backend y el porqué del form).
 
-**Pestañas** (las mismas en el admin y en el organizador). Una serata sin `endAt` termina en su `startAt`:
+**Pestañas** (las mismas en el admin y en el organizador). Se decide con `endAt`, que es obligatorio al crear:
 - **Prossime:** no anuladas que aún no han terminado, en curso incluidas.
 - **Annullate:** anuladas que aún no han pasado.
 - **Passate:** terminadas, en cualquier estado.
 
-- [ ] **Backend** (diseñado el 07/11, lo aplica el usuario):
+- [x] **Backend** (hecho el 08/11; lo aplicó el usuario, Claude revisó y escribió los tests. Sin Postman, por
+  decisión del 08/11):
   - Enum nuevo `EventManagementTab` (`UPCOMING`, `CANCELLED`, `PAST`): qué estados entran y si se miran las que
     aún no han terminado o las terminadas. Como `@RequestParam`, un valor inventado da 400.
-  - `EventCardDto`: campo `status`. No hace falta DTO nuevo: `organizerName` ya estaba.
-  - `EventsRepository.findIdsForManagement`, con el `WHERE` en una constante (`MANAGEMENT_FROM_WHERE`) que usan la
-    query y su `countQuery`. Primero una página de ids y después `findAllWithDetailsByIdIn`, como en el mapa: un
-    `JOIN FETCH` de `danceStyles` con paginación la haría en memoria.
+  - `EventCardDto`: campo `status`. No hace falta DTO nuevo: `organizerName` ya estaba. También sale en las cards
+    del mapa (siempre `PUBLISHED`).
+  - `EventsRepository.findIdsForManagement`: JPQL escrita sobre el método, sin `countQuery` (el count lo deduce
+    Spring Data) y comparando con `e.endAt` directamente, así puede usar el índice `idx_events_status_end`.
+    Primero una página de ids y después `findAllWithDetailsByIdIn`, como en el mapa: un `JOIN FETCH` de
+    `danceStyles` con paginación la haría en memoria.
   - Service: `findForManagement(tab, organizerId, search, pageable)`, `findMineForManagement(requesterId, tab,
-    pageable)`, `updateAsAdmin` y `updateStatusAsAdmin`. Para no repetir, privados `applyUpdate` y `applyStatus`
-    (comunes al dueño y al admin) y `loadInOrder` (también lo usa `findMapEvents`). El admin no pasa por D12, como
-    `createAsAdmin`. `resolveSeries` acepta un evento sin organizador. `deleteAsAdmin` ya existía.
+    pageable)`, `updateAsAdmin` y `updateStatusAsAdmin`. Para no repetir, privados `applyUpdate` (común al dueño y
+    al admin) y `loadInOrder` (también lo usa `findMapEvents`, mismo comportamiento que antes). El admin no pasa
+    por D12, como `createAsAdmin`. `resolveSeries` acepta un evento o una serie sin organizador
+    (`Objects.equals`). `deleteAsAdmin` ya existía.
   - `GET /rest/admin/events?tab&organizerId&q&page&size` → `Page<EventCardDto>`.
   - `PATCH /rest/admin/events/{id}` y `PATCH /rest/admin/events/{id}/status` → `EventDetailDto`.
   - `DELETE /rest/admin/events/{id}` → 204.
@@ -1566,8 +1569,9 @@ front. Diseño: lienzo, fila «3 · Gestire le serate» (artboards `AdminSerate`
     página vacía.
   - **`SecurityConfig`:** `authenticated()` para `GET /rest/organizers/me/events` **antes** de la regla pública
     `/rest/organizers/{id}/events`, que si no también la cubre.
-  - Tests en `EventsServiceImplTest`: el admin sin chequeo de dueño ni D12, el dueño con los dos, el orden de cada
-    pestaña, `q` → `%texto%`, y el organizador sin página → página vacía. Más la sección de `POSTMAN_TESTING.md`.
+  - Tests en `EventsServiceImplTest` (15 nuevos): el admin sin chequeo de dueño ni D12, `resolveSeries` sin
+    organizador, el filtro y el orden de cada pestaña, `q` → `%texto%`, el organizador sin página → página vacía, y
+    `loadInOrder` respetando el orden y el total. El dueño con los dos chequeos ya estaba cubierto.
 - [ ] **Frontend** (después del backend):
   - `AdminSerate`: lista con las tres pestañas, buscador y filtro por organizador. Cada serata abre su modificación.
   - Un solo formulario, `SerataNuova`, para el admin y el organizador. El admin tiene además «Chi la organizza».
