@@ -1,0 +1,1540 @@
+################################################################################
+#
+#   PLAYLIST MENSUAL CON VOTOS — codigo completo, PENDIENTE DE APLICAR
+#   Guardado el 2026-10-10 para continuar al dia siguiente.
+#
+################################################################################
+
+
+ESTADO (2026-10-10)
+-------------------
+- NADA de esto esta aplicado todavia: ni las tablas en la base de datos ni las
+  clases en el proyecto. Este archivo es la copia de seguridad de todo el codigo.
+- El codigo esta verificado en una copia aislada del proyecto:
+    * compila y la suite completa pasa (183 tests, 0 fallos);
+    * el SQL y las consultas se ejecutaron contra el PostgreSQL local, creando
+      las tablas dentro de una transaccion que se deshace (no quedo nada en la
+      base de datos).
+- Repo: main en el commit d87681a ("Decrement going count when a user is
+  deleted"), ya subido. El codigo de este archivo parte de ese commit.
+- El FE no esta tocado: hoy la playlist son 16 canciones fijas en
+  ballastasera-fe/src/app/features/learn-to-dance/playlist/playlist.ts
+
+
+QUE HACE
+--------
+- El admin elige las canciones de cada mes. Los usuarios logueados votan y la
+  lista se muestra ordenada por votos.
+- Cada cancion pertenece a un mes (columna month_start = primer dia del mes).
+  La lista de un mes son sus filas. Los meses anteriores no se borran: son el
+  historial que cualquiera puede consultar.
+- Mismo patron que los likes de eventos: tabla de votos (una fila por usuario y
+  cancion) + contador denormalizado votes_count en la cancion.
+- Orden: votes_count DESC, sort_order ASC (el orden del admin desempata),
+  title ASC.
+
+
+REGLAS DECIDIDAS
+----------------
+1. Lista vigente = el mes mas reciente que tenga canciones y ya haya empezado.
+   Si un mes no se carga lista nueva, sigue valiendo la anterior.
+2. Se puede cargar un mes con antelacion: no se ve hasta el dia 1.
+3. Solo se vota (y se quita el voto) en la lista vigente. Los meses anteriores
+   quedan congelados con su ranking final: votar ahi devuelve 409.
+4. Solo votan usuarios logueados, un voto por cancion, se puede quitar.
+5. La misma cancion puede repetirse otro mes: es otra fila, con votos aparte.
+   Dentro de un mismo mes no se puede repetir (UNIQUE month_start + spotify_id).
+6. Las canciones se cargan por SQL (como ciudades y estilos). No hay endpoints
+   de admin por ahora.
+7. No hay tabla "playlists": el mes vive en cada cancion. Solo haria falta si
+   la lista del mes tuviera datos propios (titulo, descripcion, portada).
+
+
+API
+---
+  GET    /rest/playlist                 publico   canciones de la lista vigente, ordenadas por votos
+  GET    /rest/playlist?month=2026-10   publico   las de ese mes (historial); mes sin lista -> []
+  GET    /rest/playlist/months          publico   ["2026-11","2026-10",...]; el primero es el vigente
+  GET    /rest/playlist/votes           logueado  ids de las canciones de la lista vigente que yo vote
+  POST   /rest/playlist/{id}/vote       logueado  204 (idempotente); 409 si no es de la lista vigente
+  DELETE /rest/playlist/{id}/vote       logueado  204; 409 si no es de la lista vigente
+
+  Cada cancion: { id, month, danceStyle, title, artist, year, spotifyId, votesCount }
+  - month: "2026-10"
+  - danceStyle: slug ("salsa" / "bachata"); el FE reparte con el lado A / lado B.
+  - month invalido (?month=abc) -> 400.
+
+
+CLASES NUEVAS (11)
+------------------
+  models/entities/keys/UserTrackId            clave compuesta, igual que UserEventId
+  models/entities/PlaylistTracks              tabla playlist_tracks
+  models/entities/PlaylistVotes               tabla playlist_votes
+  repositories/PlaylistTracksRepository       lista ordenada, mes vigente, contadores
+  repositories/PlaylistVotesRepository        votos de un usuario
+  exceptions/PlaylistVotingClosedException    votar en un mes cerrado -> 409
+  services/manager/PlaylistService
+  services/implementations/PlaylistServiceImpl
+  models/dtos/PlaylistTrackDto
+  models/mappers/PlaylistMapper
+  controllers/PlaylistController
+
+  Nota de convencion: PlaylistService devuelve entidades en todo salvo
+  findMonthStarts(), que devuelve List<LocalDate> (un mes no tiene entidad
+  porque no hay tabla playlists). Si se quiere que el service devuelva solo
+  entidades, la alternativa es crear esa tabla (una entidad y un repositorio mas).
+
+
+ARCHIVOS EXISTENTES QUE SE TOCAN (4 + 2 tests)
+----------------------------------------------
+  utilities/RestConstants                          constante PLAYLIST
+  config/SecurityConfig                            2 rutas GET publicas
+  exceptions/core/BackendErrorResponse             handler del 409
+  services/implementations/UsersServiceImpl        bajar votes_count al borrar un usuario
+  test: cache/EventsCacheTest                      2 mocks mas en @MockitoBean(types)
+  test: services/implementations/UsersServiceImplTest   2 mocks mas (archivo completo mas abajo)
+
+
+ORDEN PARA APLICAR
+------------------
+  Paso 1  SQL: crear las dos tablas y cargar la lista de octubre 2026.
+          Hacerlo ANTES de arrancar la aplicacion con el codigo nuevo
+          (no hay ddl-auto: las tablas no se crean solas). Anadirlo tambien a
+          docs/ballastasera_schema.sql
+  Paso 2  Entidades y clave.
+  Paso 3  Repositorios.
+  Paso 4  Excepcion + handler en BackendErrorResponse.
+  Paso 5  Service (interfaz + impl).
+  Paso 6  DTO + mapper.
+  Paso 7  RestConstants + SecurityConfig + controller.
+  Paso 8  UsersServiceImpl.deleteById.
+  Paso 9  Los dos tests existentes que se rompen con el paso 8.
+  Paso 10 Tests nuevos (al final de este archivo).
+
+
+
+
+################################################################################
+#   PASO 1 - SQL (ejecutar en la base de datos y anadir a docs/ballastasera_schema.sql)
+################################################################################
+
+-- ============================================================================
+--  PLAYLIST_TRACKS — canciones de la playlist mensual, elegidas por el admin.
+--  Cada fila pertenece a un mes (month_start). La lista de un mes son sus filas
+--  y los meses anteriores quedan como historial, no se borra nada.
+--  votes_count es un contador denormalizado, igual que events.likes_count.
+-- ============================================================================
+CREATE TABLE playlist_tracks (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    month_start    DATE    NOT NULL,              -- primer dia del mes (2026-11-01 = lista de noviembre)
+    dance_style_id BIGINT  NOT NULL REFERENCES dance_styles(id),  -- lado A = Salsa, lado B = Bachata
+    title          TEXT    NOT NULL,
+    artist         TEXT    NOT NULL,
+    release_year   INTEGER,
+    spotify_id     TEXT,                          -- id del track en Spotify, para el reproductor
+    sort_order     INTEGER NOT NULL DEFAULT 0,    -- orden del admin, desempata a igualdad de votos
+    votes_count    BIGINT  NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_playlist_tracks_month_start  CHECK (EXTRACT(DAY FROM month_start) = 1),
+    CONSTRAINT uq_playlist_tracks_month_spotify UNIQUE (month_start, spotify_id)
+);
+
+
+-- ============================================================================
+--  PLAYLIST_VOTES — un usuario logueado vota una cancion (un voto por cancion)
+-- ============================================================================
+CREATE TABLE playlist_votes (
+    user_id    UUID NOT NULL REFERENCES users(id)           ON DELETE CASCADE,
+    track_id   UUID NOT NULL REFERENCES playlist_tracks(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, track_id)
+);
+CREATE INDEX idx_playlist_votes_track ON playlist_votes(track_id);
+
+
+-- ============================================================================
+--  Lista de octubre 2026: las 16 canciones que hoy estan fijas en el FE.
+--  Cada mes se repite este INSERT cambiando month_start y las canciones.
+-- ============================================================================
+INSERT INTO playlist_tracks (month_start, dance_style_id, title, artist, release_year, spotify_id, sort_order)
+SELECT DATE '2026-10-01', ds.id, t.title, t.artist, t.release_year, t.spotify_id, t.sort_order
+FROM (VALUES
+    ('salsa',   'Llorarás',              'Oscar D’León, Dimensión Latina', 1975, '1wQQNCFJQtaU4EvsGPZJML', 1),
+    ('salsa',   'Pa’llá voy',            'Marc Anthony',                   2021, '05jVbjHBsX3V8OxFWlpayR', 2),
+    ('salsa',   'Aguanile',              'Marc Anthony',                   2007, '0Bf3bLtRSlpXl5l5MuzZd6', 3),
+    ('salsa',   'Deseándote',            'Frankie Ruiz',                   1989, '5hiHDuJOcBmB8wguFDPFjD', 4),
+    ('salsa',   'Desnúdate mujer',       'Frankie Ruiz',                   1987, '5gH9swPA4CDuuRrXeKkvPX', 5),
+    ('salsa',   'Vivir mi vida',         'Marc Anthony',                   2013, '3QHMxEOAGD51PDlbFPHLyJ', 6),
+    ('salsa',   'Yo no sé mañana',       'Luis Enrique',                   2009, '7nDIflSHQXzaa8zupxwv3U', 7),
+    ('salsa',   'Fabricando fantasías',  'Tito Nieves',                    2004, '4WxQ7uhyoLJXcwmmX7Zmkk', 8),
+    ('bachata', 'Obsesión',              'Aventura',                       2002, '3VhIlnjnpEgOjVdLHdlCoV', 1),
+    ('bachata', 'Bachata en las venas',  'Esme, Akai Rojas',               2024, '73xOg6WHnYUWmqU87pWblc', 2),
+    ('bachata', 'La estrella',           'JR',                             2019, '5RSeiHJVaCVaehLj2D4PM5', 3),
+    ('bachata', 'Propuesta indecente',   'Romeo Santos',                   2013, '7H9dYcwQ2it4PhpdA2NIGt', 4),
+    ('bachata', 'Eres mía',              'Romeo Santos',                   2014, '6I86RF3odBlcuZA9Vfjzeq', 5),
+    ('bachata', 'Darte un beso',         'Prince Royce',                   2013, '6cJLfIqwh0tCKRjYM3WpZ5', 6),
+    ('bachata', 'Me emborracharé',       'Grupo Extra',                    2017, '2g97AfsrryNZVFmdqKGRuN', 7),
+    ('bachata', 'Dile al amor',          'Aventura',                       2010, '6lFM8kkmpffm0aq2gzEtEK', 8)
+) AS t(style_slug, title, artist, release_year, spotify_id, sort_order)
+JOIN dance_styles ds ON ds.slug = t.style_slug;
+
+
+################################################################################
+#   CODIGO NUEVO (rutas relativas a ballastasera/src/main/java/com/kryptosystems/ballastasera/)
+################################################################################
+
+
+================================================================================
+ARCHIVO NUEVO (paso 2): models/entities/keys/UserTrackId.java
+================================================================================
+
+package com.kryptosystems.ballastasera.models.entities.keys;
+
+import jakarta.persistence.Embeddable;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+@Embeddable
+@Getter
+@Setter
+@EqualsAndHashCode
+public class UserTrackId implements Serializable {
+    private UUID userId;
+    private UUID trackId;
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 2): models/entities/PlaylistTracks.java
+================================================================================
+
+package com.kryptosystems.ballastasera.models.entities;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Entity
+@Table(name = "playlist_tracks")
+@Getter
+@Setter
+public class PlaylistTracks {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
+    private UUID id;
+
+    /** Primer dia del mes al que pertenece la cancion: 2026-11-01 = lista de noviembre 2026. */
+    @Column(name = "month_start", nullable = false)
+    private LocalDate monthStart;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "dance_style_id", nullable = false)
+    private DanceStyles danceStyle;
+
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "artist", nullable = false)
+    private String artist;
+
+    @Column(name = "release_year")
+    private Integer releaseYear;
+
+    @Column(name = "spotify_id")
+    private String spotifyId;
+
+    /** Orden elegido por el admin: desempata cuando dos canciones tienen los mismos votos. */
+    @Column(name = "sort_order", nullable = false)
+    private Integer sortOrder = 0;
+
+    @Column(name = "votes_count", nullable = false)
+    private Long votesCount = 0L;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 2): models/entities/PlaylistVotes.java
+================================================================================
+
+package com.kryptosystems.ballastasera.models.entities;
+
+import com.kryptosystems.ballastasera.models.entities.keys.UserTrackId;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = "playlist_votes")
+@Getter
+@Setter
+public class PlaylistVotes {
+    @EmbeddedId
+    private UserTrackId id = new UserTrackId();
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId("userId")
+    @JoinColumn(name = "user_id")
+    private Users user;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId("trackId")
+    @JoinColumn(name = "track_id")
+    private PlaylistTracks track;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private OffsetDateTime createdAt;
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 3): repositories/PlaylistTracksRepository.java
+================================================================================
+
+package com.kryptosystems.ballastasera.repositories;
+
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface PlaylistTracksRepository extends JpaRepository<PlaylistTracks, UUID> {
+
+    /** Mes de la lista vigente: el mas reciente que ya empezo. Vacio si todavia no hay ninguna lista. */
+    @Query("SELECT MAX(t.monthStart) FROM PlaylistTracks t WHERE t.monthStart <= :today")
+    Optional<LocalDate> findCurrentMonthStart(@Param("today") LocalDate today);
+
+    /** Meses que tienen lista y ya empezaron, del mas reciente al mas antiguo. */
+    @Query("SELECT DISTINCT t.monthStart FROM PlaylistTracks t WHERE t.monthStart <= :today ORDER BY t.monthStart DESC")
+    List<LocalDate> findMonthStarts(@Param("today") LocalDate today);
+
+    /** Canciones de un mes por votos; a igualdad de votos manda el orden del admin. */
+    @Query("""
+            SELECT t FROM PlaylistTracks t
+            JOIN FETCH t.danceStyle
+            WHERE t.monthStart = :monthStart
+            ORDER BY t.votesCount DESC, t.sortOrder ASC, t.title ASC
+            """)
+    List<PlaylistTracks> findByMonthStartOrderedByVotes(@Param("monthStart") LocalDate monthStart);
+
+    @Modifying
+    @Query("UPDATE PlaylistTracks t SET t.votesCount = t.votesCount + 1 WHERE t.id = :trackId")
+    void incrementVotesCount(@Param("trackId") UUID trackId);
+
+    @Modifying
+    @Query("UPDATE PlaylistTracks t SET t.votesCount = t.votesCount - 1 WHERE t.id = :trackId AND t.votesCount > 0")
+    void decrementVotesCount(@Param("trackId") UUID trackId);
+
+    @Modifying
+    @Query("UPDATE PlaylistTracks t SET t.votesCount = t.votesCount - 1 WHERE t.id IN :trackIds AND t.votesCount > 0")
+    void decrementVotesCountForTracks(@Param("trackIds") List<UUID> trackIds);
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 3): repositories/PlaylistVotesRepository.java
+================================================================================
+
+package com.kryptosystems.ballastasera.repositories;
+
+import com.kryptosystems.ballastasera.models.entities.PlaylistVotes;
+import com.kryptosystems.ballastasera.models.entities.keys.UserTrackId;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
+public interface PlaylistVotesRepository extends JpaRepository<PlaylistVotes, UserTrackId> {
+
+    /** Votos del usuario dentro de un mes: para pintar ya marcado el boton de las canciones que voto. */
+    @Query("SELECT v FROM PlaylistVotes v WHERE v.id.userId = :userId AND v.track.monthStart = :monthStart")
+    List<PlaylistVotes> findByUserIdAndMonthStart(@Param("userId") UUID userId, @Param("monthStart") LocalDate monthStart);
+
+    /** Todas las canciones que voto el usuario (cualquier mes): para bajar los contadores al borrarlo. */
+    @Query("SELECT v.id.trackId FROM PlaylistVotes v WHERE v.id.userId = :userId")
+    List<UUID> findTrackIdsByUserId(@Param("userId") UUID userId);
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 4): exceptions/PlaylistVotingClosedException.java
+================================================================================
+
+package com.kryptosystems.ballastasera.exceptions;
+
+public class PlaylistVotingClosedException extends RuntimeException {
+    public PlaylistVotingClosedException(String message) {
+        super(message);
+    }
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 5): services/manager/PlaylistService.java
+================================================================================
+
+package com.kryptosystems.ballastasera.services.manager;
+
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import com.kryptosystems.ballastasera.models.entities.PlaylistVotes;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.UUID;
+
+public interface PlaylistService {
+    /** Meses con lista (primer dia de cada mes), del mas reciente al mas antiguo. El primero es el vigente. */
+    List<LocalDate> findMonthStarts();
+    /** Canciones de un mes ordenadas por votos. Con month == null devuelve la lista vigente. */
+    List<PlaylistTracks> findByMonth(YearMonth month);
+    /** Votos del usuario en la lista vigente. */
+    List<PlaylistVotes> findCurrentVotesByUserId(UUID userId);
+    void addVote(UUID userId, UUID trackId);
+    void removeVote(UUID userId, UUID trackId);
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 5): services/implementations/PlaylistServiceImpl.java
+================================================================================
+
+package com.kryptosystems.ballastasera.services.implementations;
+
+import com.kryptosystems.ballastasera.exceptions.PlaylistVotingClosedException;
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import com.kryptosystems.ballastasera.models.entities.PlaylistVotes;
+import com.kryptosystems.ballastasera.models.entities.keys.UserTrackId;
+import com.kryptosystems.ballastasera.repositories.PlaylistTracksRepository;
+import com.kryptosystems.ballastasera.repositories.PlaylistVotesRepository;
+import com.kryptosystems.ballastasera.repositories.UsersRepository;
+import com.kryptosystems.ballastasera.services.manager.PlaylistService;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class PlaylistServiceImpl implements PlaylistService {
+
+    private final PlaylistTracksRepository playlistTracksRepository;
+    private final PlaylistVotesRepository playlistVotesRepository;
+    private final UsersRepository usersRepository;
+
+    @Override
+    public List<LocalDate> findMonthStarts() {
+        return playlistTracksRepository.findMonthStarts(LocalDate.now());
+    }
+
+    @Override
+    public List<PlaylistTracks> findByMonth(YearMonth month) {
+        if (month == null) {
+            return findCurrentMonthStart()
+                    .map(playlistTracksRepository::findByMonthStartOrderedByVotes)
+                    .orElse(List.of());
+        }
+        LocalDate monthStart = month.atDay(1);
+        /** Una lista cargada con antelacion no se ve hasta que empieza su mes. */
+        if (monthStart.isAfter(LocalDate.now())) {
+            return List.of();
+        }
+        return playlistTracksRepository.findByMonthStartOrderedByVotes(monthStart);
+    }
+
+    @Override
+    public List<PlaylistVotes> findCurrentVotesByUserId(UUID userId) {
+        return findCurrentMonthStart()
+                .map(monthStart -> playlistVotesRepository.findByUserIdAndMonthStart(userId, monthStart))
+                .orElse(List.of());
+    }
+
+    @Override
+    @Transactional
+    public void addVote(UUID userId, UUID trackId) {
+        PlaylistTracks track = findVotableTrack(trackId);
+        if (playlistVotesRepository.existsById(voteId(userId, trackId))) {
+            return;
+        }
+        PlaylistVotes vote = new PlaylistVotes();
+        vote.setUser(usersRepository.getReferenceById(userId));
+        vote.setTrack(track);
+        playlistVotesRepository.save(vote);
+        playlistTracksRepository.incrementVotesCount(trackId);
+    }
+
+    @Override
+    @Transactional
+    public void removeVote(UUID userId, UUID trackId) {
+        findVotableTrack(trackId);
+        UserTrackId id = voteId(userId, trackId);
+        if (playlistVotesRepository.existsById(id)) {
+            playlistVotesRepository.deleteById(id);
+            playlistTracksRepository.decrementVotesCount(trackId);
+        }
+    }
+
+    /** La lista vigente es la del mes mas reciente que ya empezo: si un mes no se carga
+     * lista nueva, sigue valiendo la anterior. */
+    private Optional<LocalDate> findCurrentMonthStart() {
+        return playlistTracksRepository.findCurrentMonthStart(LocalDate.now());
+    }
+
+    /** Solo se vota (o se quita el voto) en la lista vigente: los meses anteriores
+     * quedan congelados con su ranking final. */
+    private PlaylistTracks findVotableTrack(UUID trackId) {
+        PlaylistTracks track = playlistTracksRepository.findById(trackId)
+                .orElseThrow(() -> new EntityNotFoundException("Playlist track not found with id " + trackId));
+        if (!track.getMonthStart().equals(findCurrentMonthStart().orElse(null))) {
+            throw new PlaylistVotingClosedException(
+                    "Voting is closed for the playlist of " + YearMonth.from(track.getMonthStart()));
+        }
+        return track;
+    }
+
+    private UserTrackId voteId(UUID userId, UUID trackId) {
+        UserTrackId id = new UserTrackId();
+        id.setUserId(userId);
+        id.setTrackId(trackId);
+        return id;
+    }
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 6): models/dtos/PlaylistTrackDto.java
+================================================================================
+
+package com.kryptosystems.ballastasera.models.dtos;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.UUID;
+
+@Getter
+@Setter
+public class PlaylistTrackDto {
+    private UUID id;
+    /** Mes de la lista a la que pertenece la cancion, formato 2026-11. */
+    private String month;
+    /** Slug del estilo de baile: el FE reparte con el las canciones en lado A / lado B. */
+    private String danceStyle;
+    private String title;
+    private String artist;
+    private Integer year;
+    private String spotifyId;
+    private long votesCount;
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 6): models/mappers/PlaylistMapper.java
+================================================================================
+
+package com.kryptosystems.ballastasera.models.mappers;
+
+import com.kryptosystems.ballastasera.models.dtos.PlaylistTrackDto;
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import com.kryptosystems.ballastasera.models.entities.PlaylistVotes;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.Named;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.UUID;
+
+@Mapper(componentModel = "spring")
+public interface PlaylistMapper {
+
+    @Mapping(target = "month", source = "monthStart", qualifiedByName = "toMonth")
+    @Mapping(target = "danceStyle", source = "danceStyle.slug")
+    @Mapping(target = "year", source = "releaseYear")
+    PlaylistTrackDto toPlaylistTrackDto(PlaylistTracks track);
+
+    /** 2026-11-01 -> "2026-11": el mes como lo recibe y lo envia el FE. */
+    @Named("toMonth")
+    default String toMonth(LocalDate monthStart) {
+        return YearMonth.from(monthStart).toString();
+    }
+
+    default UUID toTrackId(PlaylistVotes vote) {
+        return vote.getId().getTrackId();
+    }
+}
+
+
+================================================================================
+ARCHIVO NUEVO (paso 7): controllers/PlaylistController.java
+================================================================================
+
+package com.kryptosystems.ballastasera.controllers;
+
+import com.kryptosystems.ballastasera.models.dtos.PlaylistTrackDto;
+import com.kryptosystems.ballastasera.models.mappers.PlaylistMapper;
+import com.kryptosystems.ballastasera.security.UserPrincipal;
+import com.kryptosystems.ballastasera.services.manager.PlaylistService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.YearMonth;
+import java.util.List;
+import java.util.UUID;
+
+import static com.kryptosystems.ballastasera.utilities.RestConstants.PLAYLIST;
+
+@RestController
+@RequestMapping(PLAYLIST)
+@RequiredArgsConstructor
+public class PlaylistController {
+
+    private static final String GET_TRACKS = "";
+    private static final String GET_MONTHS = "/months";
+    private static final String GET_MY_VOTES = "/votes";
+    private static final String ADD_VOTE = "/{id}/vote";
+    private static final String REMOVE_VOTE = "/{id}/vote";
+
+    private final PlaylistService playlistService;
+    private final PlaylistMapper playlistMapper;
+
+    /** Publico. Canciones de un mes (month=2026-10) ordenadas por votos.
+     * Sin month devuelve la lista vigente; un mes sin lista devuelve una lista vacia. */
+    @GetMapping(GET_TRACKS)
+    public ResponseEntity<List<PlaylistTrackDto>> getTracks(@RequestParam(required = false) YearMonth month) {
+        return ResponseEntity.ok(playlistService.findByMonth(month).stream()
+                .map(playlistMapper::toPlaylistTrackDto)
+                .toList());
+    }
+
+    /** Publico. Meses con lista (formato 2026-11), del mas reciente al mas antiguo.
+     * El primero es el vigente, el unico en el que se puede votar. */
+    @GetMapping(GET_MONTHS)
+    public ResponseEntity<List<String>> getMonths() {
+        return ResponseEntity.ok(playlistService.findMonthStarts().stream()
+                .map(playlistMapper::toMonth)
+                .toList());
+    }
+
+    /** Requiere estar autenticado. Ids de las canciones de la lista vigente que el usuario ya voto. */
+    @GetMapping(GET_MY_VOTES)
+    public ResponseEntity<List<UUID>> getMyVotes(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(playlistService.findCurrentVotesByUserId(principal.getId()).stream()
+                .map(playlistMapper::toTrackId)
+                .toList());
+    }
+
+    /** Requiere estar autenticado. Vota una cancion de la lista vigente. Idempotente. */
+    @PostMapping(ADD_VOTE)
+    public ResponseEntity<Void> addVote(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        playlistService.addVote(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Quita el voto. */
+    @DeleteMapping(REMOVE_VOTE)
+    public ResponseEntity<Void> removeVote(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        playlistService.removeVote(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+}
+
+
+################################################################################
+#   CAMBIOS EN ARCHIVOS QUE YA EXISTEN
+################################################################################
+
+
+================================================================================
+CAMBIO (paso 4): exceptions/core/BackendErrorResponse.java
+Anadir este metodo debajo de handleVenueHasActiveEvents.
+El import ya esta cubierto por "import com.kryptosystems.ballastasera.exceptions.*;"
+================================================================================
+
+    @ExceptionHandler(PlaylistVotingClosedException.class)
+    public ResponseEntity<ErrorDetails> handlePlaylistVotingClosed(PlaylistVotingClosedException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Playlist voting closed",
+                HttpStatus.CONFLICT
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+
+================================================================================
+CAMBIO (paso 7): utilities/RestConstants.java
+Anadir la constante debajo de ORGANIZERS.
+================================================================================
+
+    public static final String PLAYLIST = "/rest/playlist";
+
+
+================================================================================
+CAMBIO (paso 7): config/SecurityConfig.java
+Al final de la lista de GET publicos. OJO: hay que anadir la coma a la linea
+de "/rest/organizers/{id}/event-series".
+El resto de rutas de la playlist (votes, vote) ya caen en anyRequest().authenticated().
+================================================================================
+
+                                "/rest/organizers/{id}/event-series",
+                                "/rest/playlist",
+                                "/rest/playlist/months"
+                        ).permitAll()
+
+
+================================================================================
+CAMBIO (paso 8): services/implementations/UsersServiceImpl.java
+Al borrar un usuario, la base de datos borra sus votos en cascada pero el
+contador votes_count no baja solo (igual que likes y "voy").
+================================================================================
+
+  Imports nuevos:
+
+import com.kryptosystems.ballastasera.repositories.PlaylistTracksRepository;
+import com.kryptosystems.ballastasera.repositories.PlaylistVotesRepository;
+
+  Campos nuevos (debajo de eventsRepository):
+
+    private final PlaylistVotesRepository playlistVotesRepository;
+    private final PlaylistTracksRepository playlistTracksRepository;
+
+  deleteById completo, como debe quedar:
+
+    @Override
+    @Transactional
+    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
+    public void deleteById(UUID id) {
+        List<UUID> favoriteEventIds = favoritesRepository.findEventIdsByUserId(id);
+        if (!favoriteEventIds.isEmpty()) {
+            eventsRepository.decrementLikesCountForEvents(favoriteEventIds);
+        }
+        List<UUID> attendedEventIds = eventAttendanceRepository.findEventIdsByUserId(id);
+        if (!attendedEventIds.isEmpty()) {
+            eventsRepository.decrementGoingCountForEvents(attendedEventIds);
+        }
+        List<UUID> votedTrackIds = playlistVotesRepository.findTrackIdsByUserId(id);
+        if (!votedTrackIds.isEmpty()) {
+            playlistTracksRepository.decrementVotesCountForTracks(votedTrackIds);
+        }
+        usersRepository.deleteById(id);
+    }
+
+
+================================================================================
+CAMBIO (paso 9): test cache/EventsCacheTest.java
+UsersServiceImpl tiene dos dependencias nuevas: hay que anadirlas a la lista de
+mocks de la clase, o el contexto del test no arranca.
+================================================================================
+
+  Imports nuevos:
+
+import com.kryptosystems.ballastasera.repositories.PlaylistTracksRepository;
+import com.kryptosystems.ballastasera.repositories.PlaylistVotesRepository;
+
+  La anotacion de la clase, como debe quedar:
+
+@SpringJUnitConfig
+@MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class,
+        EventResolverService.class, ObjectStorageService.class, WebpConverterService.class, GeocodingService.class,
+        EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class,
+        PlaylistTracksRepository.class, PlaylistVotesRepository.class})
+class EventsCacheTest {
+
+
+
+
+################################################################################
+#   TESTS
+################################################################################
+
+Los cuatro archivos de abajo pasaron en la copia aislada el 2026-10-10.
+
+  UsersServiceImplTest      EXISTENTE, version completa nueva (paso 9): sustituye al actual.
+  PlaylistServiceImplTest   NUEVO, 10 casos, sin base de datos (Mockito).
+  PlaylistControllerTest    NUEVO, 8 casos, @WebMvcTest.
+  PlaylistRepositoryTest    NUEVO, 8 casos, contra la base de datos. OJO, ver nota:
+
+  NOTA sobre PlaylistRepositoryTest: es la version que use para VERIFICAR, no la
+  definitiva. Antes de meterla en el proyecto hay que adaptarla:
+    1. Tiene un @BeforeEach (createTablesAndSeed) que crea las tablas y carga la
+       lista de octubre dentro de la transaccion del test, leyendo el SQL de un
+       archivo (-Dddl.file=...). Cuando las tablas existan de verdad hay que
+       QUITAR ese @BeforeEach, o fallara con "relation already exists".
+    2. Varios casos dependen de la lista de octubre 2026 y de que hoy sea
+       octubre 2026 (seedLoadsSixteenTracksInAdminOrder, votesReorderTheList...,
+       endpointsArePublic...). Para que sea un test permanente hay que hacer que
+       cree sus propias canciones en vez de usar las de la lista real.
+    Lo que si vale tal cual es lo que comprueba: mes vigente, meses futuros
+    ocultos, orden por votos, un voto por usuario, meses pasados congelados,
+    contador al borrar usuario, rutas publicas / con login, y los dos constraints.
+
+
+
+================================================================================
+TEST EXISTENTE, VERSION COMPLETA NUEVA (paso 9): src/test/.../services/implementations/UsersServiceImplTest.java
+================================================================================
+
+package com.kryptosystems.ballastasera.services.implementations;
+
+import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
+import com.kryptosystems.ballastasera.repositories.EventsRepository;
+import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
+import com.kryptosystems.ballastasera.repositories.PlaylistTracksRepository;
+import com.kryptosystems.ballastasera.repositories.PlaylistVotesRepository;
+import com.kryptosystems.ballastasera.repositories.UsersRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class UsersServiceImplTest {
+
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID EVENT_ID = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    private static final UUID OTHER_EVENT_ID = UUID.fromString("20000000-0000-0000-0000-000000000002");
+    private static final UUID TRACK_ID = UUID.fromString("50000000-0000-0000-0000-000000000001");
+
+    @Mock
+    private UsersRepository usersRepository;
+
+    @Mock
+    private FavoritesRepository favoritesRepository;
+
+    @Mock
+    private EventAttendanceRepository eventAttendanceRepository;
+
+    @Mock
+    private EventsRepository eventsRepository;
+
+    @Mock
+    private PlaylistVotesRepository playlistVotesRepository;
+
+    @Mock
+    private PlaylistTracksRepository playlistTracksRepository;
+
+    @InjectMocks
+    private UsersServiceImpl usersService;
+
+    /** Los contadores se bajan antes de borrar al usuario: despues la base de datos
+     * ya borro en cascada sus favoritos, asistencias y votos y no se sabe a que restar. */
+    @Test
+    void deleteByIdDecrementsLikesGoingAndVotesCountsBeforeDeletingUser() {
+        when(favoritesRepository.findEventIdsByUserId(USER_ID)).thenReturn(List.of(EVENT_ID));
+        when(eventAttendanceRepository.findEventIdsByUserId(USER_ID)).thenReturn(List.of(EVENT_ID, OTHER_EVENT_ID));
+        when(playlistVotesRepository.findTrackIdsByUserId(USER_ID)).thenReturn(List.of(TRACK_ID));
+
+        usersService.deleteById(USER_ID);
+
+        InOrder inOrder = inOrder(eventsRepository, playlistTracksRepository, usersRepository);
+        inOrder.verify(eventsRepository).decrementLikesCountForEvents(List.of(EVENT_ID));
+        inOrder.verify(eventsRepository).decrementGoingCountForEvents(List.of(EVENT_ID, OTHER_EVENT_ID));
+        inOrder.verify(playlistTracksRepository).decrementVotesCountForTracks(List.of(TRACK_ID));
+        inOrder.verify(usersRepository).deleteById(USER_ID);
+    }
+
+    @Test
+    void deleteByIdLeavesCountersAloneWhenUserHasNoActivity() {
+        usersService.deleteById(USER_ID);
+
+        verify(eventsRepository, never()).decrementLikesCountForEvents(any());
+        verify(eventsRepository, never()).decrementGoingCountForEvents(any());
+        verify(playlistTracksRepository, never()).decrementVotesCountForTracks(any());
+        verify(usersRepository).deleteById(USER_ID);
+    }
+}
+
+
+================================================================================
+TEST NUEVO (paso 10): src/test/.../services/implementations/PlaylistServiceImplTest.java
+================================================================================
+
+package com.kryptosystems.ballastasera.services.implementations;
+
+import com.kryptosystems.ballastasera.exceptions.PlaylistVotingClosedException;
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import com.kryptosystems.ballastasera.models.entities.PlaylistVotes;
+import com.kryptosystems.ballastasera.models.entities.keys.UserTrackId;
+import com.kryptosystems.ballastasera.repositories.PlaylistTracksRepository;
+import com.kryptosystems.ballastasera.repositories.PlaylistVotesRepository;
+import com.kryptosystems.ballastasera.repositories.UsersRepository;
+import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class PlaylistServiceImplTest {
+
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID TRACK_ID = UUID.fromString("50000000-0000-0000-0000-000000000001");
+    private static final LocalDate CURRENT_MONTH = YearMonth.now().atDay(1);
+    private static final LocalDate PREVIOUS_MONTH = CURRENT_MONTH.minusMonths(1);
+
+    @Mock
+    private PlaylistTracksRepository playlistTracksRepository;
+
+    @Mock
+    private PlaylistVotesRepository playlistVotesRepository;
+
+    @Mock
+    private UsersRepository usersRepository;
+
+    @InjectMocks
+    private PlaylistServiceImpl playlistService;
+
+    @Test
+    void findByMonthWithoutMonthReturnsTheCurrentPlaylist() {
+        List<PlaylistTracks> tracks = List.of(track(CURRENT_MONTH));
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.of(CURRENT_MONTH));
+        when(playlistTracksRepository.findByMonthStartOrderedByVotes(CURRENT_MONTH)).thenReturn(tracks);
+
+        assertSame(tracks, playlistService.findByMonth(null));
+    }
+
+    @Test
+    void findByMonthWithoutMonthIsEmptyWhenThereIsNoPlaylistYet() {
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.empty());
+
+        assertTrue(playlistService.findByMonth(null).isEmpty());
+    }
+
+    @Test
+    void findByMonthReturnsThePlaylistOfAPastMonth() {
+        List<PlaylistTracks> tracks = List.of(track(PREVIOUS_MONTH));
+        when(playlistTracksRepository.findByMonthStartOrderedByVotes(PREVIOUS_MONTH)).thenReturn(tracks);
+
+        assertSame(tracks, playlistService.findByMonth(YearMonth.from(PREVIOUS_MONTH)));
+    }
+
+    @Test
+    void findByMonthHidesAPlaylistWhoseMonthHasNotStarted() {
+        assertTrue(playlistService.findByMonth(YearMonth.now().plusMonths(1)).isEmpty());
+
+        verify(playlistTracksRepository, never()).findByMonthStartOrderedByVotes(any());
+    }
+
+    @Test
+    void addVoteSavesTheVoteAndIncrementsTheCounter() {
+        PlaylistTracks track = track(CURRENT_MONTH);
+        when(playlistTracksRepository.findById(TRACK_ID)).thenReturn(Optional.of(track));
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.of(CURRENT_MONTH));
+        when(playlistVotesRepository.existsById(voteId())).thenReturn(false);
+
+        playlistService.addVote(USER_ID, TRACK_ID);
+
+        ArgumentCaptor<PlaylistVotes> vote = ArgumentCaptor.forClass(PlaylistVotes.class);
+        verify(playlistVotesRepository).save(vote.capture());
+        assertSame(track, vote.getValue().getTrack());
+        verify(playlistTracksRepository).incrementVotesCount(TRACK_ID);
+    }
+
+    @Test
+    void addVoteIsIdempotent() {
+        when(playlistTracksRepository.findById(TRACK_ID)).thenReturn(Optional.of(track(CURRENT_MONTH)));
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.of(CURRENT_MONTH));
+        when(playlistVotesRepository.existsById(voteId())).thenReturn(true);
+
+        playlistService.addVote(USER_ID, TRACK_ID);
+
+        verify(playlistVotesRepository, never()).save(any());
+        verify(playlistTracksRepository, never()).incrementVotesCount(any());
+    }
+
+    @Test
+    void addVoteIsRejectedOnAPastMonth() {
+        when(playlistTracksRepository.findById(TRACK_ID)).thenReturn(Optional.of(track(PREVIOUS_MONTH)));
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.of(CURRENT_MONTH));
+
+        PlaylistVotingClosedException exception = assertThrows(PlaylistVotingClosedException.class,
+                () -> playlistService.addVote(USER_ID, TRACK_ID));
+
+        assertEquals("Voting is closed for the playlist of " + YearMonth.from(PREVIOUS_MONTH), exception.getMessage());
+        verify(playlistVotesRepository, never()).save(any());
+        verify(playlistTracksRepository, never()).incrementVotesCount(any());
+    }
+
+    @Test
+    void addVoteFailsWhenTheTrackDoesNotExist() {
+        when(playlistTracksRepository.findById(TRACK_ID)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> playlistService.addVote(USER_ID, TRACK_ID));
+    }
+
+    @Test
+    void removeVoteDeletesTheVoteAndDecrementsTheCounter() {
+        when(playlistTracksRepository.findById(TRACK_ID)).thenReturn(Optional.of(track(CURRENT_MONTH)));
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.of(CURRENT_MONTH));
+        when(playlistVotesRepository.existsById(voteId())).thenReturn(true);
+
+        playlistService.removeVote(USER_ID, TRACK_ID);
+
+        verify(playlistVotesRepository).deleteById(voteId());
+        verify(playlistTracksRepository).decrementVotesCount(TRACK_ID);
+    }
+
+    @Test
+    void removeVoteDoesNothingWhenTheUserHadNotVoted() {
+        when(playlistTracksRepository.findById(TRACK_ID)).thenReturn(Optional.of(track(CURRENT_MONTH)));
+        when(playlistTracksRepository.findCurrentMonthStart(any())).thenReturn(Optional.of(CURRENT_MONTH));
+        when(playlistVotesRepository.existsById(voteId())).thenReturn(false);
+
+        playlistService.removeVote(USER_ID, TRACK_ID);
+
+        verify(playlistVotesRepository, never()).deleteById(any());
+        verify(playlistTracksRepository, never()).decrementVotesCount(any());
+    }
+
+    private PlaylistTracks track(LocalDate monthStart) {
+        PlaylistTracks track = new PlaylistTracks();
+        track.setId(TRACK_ID);
+        track.setMonthStart(monthStart);
+        return track;
+    }
+
+    private UserTrackId voteId() {
+        UserTrackId id = new UserTrackId();
+        id.setUserId(USER_ID);
+        id.setTrackId(TRACK_ID);
+        return id;
+    }
+}
+
+
+================================================================================
+TEST NUEVO (paso 10): src/test/.../controllers/PlaylistControllerTest.java
+================================================================================
+
+package com.kryptosystems.ballastasera.controllers;
+
+import com.kryptosystems.ballastasera.exceptions.PlaylistVotingClosedException;
+import com.kryptosystems.ballastasera.exceptions.core.BackendErrorResponse;
+import com.kryptosystems.ballastasera.models.entities.DanceStyles;
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import com.kryptosystems.ballastasera.models.entities.PlaylistVotes;
+import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.models.mappers.PlaylistMapperImpl;
+import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
+import com.kryptosystems.ballastasera.security.UserPrincipal;
+import com.kryptosystems.ballastasera.services.manager.PlaylistService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.UUID;
+
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(PlaylistController.class)
+@AutoConfigureMockMvc(addFilters = false)
+@Import({BackendErrorResponse.class, PlaylistMapperImpl.class})
+class PlaylistControllerTest {
+
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID TRACK_ID = UUID.fromString("50000000-0000-0000-0000-000000000001");
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private PlaylistService playlistService;
+
+    @MockitoBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @BeforeEach
+    void authenticateControllerRequests() {
+        SecurityContextHolder.getContext().setAuthentication(userAuthentication());
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void getTracksReturnsTheCurrentPlaylistWhenNoMonthIsGiven() throws Exception {
+        when(playlistService.findByMonth(null)).thenReturn(List.of(track()));
+
+        mockMvc.perform(get("/rest/playlist"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(TRACK_ID.toString()))
+                .andExpect(jsonPath("$[0].month").value("2026-10"))
+                .andExpect(jsonPath("$[0].danceStyle").value("salsa"))
+                .andExpect(jsonPath("$[0].title").value("Llorarás"))
+                .andExpect(jsonPath("$[0].artist").value("Oscar D’León"))
+                .andExpect(jsonPath("$[0].year").value(1975))
+                .andExpect(jsonPath("$[0].spotifyId").value("1wQQNCFJQtaU4EvsGPZJML"))
+                .andExpect(jsonPath("$[0].votesCount").value(7));
+    }
+
+    @Test
+    void getTracksPassesTheRequestedMonth() throws Exception {
+        when(playlistService.findByMonth(YearMonth.of(2026, 9))).thenReturn(List.of(track()));
+
+        mockMvc.perform(get("/rest/playlist").param("month", "2026-09"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        verify(playlistService).findByMonth(YearMonth.of(2026, 9));
+    }
+
+    @Test
+    void getTracksRejectsAnInvalidMonth() throws Exception {
+        mockMvc.perform(get("/rest/playlist").param("month", "octubre"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getMonthsReturnsYearMonthStrings() throws Exception {
+        when(playlistService.findMonthStarts())
+                .thenReturn(List.of(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 9, 1)));
+
+        mockMvc.perform(get("/rest/playlist/months"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("2026-10"))
+                .andExpect(jsonPath("$[1]").value("2026-09"));
+    }
+
+    @Test
+    void getMyVotesReturnsTheVotedTrackIds() throws Exception {
+        PlaylistVotes vote = new PlaylistVotes();
+        vote.getId().setUserId(USER_ID);
+        vote.getId().setTrackId(TRACK_ID);
+        when(playlistService.findCurrentVotesByUserId(USER_ID)).thenReturn(List.of(vote));
+
+        mockMvc.perform(get("/rest/playlist/votes")
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value(TRACK_ID.toString()));
+    }
+
+    @Test
+    void addVoteReturnsNoContent() throws Exception {
+        mockMvc.perform(post("/rest/playlist/{id}/vote", TRACK_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isNoContent());
+
+        verify(playlistService).addVote(USER_ID, TRACK_ID);
+    }
+
+    @Test
+    void addVoteReturnsConflictWhenVotingIsClosed() throws Exception {
+        doThrow(new PlaylistVotingClosedException("Voting is closed for the playlist of 2026-09"))
+                .when(playlistService)
+                .addVote(USER_ID, TRACK_ID);
+
+        mockMvc.perform(post("/rest/playlist/{id}/vote", TRACK_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Voting is closed for the playlist of 2026-09"));
+    }
+
+    @Test
+    void removeVoteReturnsNoContent() throws Exception {
+        mockMvc.perform(delete("/rest/playlist/{id}/vote", TRACK_ID)
+                        .with(authentication(userAuthentication())))
+                .andExpect(status().isNoContent());
+
+        verify(playlistService).removeVote(USER_ID, TRACK_ID);
+    }
+
+    private PlaylistTracks track() {
+        DanceStyles salsa = new DanceStyles();
+        salsa.setSlug("salsa");
+
+        PlaylistTracks track = new PlaylistTracks();
+        track.setId(TRACK_ID);
+        track.setMonthStart(LocalDate.of(2026, 10, 1));
+        track.setDanceStyle(salsa);
+        track.setTitle("Llorarás");
+        track.setArtist("Oscar D’León");
+        track.setReleaseYear(1975);
+        track.setSpotifyId("1wQQNCFJQtaU4EvsGPZJML");
+        track.setVotesCount(7L);
+        return track;
+    }
+
+    private UsernamePasswordAuthenticationToken userAuthentication() {
+        Users user = new Users();
+        user.setId(USER_ID);
+        user.setEmail("user@example.com");
+
+        UserPrincipal principal = new UserPrincipal(user);
+
+        return new UsernamePasswordAuthenticationToken(
+                principal,
+                null,
+                principal.getAuthorities()
+        );
+    }
+}
+
+
+================================================================================
+TEST NUEVO (paso 10) - version de verificacion, ADAPTAR antes de usar (ver nota de arriba): src/test/.../repositories/PlaylistRepositoryTest.java
+================================================================================
+
+package com.kryptosystems.ballastasera.repositories;
+
+import com.kryptosystems.ballastasera.exceptions.PlaylistVotingClosedException;
+import com.kryptosystems.ballastasera.models.entities.PlaylistTracks;
+import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.services.manager.PlaylistService;
+import com.kryptosystems.ballastasera.services.manager.UsersService;
+import jakarta.persistence.EntityManager;
+import org.hibernate.Session;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Statement;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * SOLO EN LA COPIA AISLADA: crea las tablas de la playlist dentro de la transaccion de cada
+ * test (el DDL de PostgreSQL es transaccional) y al terminar todo hace rollback, asi que en
+ * la base de datos no queda nada.
+ */
+@SpringBootTest(properties = {
+        "app.jwt.secret=test-jwt-secret-key-with-at-least-32-characters",
+        "app.jwt.expiration-ms=86400000",
+        "spring.security.oauth2.client.registration.google.client-id=test-client",
+        "spring.security.oauth2.client.registration.google.client-secret=test-secret",
+        "app.frontend.oauth2-redirect-uri=http://localhost:4200/oauth2/callback",
+        "resend.api-key=test-api-key",
+        "resend.from-email=test@example.com",
+        "frontend.url=http://localhost:4200"
+})
+@AutoConfigureMockMvc
+@Transactional
+class PlaylistRepositoryTest {
+
+    private static final LocalDate OCTOBER = LocalDate.of(2026, 10, 1);
+    private static final LocalDate SEPTEMBER = LocalDate.of(2026, 9, 1);
+    private static final LocalDate DECEMBER = LocalDate.of(2026, 12, 1);
+
+    @Autowired EntityManager em;
+    @Autowired PlaylistTracksRepository tracksRepository;
+    @Autowired PlaylistVotesRepository votesRepository;
+    @Autowired UsersRepository usersRepository;
+    @Autowired DanceStylesRepository danceStylesRepository;
+    @Autowired PlaylistService playlistService;
+    @Autowired UsersService usersService;
+    @Autowired MockMvc mockMvc;
+
+    @BeforeEach
+    void createTablesAndSeed() throws Exception {
+        String script = Files.readString(Path.of(System.getProperty("ddl.file")));
+        em.unwrap(Session.class).doWork(connection -> {
+            try (Statement statement = connection.createStatement()) {
+                for (String sql : script.split(";")) {
+                    if (!sql.isBlank()) {
+                        statement.execute(sql);
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
+    void seedLoadsSixteenTracksInAdminOrder() {
+        List<PlaylistTracks> tracks = tracksRepository.findByMonthStartOrderedByVotes(OCTOBER);
+
+        assertThat(tracks).hasSize(16);
+        assertThat(tracks).filteredOn(t -> t.getDanceStyle().getSlug().equals("salsa")).hasSize(8)
+                .first().extracting(PlaylistTracks::getTitle).isEqualTo("Llorarás");
+        assertThat(tracks).filteredOn(t -> t.getDanceStyle().getSlug().equals("bachata")).hasSize(8)
+                .first().extracting(PlaylistTracks::getTitle).isEqualTo("Obsesión");
+        assertThat(tracks).allMatch(t -> t.getVotesCount() == 0L);
+    }
+
+    @Test
+    void currentMonthIsTheLatestStartedOneAndFutureMonthsAreHidden() {
+        tracksRepository.saveAndFlush(track(SEPTEMBER, "Vieja", "old-1"));
+        tracksRepository.saveAndFlush(track(DECEMBER, "Futura", "future-1"));
+
+        assertThat(tracksRepository.findCurrentMonthStart(LocalDate.of(2026, 8, 31))).isEmpty();
+        assertThat(tracksRepository.findCurrentMonthStart(LocalDate.of(2026, 9, 30))).contains(SEPTEMBER);
+        assertThat(tracksRepository.findCurrentMonthStart(LocalDate.of(2026, 10, 10))).contains(OCTOBER);
+        assertThat(tracksRepository.findCurrentMonthStart(LocalDate.of(2026, 11, 20))).contains(OCTOBER);
+        assertThat(tracksRepository.findCurrentMonthStart(DECEMBER)).contains(DECEMBER);
+
+        assertThat(tracksRepository.findMonthStarts(LocalDate.of(2026, 10, 10))).containsExactly(OCTOBER, SEPTEMBER);
+        assertThat(tracksRepository.findMonthStarts(DECEMBER)).containsExactly(DECEMBER, OCTOBER, SEPTEMBER);
+    }
+
+    @Test
+    void votesReorderTheListAndAreCountedOncePerUser() {
+        Users ana = user("playlist-test-ana@example.com");
+        Users leo = user("playlist-test-leo@example.com");
+        List<PlaylistTracks> before = playlistService.findByMonth(null);
+        UUID last = before.get(15).getId();
+        UUID first = before.get(0).getId();
+
+        playlistService.addVote(ana.getId(), last);
+        playlistService.addVote(ana.getId(), last);     // repetido: no cuenta dos veces
+        playlistService.addVote(leo.getId(), last);
+        playlistService.addVote(leo.getId(), first);
+        em.flush();
+        em.clear();
+
+        List<PlaylistTracks> after = playlistService.findByMonth(YearMonth.of(2026, 10));
+        assertThat(after.get(0).getId()).isEqualTo(last);
+        assertThat(after.get(0).getVotesCount()).isEqualTo(2L);
+        assertThat(after.get(1).getId()).isEqualTo(first);
+        assertThat(after.get(1).getVotesCount()).isEqualTo(1L);
+        assertThat(playlistService.findCurrentVotesByUserId(ana.getId()))
+                .extracting(v -> v.getId().getTrackId()).containsExactly(last);
+        assertThat(playlistService.findCurrentVotesByUserId(leo.getId()))
+                .extracting(v -> v.getId().getTrackId()).containsExactlyInAnyOrder(last, first);
+
+        playlistService.removeVote(ana.getId(), last);
+        playlistService.removeVote(ana.getId(), last);  // repetido: no baja dos veces
+        em.flush();
+        em.clear();
+
+        assertThat(tracksRepository.findById(last).orElseThrow().getVotesCount()).isEqualTo(1L);
+        assertThat(playlistService.findCurrentVotesByUserId(ana.getId())).isEmpty();
+    }
+
+    @Test
+    void pastMonthsAreFrozen() {
+        Users ana = user("playlist-test-ana@example.com");
+        PlaylistTracks old = tracksRepository.saveAndFlush(track(SEPTEMBER, "Vieja", "old-1"));
+
+        assertThrows(PlaylistVotingClosedException.class, () -> playlistService.addVote(ana.getId(), old.getId()));
+        assertThrows(PlaylistVotingClosedException.class, () -> playlistService.removeVote(ana.getId(), old.getId()));
+        assertThat(playlistService.findByMonth(YearMonth.of(2026, 9))).extracting(PlaylistTracks::getTitle).containsExactly("Vieja");
+        assertThat(playlistService.findByMonth(YearMonth.of(2026, 12))).isEmpty();
+        assertThat(playlistService.findByMonth(YearMonth.of(2025, 1))).isEmpty();
+    }
+
+    @Test
+    void deletingUserLowersTheCountersAndRemovesTheVotes() {
+        Users ana = user("playlist-test-ana@example.com");
+        UUID trackId = playlistService.findByMonth(null).get(3).getId();
+        playlistService.addVote(ana.getId(), trackId);
+        em.flush();
+        em.clear();
+        assertThat(tracksRepository.findById(trackId).orElseThrow().getVotesCount()).isEqualTo(1L);
+
+        usersService.deleteById(ana.getId());
+        em.flush();
+        em.clear();
+
+        assertThat(tracksRepository.findById(trackId).orElseThrow().getVotesCount()).isEqualTo(0L);
+        assertThat(votesRepository.findTrackIdsByUserId(ana.getId())).isEmpty();
+    }
+
+    @Test
+    void endpointsArePublicForReadingAndRequireLoginForVoting() throws Exception {
+        UUID trackId = tracksRepository.findByMonthStartOrderedByVotes(OCTOBER).get(0).getId();
+
+        mockMvc.perform(get("/rest/playlist"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(16))
+                .andExpect(jsonPath("$[0].month").value("2026-10"))
+                .andExpect(jsonPath("$[0].danceStyle").exists())
+                .andExpect(jsonPath("$[0].spotifyId").exists())
+                .andExpect(jsonPath("$[0].votesCount").value(0));
+        mockMvc.perform(get("/rest/playlist").param("month", "2026-09"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/rest/playlist").param("month", "no-es-un-mes"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/rest/playlist/months"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("2026-10"));
+        mockMvc.perform(get("/rest/playlist/votes"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/rest/playlist/{id}/vote", trackId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void monthStartMustBeTheFirstDayOfTheMonth() {
+        assertThrows(Exception.class, () -> tracksRepository.saveAndFlush(track(LocalDate.of(2026, 10, 15), "Mal dia", "bad-day")));
+    }
+
+    @Test
+    void sameSongCannotBeTwiceInTheSameMonthButCanReturnAnotherMonth() {
+        tracksRepository.saveAndFlush(track(SEPTEMBER, "Llorarás", "1wQQNCFJQtaU4EvsGPZJML"));
+
+        assertThrows(Exception.class, () -> tracksRepository.saveAndFlush(track(OCTOBER, "Llorarás", "1wQQNCFJQtaU4EvsGPZJML")));
+    }
+
+    private PlaylistTracks track(LocalDate monthStart, String title, String spotifyId) {
+        PlaylistTracks track = new PlaylistTracks();
+        track.setMonthStart(monthStart);
+        track.setDanceStyle(danceStylesRepository.findBySlug("salsa").orElseThrow());
+        track.setTitle(title);
+        track.setArtist("Test");
+        track.setReleaseYear(2000);
+        track.setSpotifyId(spotifyId);
+        return track;
+    }
+
+    private Users user(String email) {
+        Users user = new Users();
+        user.setEmail(email);
+        user.setDisplayName("Playlist Test");
+        return usersRepository.saveAndFlush(user);
+    }
+}
+
+
+################################################################################
+#   PENDIENTE PARA CONTINUAR
+################################################################################
+
+  [ ] Paso 1: ejecutar el SQL en la base de datos y anadirlo a docs/ballastasera_schema.sql
+  [ ] Pasos 2 a 8: aplicar el codigo.
+  [ ] Paso 9: actualizar EventsCacheTest y UsersServiceImplTest.
+  [ ] Paso 10: anadir los tests nuevos (adaptando PlaylistRepositoryTest, ver nota).
+  [ ] Correr la suite completa: ./mvnw test   (antes de esto eran 157 tests en el proyecto)
+  [ ] Probar a mano con la aplicacion arrancada:
+        GET  /rest/playlist            -> 16 canciones, month "2026-10"
+        GET  /rest/playlist/months     -> ["2026-10"]
+        POST /rest/playlist/{id}/vote  -> 204 y la cancion sube en la lista
+  [ ] FE: sustituir la constante SIDES de playlist.ts por GET /rest/playlist,
+      anadir el boton de voto por fila y un selector de mes (con /months).
+      El estado "ya vote" se carga con GET /rest/playlist/votes, igual que
+      syncAllLikes en EventEngagementService.
+  [ ] Commit: sin referencia a Claude, el push lo hace Hans.
+
+
+DECISIONES ABIERTAS
+-------------------
+  - Cache en Redis de la playlist: no esta hecho. Si se quiere, mismo patron que
+    eventDetail: cachear GET /rest/playlist por mes y hacer evict en cada voto.
+    Los meses pasados no cambian nunca, asi que son los mas faciles de cachear.
+  - Endpoints de admin para gestionar las canciones desde el panel: no estan.
+    Serian tres en AdminController (crear, editar, borrar).
+  - findMonthStarts() devuelve List<LocalDate>: confirmar que vale, o crear la
+    tabla playlists para que el service devuelva solo entidades.
+
+
+COMO CARGAR LA LISTA DE UN MES NUEVO
+------------------------------------
+  Repetir el INSERT del paso 1 cambiando la fecha (siempre dia 1) y las canciones.
+  Ejemplo para noviembre 2026:
+
+INSERT INTO playlist_tracks (month_start, dance_style_id, title, artist, release_year, spotify_id, sort_order)
+SELECT DATE '2026-11-01', ds.id, t.title, t.artist, t.release_year, t.spotify_id, t.sort_order
+FROM (VALUES
+    ('salsa',   'Titulo', 'Artista', 2020, 'ID_DE_SPOTIFY', 1),
+    ('bachata', 'Titulo', 'Artista', 2021, 'ID_DE_SPOTIFY', 1)
+) AS t(style_slug, title, artist, release_year, spotify_id, sort_order)
+JOIN dance_styles ds ON ds.slug = t.style_slug;
+
+  Se puede ejecutar dias antes: la lista no aparece hasta el dia 1.
+  El id de Spotify es lo que va despues de /track/ en el enlace de la cancion.
