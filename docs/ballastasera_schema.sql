@@ -61,7 +61,7 @@ CREATE TABLE users (
     display_name TEXT        NOT NULL,
     avatar_url   TEXT,
 	instagram    TEXT,
-	show_profile_public BOOLEAN NOT NULL DEFAULT FALSE,
+	show_profile_public BOOLEAN NOT NULL DEFAULT TRUE,
     role         user_role   NOT NULL DEFAULT 'USER',
     is_banned    BOOLEAN     NOT NULL DEFAULT FALSE,
     is_deleted   BOOLEAN     NOT NULL DEFAULT FALSE,

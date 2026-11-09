@@ -40,7 +40,7 @@ public class Users {
     private String instagram;
 
     @Column(name = "show_profile_public", nullable = false)
-    private boolean showProfilePublic = false;
+    private boolean showProfilePublic = true;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
