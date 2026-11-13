@@ -13,6 +13,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -37,18 +38,32 @@ public class EventFlyerProcessingServiceImpl implements EventFlyerProcessingServ
             return;
         }
         String finalUrl = objectStorageService.uploadEventFlyerFinal(eventId, webpContent);
-        updateStatus(eventId, FlyerStatus.READY, finalUrl);
-        log.info("Flyer for event {} is ready", eventId);
+        // Evento borrado (vacío) o flyer quitado mientras se convertía (NONE): no dejamos el WebP
+        // publicado. Con otro estado llegó un flyer más nuevo a la misma clave: no se borra nada,
+        // o se borraría el suyo.
+        FlyerStatus before = updateStatus(eventId, FlyerStatus.READY, finalUrl).orElse(FlyerStatus.NONE);
+        if (before == FlyerStatus.NONE) {
+            objectStorageService.deleteEventFlyerFinal(eventId);
+            log.info("Flyer for event {} was removed while converting: WebP discarded", eventId);
+        } else if (before == FlyerStatus.PROCESSING) {
+            log.info("Flyer for event {} is ready", eventId);
+        }
         objectStorageService.deleteEventFlyerRaw(eventId);
     }
 
-    private void updateStatus(UUID eventId, FlyerStatus status, String flyerUrl) {
-        eventsRepository.findById(eventId).ifPresent(event -> {
-            event.setFlyerStatus(status);
-            if (flyerUrl != null) {
-                event.setFlyerUrl(flyerUrl);
+    /** Guarda el resultado de la conversión solo si el evento todavía la esperaba (PROCESSING).
+     * Devuelve el estado que tenía el evento, o vacío si ya no existe. */
+    private Optional<FlyerStatus> updateStatus(UUID eventId, FlyerStatus status, String flyerUrl) {
+        return eventsRepository.findById(eventId).map(event -> {
+            FlyerStatus current = event.getFlyerStatus();
+            if (current == FlyerStatus.PROCESSING) {
+                event.setFlyerStatus(status);
+                if (flyerUrl != null) {
+                    event.setFlyerUrl(flyerUrl);
+                }
+                eventsRepository.save(event);
             }
-            eventsRepository.save(event);
+            return current;
         });
     }
 }

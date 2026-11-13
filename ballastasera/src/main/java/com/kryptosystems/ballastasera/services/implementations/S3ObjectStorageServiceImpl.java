@@ -54,8 +54,11 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
     @Override
     public String uploadEventFlyerFinal(UUID eventId, byte[] webpContent) {
         putObject(flyersBucket, eventId.toString(), webpContent, "image/webp");
+        // Misma clave en RustFS, URL nueva en cada subida (?v=): nginx sirve /flyers como "immutable"
+        // (1 año) y con la misma URL el navegador seguiría mostrando el flyer anterior.
         return UriComponentsBuilder.fromUriString(flyersPublicBaseUrl)
                 .path("/{id}")
+                .queryParam("v", System.currentTimeMillis())
                 .buildAndExpand(eventId)
                 .toUriString();
     }
