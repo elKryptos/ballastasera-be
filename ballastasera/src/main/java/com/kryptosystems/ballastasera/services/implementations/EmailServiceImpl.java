@@ -234,10 +234,11 @@ public class EmailServiceImpl implements EmailService {
                 "<p style=\"margin:28px 0 0;\">A presto sulla pista!</p>" +
                 "</td></tr>" +
 
-                // Pie
+                // Pie: el remitente es noreply, así que avisamos de que las respuestas no se leen
                 "<tr><td bgcolor=\"#ffffff\" style=\"background-color:#ffffff;border-top:1px solid " + LINE + ";border-radius:0 0 16px 16px;padding:20px 32px;font-family:" + FONT_BODY + ";font-size:13px;line-height:1.5;color:" + MUTED + ";\">" +
                 "<a href=\"" + frontendUrl + "\" style=\"color:" + LINK + ";font-weight:700;text-decoration:none;\">ballastasera</a>" +
                 " &middot; Dove andare a ballare stasera" +
+                "<p style=\"margin:8px 0 0;font-size:12px;\">Questa è un'email automatica, ti preghiamo di non rispondere.</p>" +
                 "</td></tr>" +
 
                 "</table>" +

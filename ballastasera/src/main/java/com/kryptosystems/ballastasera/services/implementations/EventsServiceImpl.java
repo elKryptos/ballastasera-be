@@ -47,7 +47,7 @@ public class EventsServiceImpl implements EventsService {
     private final EventFlyerProcessingService eventFlyerProcessingService;
     private final VenuesRepository venuesRepository;
 
-    private static final Duration MAP_DURATION = Duration.ofDays(21);
+    private static final Duration MAP_DURATION = Duration.ofDays(60);
     private static final int MAP_LIMIT = 150;
 
     @Override
