@@ -102,6 +102,8 @@ public interface EventsRepository extends JpaRepository<Events, UUID> {
             SELECT e FROM Events e
             LEFT JOIN FETCH e.organizer o
             LEFT JOIN FETCH e.venue v
+            LEFT JOIN FETCH v.organizer vo
+            LEFT JOIN FETCH v.city vc
             LEFT JOIN FETCH e.city c
             LEFT JOIN FETCH e.danceStyles ds
             WHERE e.id = :id

@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -44,6 +45,12 @@ public interface EventsMapper {
     @Mapping(target = "liveNow", expression = "java(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()))")
     @Mapping(target = "instagramUrl", expression = "java(resolveInstagramUrl(event))")
     EventDetailDto toEventDetailDto(Events event);
+
+    @Mapping(target = "cityId", source = "city.id")
+    @Mapping(target = "cityName", source = "city.name")
+    @Mapping(target = "organizerId", source = "organizer.id")
+    @Mapping(target = "organizerName", source = "organizer.name")
+    VenueDetailDto toVenueDetailDto(Venues venue);
 
     /** Solo copia campos escalares. organizer/venue/city/series/danceStyles,
      * id, slug y status se resuelven aparte en el service (necesitan ir a
