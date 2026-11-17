@@ -80,11 +80,13 @@ class S3ObjectStorageServiceImplTest {
     }
 
     @Test
-    void uploadEventFlyerFinalStoresWebpInFlyersBucketAndReturnsPublicUrl() {
+    void uploadEventFlyerFinalStoresWebpInFlyersBucketAndReturnsVersionedPublicUrl() {
         UUID eventId = UUID.randomUUID();
         byte[] webpBytes = {1, 2, 3};
 
+        long before = System.currentTimeMillis();
         String url = service.uploadEventFlyerFinal(eventId, webpBytes);
+        long after = System.currentTimeMillis();
 
         ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3Client).putObject(requestCaptor.capture(), any(RequestBody.class));
@@ -92,7 +94,10 @@ class S3ObjectStorageServiceImplTest {
         assertThat(request.bucket()).isEqualTo(FLYERS_BUCKET);
         assertThat(request.key()).isEqualTo(eventId.toString());
         assertThat(request.contentType()).isEqualTo("image/webp");
-        assertThat(url).isEqualTo(FLYERS_PUBLIC_BASE_URL + "/" + eventId);
+        // Misma clave en el bucket, URL nueva en cada subida: ?v=<timestamp> (ver uploadEventFlyerFinal)
+        assertThat(url).startsWith(FLYERS_PUBLIC_BASE_URL + "/" + eventId + "?v=");
+        long version = Long.parseLong(url.substring(url.indexOf("?v=") + 3));
+        assertThat(version).isBetween(before, after);
     }
 
     @Test
