@@ -339,7 +339,8 @@ public class OrganizerRequestsServiceImpl implements OrganizerRequestsService {
         Organizers target = organizersRepository.findById(organizerId)
                 .filter(Organizers::isVerified)
                 .orElseThrow(() -> new EntityNotFoundException("Organizer not found with id " + organizerId));
-        if (target.isClaimed() || target.getUser() != null) {
+        // Ya verificada (el filter de arriba): no claimable = tiene dueño
+        if (!target.isClaimable()) {
             throw new OrganizerAlreadyClaimedException("Organizer " + organizerId + " already has an owner");
         }
         return target;

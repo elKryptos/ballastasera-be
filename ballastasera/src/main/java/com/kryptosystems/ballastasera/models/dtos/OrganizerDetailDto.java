@@ -22,4 +22,6 @@ public class OrganizerDetailDto {
     private boolean verified;
     /** D15: true si llegó por una CLAIM. En el perfil del dueño: false → «Elimina», true → «Deja el organizador creado». */
     private boolean claimed;
+    /** Verificada y sin dueño (Organizers.isClaimable): el FE enseña «È la tua pagina?» en la serata y en el locale. */
+    private boolean claimable;
 }

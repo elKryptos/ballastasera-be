@@ -85,4 +85,10 @@ public class Organizers {
 
     @OneToMany(mappedBy = "organizer")
     private List<Events>  events = new ArrayList<>();
+
+    /** Se puede pedir con una CLAIM («È la tua pagina?»): verificada y sin dueño. claim() y removeOwner()
+     * cambian user y claimed juntos, así que user == null ya implica claimed == false. */
+    public boolean isClaimable() {
+        return isVerified && user == null;
+    }
 }

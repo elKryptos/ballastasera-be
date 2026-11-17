@@ -11,7 +11,9 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-@Mapper(componentModel= "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+/** uses BlankStrings: cada String→String se guarda sin espacios en los extremos, y vacío como null. */
+@Mapper(componentModel= "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+        uses = BlankStrings.class)
 public interface VenuesMapper {
 
     @Mapping(target = "cityName", source = "city.name")
@@ -21,6 +23,8 @@ public interface VenuesMapper {
     @Mapping(target = "cityName", source = "city.name")
     @Mapping(target = "organizerId", source = "organizer.id")
     @Mapping(target = "organizerName", source = "organizer.name")
+    @Mapping(target = "organizerSlug", source = "organizer.slug")
+    @Mapping(target = "organizerClaimable", source = "organizer.claimable")
     VenueDetailDto toVenueDetailDto(Venues venues);
 
     VenueMapPinDto toVenueMapPinDto(Venues venues);
@@ -39,9 +43,4 @@ public interface VenuesMapper {
     @Mapping(target = "events", ignore = true)
     @Mapping(target = "logoUrl", ignore = true)
     void updateVenueEntityFromDto(VenueUpdateDto venueUpdateDto, @MappingTarget Venues venues);
-
-    /** MapStruct lo usa en cada propiedad String→String: "" o "   " se guardan como null y el resto sin espacios en los extremos. */
-    default String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
-    }
 }

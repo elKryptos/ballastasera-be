@@ -169,7 +169,7 @@ public class OrganizersServiceImpl implements OrganizersService {
 
     @Override
     @Transactional
-    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public void release(UUID id, UUID requesterId) {
         Organizers organizer = findById(id);
         assertOwnership(organizer, requesterId);
@@ -182,7 +182,7 @@ public class OrganizersServiceImpl implements OrganizersService {
     /** @Transactional: el evento necesita una transacción (sin ella se descarta y no sale el email). */
     @Override
     @Transactional
-    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Organizers unclaimAsAdmin(UUID id) {
         Organizers organizer = findById(id);
         Users owner = organizer.getUser();
@@ -229,7 +229,7 @@ public class OrganizersServiceImpl implements OrganizersService {
      * a ese commit. */
     @Override
     @Transactional
-    @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, allEntries = true)
+    @CacheEvict(cacheNames = {RedisCacheConfig.VENUE_DETAIL, RedisCacheConfig.EVENT_DETAIL}, allEntries = true)
     public Organizers claim(UUID organizerId, UUID userId) {
         Organizers organizer = findById(organizerId);
         // user también: un organizador creado por su dueño y verificado sigue con claimed = false

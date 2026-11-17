@@ -31,4 +31,7 @@ public class VenueDetailDto {
     private String logoUrl;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+    private String organizerSlug;
+    /** El organizador del venue se puede reclamar. false sin organizador. */
+    private boolean organizerClaimable;
 }

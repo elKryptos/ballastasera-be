@@ -13,7 +13,9 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+/** uses: el organizador de la serie sale de OrganizerMapper, no de una copia generada aquí (ver EventsMapper). */
+@Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+        uses = OrganizerMapper.class)
 public interface EventSeriesMapper {
 
     @Mapping(target = "venueName", source = "venue.name")

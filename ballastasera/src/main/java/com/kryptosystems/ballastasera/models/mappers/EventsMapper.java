@@ -4,7 +4,6 @@ import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.Events;
-import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -25,8 +24,12 @@ import java.util.stream.Collectors;
  * nullValuePropertyMappingStrategy = IGNORE a nivel de @Mapper: en updateEntityFromDto,
  * cualquier campo del DTO que venga null deja el valor existente de la entidad intacto (no lo pisa).
  * Esto no afecta a toEventCardDto/toEventDetailDto/toEntity porque esos no tienen @MappingTarget (arrancan de un objeto nuevo).
+ * uses: el venue y el organizador del detalle salen de VenuesMapper y OrganizerMapper, los mismos que
+ * /rest/venues/{id} y /rest/organizers/{slug}. Sin ellos MapStruct genera aquí su propia copia, que no ve
+ * los @Mapping de esos mappers (organizerId, cityId, claimable... quedaban null o false).
  */
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+        uses = {VenuesMapper.class, OrganizerMapper.class},
         imports = {EventTimingUtils.class, OffsetDateTime.class})
 public interface EventsMapper {
 
@@ -45,12 +48,6 @@ public interface EventsMapper {
     @Mapping(target = "liveNow", expression = "java(EventTimingUtils.isLiveNow(event, OffsetDateTime.now()))")
     @Mapping(target = "instagramUrl", expression = "java(resolveInstagramUrl(event))")
     EventDetailDto toEventDetailDto(Events event);
-
-    @Mapping(target = "cityId", source = "city.id")
-    @Mapping(target = "cityName", source = "city.name")
-    @Mapping(target = "organizerId", source = "organizer.id")
-    @Mapping(target = "organizerName", source = "organizer.name")
-    VenueDetailDto toVenueDetailDto(Venues venue);
 
     /** Solo copia campos escalares. organizer/venue/city/series/danceStyles,
      * id, slug y status se resuelven aparte en el service (necesitan ir a

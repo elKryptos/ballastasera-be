@@ -18,13 +18,13 @@ import java.util.List;
  * Mapea las solicitudes «Diventa organizzatore» entre entidad y DTOs.
  * uses: reutiliza toOrganizerSummaryDto (OrganizerMapper) para targetOrganizer y
  * toVenueSummaryDto (VenuesMapper) para targetOrganizerVenues, sin duplicarlos aquí.
- * Ojo: por el uses también se aplica VenuesMapper.blankToNull a cada String→String ("" o "   " → null,
- * el resto con strip). No declarar otro blankToNull aquí: MapStruct da error de método ambiguo.
+ * BlankStrings: se aplica blankToNull a cada String→String ("" o "   " → null, el resto con strip).
+ * No declarar otro blankToNull aquí: MapStruct da error de método ambiguo.
  * Las relaciones que leen los to...Dto (organizer, venue, venueCity, user, reviewedBy) llegan ya
  * cargadas por los JOIN FETCH de OrganizerRequestsRepository: sin ellos habría N+1 en la lista del admin.
  */
 @Mapper(componentModel = "spring", nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
-        uses = {OrganizerMapper.class, VenuesMapper.class},
+        uses = {OrganizerMapper.class, VenuesMapper.class, BlankStrings.class},
         imports = OrganizerRequestType.class)
 public interface OrganizerRequestMapper {
 
