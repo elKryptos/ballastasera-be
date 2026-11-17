@@ -322,27 +322,84 @@ contenido del perfil.
 
 ### `GET /auth/me` — requiere login
 
-Ya existía. Devuelve `userId`, `email`, `displayName`, `role`, `avatarUrl`, y ahora también
-`instagram` y `showProfilePublic`.
+El perfil completo del usuario logueado (`UserDto`): `userId`, `email`, `displayName`, `role`,
+`avatarUrl`, `instagram`, `showProfilePublic`, `loginCount` y, desde el 16/11/2026 (perfil ampliado,
+`user-profile-plan.md`):
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `whatsapp` | string \| null | E.164: `+393331234567` |
+| `whatsappVisibility` | `NOBODY` \| `EVERYONE` | Default `EVERYONE` |
+| `birthDate` | `YYYY-MM-DD` \| null | Solo el dueño la ve; el perfil público da la edad |
+| `gender` | `MALE` \| `FEMALE` \| `OTHER` \| `UNDISCLOSED` \| null | |
+| `danceRole` | `LEADER` \| `FOLLOWER` \| `BOTH` \| null | |
+| `danceStyles` | `[{ danceStyleId, name, slug, level }]` | `level`: `BEGINNER` \| `INTERMEDIATE` \| `ADVANCED` \| `TEACHER` |
 
 ---
 
 ### `PATCH /auth/me` — requiere login
 
-Actualiza el perfil social del usuario: su handle de Instagram y si quiere aparecer con nombre/foto/IG
-en las listas públicas de asistentes.
+Guarda el formulario del perfil. **Reemplaza el formulario completo**: el front manda siempre todos los
+campos; uno que no viene queda en `null` (así se puede vaciar cualquier campo). Para cambiar un solo
+campo, se manda el formulario entero con los valores actuales (los de `GET /auth/me`).
 
-**Body**:
+**Body** — `UserUpdateDto`:
 
 ```json
-{ "instagram": "ana.baila", "showProfilePublic": true }
+{
+  "instagram": "@ana.baila",
+  "showProfilePublic": true,
+  "whatsapp": "+393331234567",
+  "whatsappVisibility": "EVERYONE",
+  "birthDate": "1995-04-12",
+  "gender": "FEMALE",
+  "danceRole": "FOLLOWER",
+  "danceStyles": [
+    { "danceStyleId": 1, "level": "ADVANCED" },
+    { "danceStyleId": 2, "level": "BEGINNER" }
+  ]
+}
 ```
 
-- `instagram` acepta con o sin `@` inicial (se normaliza en el backend); vacío o `null` limpia el
-  campo.
-- `showProfilePublic` es obligatorio en cada request (no es un PATCH parcial de un solo campo).
+- `showProfilePublic` es obligatorio.
+- `instagram` acepta con o sin `@` inicial (se normaliza); `""` o `null` lo vacía.
+- `whatsapp` en formato E.164 (`+` y prefijo de país, sin espacios); `""` o `null` lo vacía.
+- `whatsappVisibility` `null` se guarda como `EVERYONE`.
+- `birthDate`: edad entre 16 y 100 años.
+- `danceStyles`: máximo 10, `level` obligatorio en cada uno. `null` o `[]` borra todos. Si un estilo se
+  repite, gana el último. Un `danceStyleId` que no existe → `404`.
+- Errores de validación → `400` con `errors` por campo: `instagram`, `whatsapp`, `showProfilePublic`,
+  `birthDateValid` (edad), `danceStyles`, `danceStyles[0].level`. Los mensajes son técnicos, en inglés:
+  el front muestra sus propios textos según la clave.
 
 Devuelve el mismo shape que `GET /auth/me` con los valores actualizados.
+
+---
+
+### `GET /users/{id}` — requiere login
+
+Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de «parteciperò»
+(`GET /events/{id}/attendees`, que ya solo muestra perfiles públicos, no borrados y no baneados).
+
+```json
+{
+  "userId": "…",
+  "displayName": "Ana",
+  "avatarUrl": "https://…",
+  "instagram": "ana.baila",
+  "age": 31,
+  "gender": "FEMALE",
+  "danceRole": "FOLLOWER",
+  "whatsapp": "+393331234567",
+  "danceStyles": [{ "danceStyleId": 1, "name": "Salsa", "slug": "salsa", "level": "ADVANCED" }]
+}
+```
+
+- `age` en vez de la fecha de nacimiento.
+- `whatsapp` es `null` si el dueño eligió `NOBODY`. El dueño siempre ve el suyo.
+- `404` si el perfil es privado (`showProfilePublic = false`), está borrado o baneado, salvo que lo pida el
+  propio usuario.
+- Sin token → `401`.
 
 ---
 

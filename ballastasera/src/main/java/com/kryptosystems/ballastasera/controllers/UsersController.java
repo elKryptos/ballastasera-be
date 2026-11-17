@@ -3,14 +3,18 @@ package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
+import com.kryptosystems.ballastasera.services.manager.UsersService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,9 +33,21 @@ public class UsersController {
     private static final String MY_FAVORITES_IDS = "/me/favorites/ids";
     private static final String MY_FAVORITES = "/me/favorites";
     private static final String MY_ATTENDANCE = "/me/attendance";
+    private static final String USER_PROFILE = "/{id}";
 
     private final UserActivityService userActivityService;
+    private final UsersService usersService;
     private final EventsMapper eventsMapper;
+    private final UserMapper userMapper;
+
+    /** Requiere estar autenticado. Perfil de un usuario (ej. desde la lista de "parteciperò"):
+     * 404 si es privado, borrado o baneado, salvo que sea el propio. */
+    @GetMapping(USER_PROFILE)
+    public ResponseEntity<UserProfileDto> getUserProfile(@AuthenticationPrincipal UserPrincipal principal,
+                                                         @PathVariable UUID id) {
+        var user = usersService.findPublicProfile(principal.getId(), id);
+        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId()));
+    }
 
     /** Requiere estar autenticado. Solo los ids de los eventos con like: lo usa
      * el Frontend para pintar los corazones de /lista en una sola request */

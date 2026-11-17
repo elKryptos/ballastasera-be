@@ -1,9 +1,14 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.ContactVisibility;
+import com.kryptosystems.ballastasera.enums.DanceRole;
+import com.kryptosystems.ballastasera.enums.Gender;
 import com.kryptosystems.ballastasera.enums.UserRole;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -17,4 +22,10 @@ public class UserDto {
     private String instagram;
     private boolean showProfilePublic;
     private int loginCount;
+    private String whatsapp;
+    private ContactVisibility whatsappVisibility;
+    private LocalDate birthDate;
+    private Gender gender;
+    private DanceRole danceRole;
+    private List<UserDanceStyleDto> danceStyles;
 }

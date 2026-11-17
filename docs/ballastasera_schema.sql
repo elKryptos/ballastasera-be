@@ -24,12 +24,16 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- ----------------------------------------------------------------------------
 -- Tipi enumerati
 -- ----------------------------------------------------------------------------
-CREATE TYPE user_role         AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
-CREATE TYPE organizer_type    AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL');
-CREATE TYPE event_status      AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
-CREATE TYPE flyer_status      AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
-CREATE TYPE event_type        AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR', 'RESTAURANT');
-CREATE TYPE venue_type        AS ENUM ('SCHOOL', 'CLUB', 'BAR', 'RESTAURANT', 'OTHER');
+CREATE TYPE user_role          AS ENUM ('USER', 'ORGANIZER', 'ADMIN');
+CREATE TYPE organizer_type     AS ENUM ('PERSON', 'VENUE', 'CLUB', 'SCHOOL');
+CREATE TYPE event_status       AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCELLED');
+CREATE TYPE flyer_status       AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
+CREATE TYPE event_type         AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR', 'RESTAURANT');
+CREATE TYPE venue_type         AS ENUM ('SCHOOL', 'CLUB', 'BAR', 'RESTAURANT', 'OTHER');
+CREATE TYPE gender             AS ENUM ('MALE', 'FEMALE', 'OTHER', 'UNDISCLOSED');
+CREATE TYPE dance_role         AS ENUM ('LEADER', 'FOLLOWER', 'BOTH');
+CREATE TYPE dance_level        AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'TEACHER');
+CREATE TYPE contact_visibility AS ENUM ('NOBODY', 'EVERYONE');   -- MUTUALS en la fase 2 (follows)
 
 
 -- ============================================================================
@@ -55,21 +59,26 @@ CREATE TABLE cities (
 --  USERS — account (identità + autenticazione Google)
 -- ============================================================================
 CREATE TABLE users (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    google_id    TEXT UNIQUE,                     -- 'sub' restituito da Google OAuth
-    email        TEXT        NOT NULL UNIQUE,
-    display_name TEXT        NOT NULL,
-    avatar_url   TEXT,
-	instagram    TEXT,
-	show_profile_public BOOLEAN NOT NULL DEFAULT TRUE,
-    role         user_role   NOT NULL DEFAULT 'USER',
-    is_banned    BOOLEAN     NOT NULL DEFAULT FALSE,
-    is_deleted   BOOLEAN     NOT NULL DEFAULT FALSE,
-    deleted_at   TIMESTAMPTZ,
-    login_count  INTEGER     NOT NULL DEFAULT 0,
-    last_login   TIMESTAMPTZ,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    google_id                   TEXT UNIQUE,                     -- 'sub' restituito da Google OAuth
+    email                       TEXT        NOT NULL UNIQUE,
+    display_name                TEXT        NOT NULL,
+    avatar_url                  TEXT,
+    instagram                   TEXT,
+    whatsapp                    TEXT,
+    whatsapp_visibility         contact_visibility NOT NULL DEFAULT 'EVERYONE',
+    birth_date                  DATE,
+    gender                      gender,
+    dance_role                  dance_role,
+    show_profile_public         BOOLEAN NOT NULL DEFAULT TRUE,
+    role                        user_role   NOT NULL DEFAULT 'USER',
+    is_banned                   BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_deleted                  BOOLEAN     NOT NULL DEFAULT FALSE,
+    deleted_at                  TIMESTAMPTZ,
+    login_count                 INTEGER     NOT NULL DEFAULT 0,
+    last_login                  TIMESTAMPTZ,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ============================================================================
@@ -141,6 +150,16 @@ CREATE TABLE dance_styles (
     slug TEXT NOT NULL UNIQUE
 );
 
+-- ============================================================================
+--  USER_DANCE_STYLES — tipi di ballo del usuario
+-- ============================================================================
+CREATE TABLE user_dance_styles (
+    user_id        UUID   NOT NULL REFERENCES users(id)        ON DELETE CASCADE,
+    dance_style_id BIGINT NOT NULL REFERENCES dance_styles(id) ON DELETE CASCADE,
+    level          dance_level NOT NULL,
+    PRIMARY KEY (user_id, dance_style_id)
+);
+CREATE INDEX idx_user_dance_styles_style ON user_dance_styles(dance_style_id);
 
 -- ============================================================================
 --  EVENT_SERIES — raggruppa eventi ricorrenti ("ogni giovedì salsa al locale X")

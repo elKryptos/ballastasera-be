@@ -26,6 +26,7 @@ cuidado y el orden que tiene que seguir el servicio. Revisar contra el código a
 | `venues.created_by` | `ON DELETE SET NULL` | Solo informativo | No |
 | `favorites.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` en `Users`) | Se borran | No, si antes se restan los contadores (ya lo hace `deleteById`) |
 | `event_attendance.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` en `Users`) | Se borran | Igual que favoritos |
+| `user_dance_styles.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` + `orphanRemoval` en `Users`) | Se borran sus estilos | No (añadida el 16/11/2026) |
 
 `events`, `event_series` y `revoked_tokens` no tienen FK a `users`.
 
@@ -41,7 +42,9 @@ seguridad.
 - **Soft delete** (`is_deleted = true`, `deleted_at`): el esquema y el login ya lo contemplan. Las FK no se
   disparan, así que todo lo de la sección 4 hay que hacerlo a mano igualmente. Para cumplir el derecho al
   olvido (RGPD) hay que anonimizar los datos personales: `email`, `displayName`, `avatarUrl`, `instagram` y
-  `googleId`.
+  `googleId`, y los del perfil ampliado (16/11/2026, `user-profile-plan.md`): `whatsapp`, `birthDate`,
+  `gender` y `danceRole` a `null`, y borrar sus filas de `user_dance_styles` (con soft delete no se borran
+  solas).
 - **Borrado real:** más simple con los datos personales, pero dispara las FK de la sección 2.
 - En los dos casos: con soft delete y el `email`/`googleId` intactos, `CustomOidcUserService` encuentra la
   cuenta y devuelve `account_deleted` para siempre, así que el usuario no puede volver con la misma cuenta

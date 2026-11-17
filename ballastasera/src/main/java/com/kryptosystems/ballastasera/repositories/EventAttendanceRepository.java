@@ -22,16 +22,22 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
     List<UUID> findEventsIdsByUserId( @Param("userId") UUID userId);
 
     /**
-     * Solo quienes van Y activaron show_profile_public. El conteo total de
-     * "van" (arriba) es independiente y siempre incluye a todos.
+     * Solo quienes van, activaron show_profile_public y no estan borrados ni baneados
+     * (mismo filtro que el perfil de GET /users/{id}, si no la lista enlaza a perfiles que dan 404).
+     * El conteo total de "van" (arriba) es independiente y siempre incluye a todos.
      */
-    @Query("""
+    @Query(value = """
             SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u
             WHERE ea.event.id = :eventId AND u.showProfilePublic = true
+            AND u.isDeleted = false AND u.isBanned = false
             ORDER BY ea.createdAt ASC
+            """,
+            countQuery = """
+            SELECT COUNT(ea) FROM EventAttendance ea JOIN ea.user u
+            WHERE ea.event.id = :eventId AND u.showProfilePublic = true
+            AND u.isDeleted = false AND u.isBanned = false
             """)
-    Page<EventAttendance> findByEventIdAndStatusAndUserShowProfilePublicTrue(
-            @Param("eventId") UUID eventId, Pageable pageable);
+    Page<EventAttendance> findPublicByEventId(@Param("eventId") UUID eventId, Pageable pageable);
 
     /** Ids de los eventos a los que el usuario marco "voy", para /me/attendance:
      * solo publicados y en curso o futuros, los mas cercanos primero.

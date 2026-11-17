@@ -57,7 +57,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
 
-        return eventAttendanceRepository.findByEventIdAndStatusAndUserShowProfilePublicTrue(eventId, pageable)
+        return eventAttendanceRepository.findPublicByEventId(eventId, pageable)
                 .map(ea -> attendeeMapper.toDto(ea.getUser()));
     }
 

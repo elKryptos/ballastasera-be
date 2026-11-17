@@ -49,8 +49,10 @@ import static org.mockito.Mockito.*;
  */
 @SpringJUnitConfig
 @MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class,
+        DanceStylesRepository.class,
         EventResolverService.class, ObjectStorageService.class, WebpConverterService.class, GeocodingService.class,
-        EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class})
+        EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class,
+        UserMapper.class})
 class EventsCacheTest {
 
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");

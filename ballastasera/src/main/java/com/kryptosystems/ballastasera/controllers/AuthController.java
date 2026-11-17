@@ -27,7 +27,8 @@ import static com.kryptosystems.ballastasera.utilities.RestConstants.AUTH;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private static final String ME = "/me";
+    private static final String GET_ME = "/me";
+    private static final String UPDATE_ME = "/me";
     private static final String LOGOUT = "/logout";
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -35,20 +36,18 @@ public class AuthController {
     private final UserMapper userMapper;
     private final JwtService jwtService;
 
-    @GetMapping(ME)
+    @GetMapping(GET_ME)
     public ResponseEntity<UserDto> me(@AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(userMapper.toDto(usersService.findById(principal.getId())));
+        return ResponseEntity.ok(userMapper.toDto(usersService.findByIdWithDanceStyles(principal.getId())));
     }
 
-    /** Perfil social: handle de Instagram + si se muestra publicamente en "quien va". */
-    @PatchMapping(ME)
+    /** Formulario completo del perfil: reemplaza todos los campos y sincroniza los estilos con su nivel. */
+    @PatchMapping(UPDATE_ME)
     public ResponseEntity<UserDto> updateMe(
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UserUpdateDto body
     ) {
-        var user = usersService.updateSocialProfile(
-                principal.getId(), body.getInstagram(), body.getShowProfilePublic());
-        return ResponseEntity.ok(userMapper.toDto(user));
+        return ResponseEntity.ok(userMapper.toDto(usersService.updateProfile(principal.getId(), body)));
     }
 
     /** Requiere estar autenticado. Revoca el JWT actual: no vuelve a ser aceptado aunque no haya expirado. */

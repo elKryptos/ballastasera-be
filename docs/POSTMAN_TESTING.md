@@ -86,18 +86,98 @@ El login sigue siendo por Google — no hay endpoint de login "de prueba". Para 
 Ese primer login crea tu usuario real en `users` (vía `CustomOidcUserService`) — es distinto de
 los usuarios ficticios del seed, que nunca inician sesión, solo existen para poblar listas.
 
-### `PATCH /rest/auth/me`
+### `PATCH /rest/auth/me` — perfil completo
+
+Reemplaza el formulario entero: lo que no se manda queda en `null`. Los `danceStyleId` salen de
+`GET /rest/dance-styles`.
 
 ```
 PATCH http://localhost:8081/rest/auth/me
 Authorization: Bearer <tu token>
 Content-Type: application/json
 
-{ "instagram": "@mi.usuario", "showProfilePublic": true }
+{
+  "instagram": "@mi.usuario",
+  "showProfilePublic": true,
+  "whatsapp": "+393331234567",
+  "whatsappVisibility": "EVERYONE",
+  "birthDate": "1995-04-12",
+  "gender": "MALE",
+  "danceRole": "LEADER",
+  "danceStyles": [
+    { "danceStyleId": 1, "level": "ADVANCED" },
+    { "danceStyleId": 2, "level": "BEGINNER" }
+  ]
+}
 ```
 
-**Esperado**: `200` con tu perfil actualizado, `instagram: "mi.usuario"` (sin el `@`, se
-normaliza en el backend).
+**Esperado**: `200` con tu perfil actualizado: `instagram: "mi.usuario"` (sin el `@`) y
+`danceStyles` con `name`, `slug` y `level` de cada estilo.
+
+**Sincronización de estilos (sin error de PK duplicada):** repite el PATCH con
+`"danceStyles": [ { "danceStyleId": 1, "level": "TEACHER" }, { "danceStyleId": 3, "level": "BEGINNER" } ]`.
+Esperado: `200`, el estilo 1 pasa a `TEACHER`, el 2 desaparece y aparece el 3. En la base:
+
+```sql
+SELECT dance_style_id, level FROM user_dance_styles WHERE user_id = '<tu id>';
+```
+
+**Vaciar:** manda solo `{ "showProfilePublic": true }`. Esperado: `200`, todos los campos nuevos en
+`null`, `whatsappVisibility: "EVERYONE"` y `danceStyles: []`.
+
+**Validaciones** (todas `400`, con la clave en `errors`):
+
+| Body (además de `"showProfilePublic": true`) | Clave en `errors` |
+|---|---|
+| `"whatsapp": "333 1234567"` | `whatsapp` |
+| `"birthDate": "<hoy menos 10 años>"` | `birthDateValid` |
+| 11 elementos en `danceStyles` | `danceStyles` |
+| `"danceStyles": [ { "danceStyleId": 1 } ]` | `danceStyles[0].level` |
+| sin `showProfilePublic` | `showProfilePublic` |
+
+`"danceStyles": [ { "danceStyleId": 9999, "level": "BEGINNER" } ]` → `404` (el estilo no existe).
+
+### `GET /rest/auth/me`
+
+```
+GET http://localhost:8081/rest/auth/me
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `200` con todos los campos del perfil, `birthDate` incluida.
+
+### `GET /rest/users/{id}` — perfil de otro usuario
+
+Hace falta un segundo usuario: el id de otro que haya hecho login, o uno del seed con
+`show_profile_public = true` (sale en `GET /rest/events/{id}/attendees`).
+
+```
+GET http://localhost:8081/rest/users/<id del otro usuario>
+Authorization: Bearer <tu token>
+```
+
+**Esperado**: `200` con `age` (no `birthDate`) y sus estilos.
+
+| Caso | Esperado |
+|---|---|
+| El otro tiene `whatsapp_visibility = 'EVERYONE'` | `whatsapp` con el número |
+| El otro tiene `whatsapp_visibility = 'NOBODY'` | `whatsapp: null` |
+| Tu propio id con `NOBODY` | `whatsapp` con tu número (el dueño siempre lo ve) |
+| El otro tiene `show_profile_public = false` | `404` |
+| El otro tiene `is_banned = true` o `is_deleted = true` | `404` |
+| Tu propio id con el perfil privado | `200` |
+| Sin token | `401` |
+| `GET /rest/users/me` | `400` (no es un UUID) |
+
+Para cambiar los datos del otro usuario en la base:
+
+```sql
+UPDATE users SET whatsapp = '+393330000000', whatsapp_visibility = 'NOBODY' WHERE id = '<id>';
+UPDATE users SET show_profile_public = false WHERE id = '<id>';
+```
+
+**Lista de asistentes:** un usuario con `is_banned = true` ya no debe salir en
+`GET /rest/events/{id}/attendees`, aunque tenga el perfil público.
 
 ### `POST /rest/events/{id}/attendance`
 

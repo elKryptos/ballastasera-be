@@ -1,5 +1,8 @@
 package com.kryptosystems.ballastasera.models.entities;
 
+import com.kryptosystems.ballastasera.enums.ContactVisibility;
+import com.kryptosystems.ballastasera.enums.DanceRole;
+import com.kryptosystems.ballastasera.enums.Gender;
 import com.kryptosystems.ballastasera.enums.UserRole;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -9,9 +12,12 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -41,6 +47,28 @@ public class Users {
 
     @Column(name = "show_profile_public", nullable = false)
     private boolean showProfilePublic = true;
+
+    /** Formato E.164 (+393331234567). Quien lo ve lo decide whatsappVisibility. */
+    @Column(name = "whatsapp")
+    private String whatsapp;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "whatsapp_visibility", nullable = false, columnDefinition = "contact_visibility")
+    private ContactVisibility whatsappVisibility = ContactVisibility.EVERYONE;
+
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "gender", columnDefinition = "gender")
+    private Gender gender;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "dance_role", columnDefinition = "dance_role")
+    private DanceRole danceRole;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -84,4 +112,8 @@ public class Users {
 
     @OneToMany(mappedBy = "user")
     private List<OrganizerRequests> organizerRequests = new ArrayList<>();
+
+    /** Set y no List: UsersServiceImpl.syncDanceStyles lo sincroniza por diferencia. */
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<UserDanceStyles> danceStyles = new HashSet<>();
 }
