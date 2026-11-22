@@ -14,12 +14,12 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | 1 | Seguir + bloquear | [~] BE hecho con tests (22/11), falta el FE |
 | 2 | Perfil: bio, ciudad, escuela, foto propia | [~] BE hecho con tests (22/11), falta el FE |
 | 3 | Serate de otra persona y «Avete in comune» | [~] BE hecho con tests (22/11), falta el FE |
-| 4 | Denuncias, ban, silenciar | [ ] |
+| 4 | Denuncias, ban, silenciar | [~] BE hecho con tests (22/11), falta el FE |
 | 5 | Pestaña Amici: feed y sugerencias | [ ] |
 | 6 | Avisos (campanita + email) e invitaciones | [ ] |
 | 7 | Traguardi y @username | [ ] |
 
-**Siguiente paso:** fase 4 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
+**Siguiente paso:** fase 5 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
 va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
@@ -67,7 +67,7 @@ Piezas que se reutilizan:
 - Bloquear sale en la misma entrega que seguir. Bloquear borra los follows en los dos sentidos, y ninguno ve el perfil del otro.
 - Rate limit general en todas las APIs (Bucket4j + Redis), más un límite de negocio para las invitaciones.
 - Denuncias: motivos fijos (perfil falso, molesto, foto inapropiada, otro + nota). Van a una cola en el admin con «Ignora» o «Banna». Nada se oculta solo.
-- Silenciar quita a esa persona del feed y de la campanita, y ella no se entera.
+- Silenciar quita a esa persona del feed y de la campanita, y ella no se entera. Solo se silencia a quien sigues; a un desconocido que molesta, se le bloquea.
 
 **Perfil**
 - Foto propia sin revisión previa (si es inapropiada, se denuncia). Máx. 5 MB, JPG/PNG/WebP. Se puede volver a la de Google o no poner ninguna.
@@ -130,11 +130,13 @@ Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci van
 
 ### Fase 4 — Denuncias, ban, silenciar
 Menú ⋯ del perfil y cola en el admin.
-- [ ] Tabla `user_reports`; `POST /rest/users/{id}/report` (una abierta por pareja)
-- [ ] Admin: `GET /rest/admin/reports`, `PATCH /rest/admin/reports/{id}`, `PATCH /rest/admin/users/{id}/ban` y `/unban`
-- [ ] Silenciar: columna `muted` en `user_follows`; `PATCH /rest/users/{id}/follow { muted }`
-- [ ] Tests de integración
-- [ ] FE menú ⋯ y cola en el admin
+- [x] SQL: tabla `user_reports` (enums `report_reason`, `report_status`), `muted` en `user_follows`, `banned_at` en `users` (`social-prod-db.md`; dev ☐)
+- [x] `POST /rest/users/{id}/report { reason, note }` (una abierta por pareja, idempotente; nota obligatoria con `OTHER`)
+- [x] Admin: `GET /rest/admin/reports?status=`, `PATCH /rest/admin/reports/{id} { DISMISSED | BANNED }`, `PATCH /rest/admin/users/{id}/ban` y `/unban`, `GET /rest/admin/users/banned`. Banear (desde una denuncia o directo) cierra todas las abiertas contra esa persona. `ModerationService` junta denuncias y ban
+- [x] El ban corta la sesión abierta: `JwtAuthenticationFilter` rechaza a los baneados (antes solo lo hacía el login)
+- [x] Silenciar: `PATCH /rest/users/{id}/follow { muted }` (404 si no lo sigues); `GET /users/{id}` suma `muted`. A un desconocido no se le silencia: para eso está Blocca
+- [x] Tests de integración (`ModerationIntegrationTest`, silenciar en `FollowsIntegrationTest`)
+- [ ] FE menú ⋯ (Silenzia, Segnala, Blocca) y en el admin la cola de denuncias y «Utenti bannati»
 
 ### Fase 5 — Pestaña Amici
 Canvas 4d.
@@ -159,7 +161,7 @@ Campanita del Home e «Invita a ballare».
 
 ### Docs al cerrar cada fase
 `API.md`, `ballastasera_schema.sql` (lo cargan los tests de integración), `user-account-deletion-plan.md`
-(bio, ciudad y foto propia ya están; faltan username y notas de denuncias). El SQL de prod va en
+(bio, ciudad, foto propia y denuncias ya están; falta username). El SQL de prod va en
 `social-prod-db.md`, por fase.
 
 ## 5. Fuera por ahora

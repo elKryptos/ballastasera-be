@@ -40,6 +40,8 @@ CREATE TYPE dance_role         AS ENUM ('LEADER', 'FOLLOWER', 'BOTH');
 CREATE TYPE dance_level        AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'TEACHER');
 CREATE TYPE contact_visibility AS ENUM ('NOBODY', 'EVERYONE', 'MUTUALS');   -- MUTUALS = solo amigos (social fase 1)
 CREATE TYPE avatar_source      AS ENUM ('GOOGLE', 'CUSTOM', 'NONE');        -- social fase 2
+CREATE TYPE report_reason      AS ENUM ('FAKE_PROFILE', 'HARASSMENT', 'INAPPROPRIATE_PHOTO', 'OTHER'); -- social fase 4
+CREATE TYPE report_status      AS ENUM ('OPEN', 'DISMISSED', 'BANNED');                                -- social fase 4
 
 
 -- ============================================================================
@@ -94,6 +96,7 @@ CREATE TABLE users (
     show_home_city              BOOLEAN NOT NULL DEFAULT FALSE,
     role                        user_role   NOT NULL DEFAULT 'USER',
     is_banned                   BOOLEAN     NOT NULL DEFAULT FALSE,
+    banned_at                   TIMESTAMPTZ,                     -- social fase 4: null si no está baneado
     is_deleted                  BOOLEAN     NOT NULL DEFAULT FALSE,
     deleted_at                  TIMESTAMPTZ,
     login_count                 INTEGER     NOT NULL DEFAULT 0,
@@ -192,6 +195,7 @@ CREATE INDEX idx_user_dance_styles_style ON user_dance_styles(dance_style_id);
 CREATE TABLE user_follows (
     follower_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     followed_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    muted       BOOLEAN     NOT NULL DEFAULT FALSE,       -- social fase 4: follower silenció a followed (feed y campanita)
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (follower_id, followed_id),
     CHECK (follower_id <> followed_id)
@@ -210,6 +214,27 @@ CREATE TABLE user_blocks (
     CHECK (blocker_id <> blocked_id)
 );
 CREATE INDEX idx_user_blocks_blocked ON user_blocks(blocked_id);
+
+-- ============================================================================
+--  USER_REPORTS — reporter ha segnalato reported. Una sola aperta per coppia
+-- ============================================================================
+CREATE TABLE user_reports (
+    id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reported_id UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason      report_reason NOT NULL,
+    note        VARCHAR(500),
+    status      report_status NOT NULL DEFAULT 'OPEN',
+    reviewed_by UUID          REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    version     BIGINT        NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    CHECK (reporter_id <> reported_id),
+    CHECK (reason <> 'OTHER' OR note IS NOT NULL)
+);
+CREATE UNIQUE INDEX uq_user_reports_one_open ON user_reports(reporter_id, reported_id) WHERE status = 'OPEN';
+CREATE INDEX idx_user_reports_status ON user_reports(status, created_at DESC);
+CREATE INDEX idx_user_reports_reported ON user_reports(reported_id) WHERE status = 'OPEN';
 
 -- ============================================================================
 --  EVENT_SERIES — raggruppa eventi ricorrenti ("ogni giovedì salsa al locale X")

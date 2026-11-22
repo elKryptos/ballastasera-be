@@ -370,7 +370,7 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(errorDetails);
     }
 
-    /** Seguirse o bloquearse a uno mismo. code para que el frontend traduzca el mensaje. */
+    /** Seguirse, bloquearse o denunciarse a uno mismo. code para que el frontend traduzca el mensaje. */
     @ExceptionHandler(SocialActionException.class)
     public ResponseEntity<ErrorDetails> handleSocialAction(SocialActionException ex, HttpServletRequest request) {
         log.warn(ex.getMessage());
@@ -385,7 +385,22 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
     }
 
-    /** @Version (hoy solo OrganizerRequests): otra petición la modificó entre la lectura y el commit. Salta
+    /** Denuncia ya revisada o ban a un ADMIN. code para que el frontend del admin traduzca el mensaje. */
+    @ExceptionHandler(ModerationConflictException.class)
+    public ResponseEntity<ErrorDetails> handleModerationConflict(ModerationConflictException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Moderation conflict",
+                HttpStatus.CONFLICT,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+    /** @Version (OrganizerRequests y UserReports): otra petición la modificó entre la lectura y el commit. Salta
      * en el commit, fuera del servicio, por eso se traduce aquí. Mismo formato que los otros 409 con code. */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorDetails> handleOptimisticLock(ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {

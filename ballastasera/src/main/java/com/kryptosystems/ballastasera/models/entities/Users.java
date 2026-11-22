@@ -135,6 +135,10 @@ public class Users {
     @Column(name = "is_banned",  nullable = false)
     private boolean isBanned = false;
 
+    /** Cuando lo baneo un admin; null si no esta baneado. */
+    @Column(name = "banned_at")
+    private OffsetDateTime bannedAt;
+
     @Column(name ="is_deleted", nullable = false)
     private boolean isDeleted = false;
 

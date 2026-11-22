@@ -78,6 +78,22 @@ public class FollowsServiceImpl implements FollowsService {
         userFollowsRepository.deleteById(UserFollowId.of(followerId, followedId));
     }
 
+    /** Sin save(): la entidad esta gestionada y el dirty checking hace el UPDATE en el commit. */
+    @Override
+    @Transactional
+    public void setMuted(UUID followerId, UUID followedId, boolean muted) {
+        UserFollows follow = userFollowsRepository.findById(UserFollowId.of(followerId, followedId))
+                .orElseThrow(() -> new EntityNotFoundException("You do not follow user " + followedId));
+        follow.setMuted(muted);
+    }
+
+    @Override
+    public boolean isMuted(UUID followerId, UUID followedId) {
+        return userFollowsRepository.findById(UserFollowId.of(followerId, followedId))
+                .map(UserFollows::isMuted)
+                .orElse(false);
+    }
+
     @Override
     public SocialRelation findRelation(UUID viewerId, UUID userId) {
         if (viewerId.equals(userId)) {

@@ -80,6 +80,7 @@ public interface UserMapper {
     @Mapping(target = "schoolName", expression = "java(toSchoolName(user))")
     @Mapping(target = "homeCityName", expression = "java(user.isShowHomeCity() ? user.getHomeCity() : null)")
     @Mapping(target = "relation", ignore = true)
+    @Mapping(target = "muted", ignore = true)
     @Mapping(target = "followersCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "eventsCount", ignore = true)
@@ -92,11 +93,12 @@ public interface UserMapper {
     @Mapping(target = "lookingForPartnerToday", ignore = true)
     UserProfileDto toProfileDtoBase(Users user);
 
-    /** Perfil de GET /users/{id} visto por viewerId. */
-    default UserProfileDto toProfileDto(Users user, UUID viewerId, SocialRelation relation, SocialCounts counts,
-                                        ProfileActivity activity) {
+    /** Perfil de GET /users/{id} visto por viewerId. muted: viewerId lo silencio. */
+    default UserProfileDto toProfileDto(Users user, UUID viewerId, SocialRelation relation, boolean muted,
+                                        SocialCounts counts, ProfileActivity activity) {
         UserProfileDto dto = toProfileDtoBase(user);
         dto.setRelation(relation);
+        dto.setMuted(muted);
         dto.setFollowersCount(counts.followers());
         dto.setFollowingCount(counts.following());
         dto.setEventsCount(counts.events());

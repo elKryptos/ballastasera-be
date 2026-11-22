@@ -453,6 +453,7 @@ Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de
   "whatsapp": "+393331234567",
   "danceStyles": [{ "danceStyleId": 1, "name": "Salsa", "slug": "salsa", "level": "ADVANCED" }],
   "relation": "MUTUAL",
+  "muted": false,
   "followersCount": 12,
   "followingCount": 7,
   "eventsCount": 30
@@ -537,6 +538,45 @@ van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards so
   respuesta (`nextCursorStartAt` = fecha del follow, `nextCursorId` = id de la persona). `null` = no hay más.
 - `total` = el total con el mismo filtro. No salen usuarios borrados ni baneados.
 - `GET /events/{id}/attendees` («Chi ci va») con login no muestra a quien tenga un bloqueo con quien mira.
+
+### Silenciar y denunciar — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `PATCH /users/{id}/follow` `{ "muted": true \| false }` | `204` | «Silenzia» / «Riattiva» a quien sigo: sale de mi feed y de mi campanita (fases 5 y 6), y no se entera. `404` si no lo sigo; sin `muted` → `400`. Dejar de seguir pierde el silencio |
+| `POST /users/{id}/report` `{ "reason", "note" }` | `204` | «Segnala». Va a la cola del admin y no oculta nada por sí sola. Idempotente mientras siga abierta (no crea otra). `400 SELF_ACTION` si es uno mismo; `404` si no existe o está borrado. Se puede denunciar un perfil privado o bloqueado |
+
+- `reason`: `FAKE_PROFILE`, `HARASSMENT`, `INAPPROPRIATE_PHOTO` u `OTHER`. `note` máx. 500 caracteres,
+  obligatoria con `OTHER` (`400`).
+- `GET /users/{id}` suma `muted`: si quien mira lo silenció (menú ⋯). Solo puede ser `true` si lo sigue.
+- «Segnala e blocca»: el FE hace las dos llamadas (`/report` y `/block`).
+
+### Moderación — solo ADMIN (`/rest/admin`)
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /admin/reports?status=&page=&size=` | `Page<UserReportAdminDto>` | Cola por estado: `OPEN` (las más viejas primero), `DISMISSED` y `BANNED` (las últimas revisadas primero). `size` 1–50 |
+| `PATCH /admin/reports/{id}` `{ "status": "DISMISSED" \| "BANNED" }` | `UserReportAdminDto` | «Ignora» cierra solo esta. «Banna» banea al denunciado y cierra como `BANNED` todas sus abiertas. `OPEN` → `400` |
+| `PATCH /admin/users/{id}/ban` | `204` | Ban directo, sin denuncia. Idempotente. Cierra sus denuncias abiertas |
+| `PATCH /admin/users/{id}/unban` | `204` | Idempotente. No reabre denuncias |
+| `GET /admin/users/banned?page=&size=` | `Page<BannedUserAdminDto>` | «Utenti bannati», los últimos baneados primero (los anteriores a la fase 4, sin `bannedAt`, al final) |
+
+```json
+{
+  "id": "…", "reason": "OTHER", "note": "Mi scrive di continuo", "status": "OPEN", "createdAt": "…",
+  "reporterId": "…", "reporterName": "Ana", "reporterAvatarUrl": "https://…",
+  "reportedId": "…", "reportedName": "Luca", "reportedAvatarUrl": "https://…", "reportedEmail": "luca@…",
+  "reportedBanned": false, "openReportsAgainst": 2,
+  "reviewedByName": null, "reviewedAt": null
+}
+```
+
+- `409` con `code`: `REPORT_NOT_OPEN` (ya revisada), `CANNOT_BAN_ADMIN` (no se banea a un admin, ni a uno
+  mismo), `CONCURRENT_UPDATE` (otro admin revisó la misma denuncia a la vez).
+- Qué hace el ban: el login con Google lo rechaza y su JWT deja de valer en la siguiente request (`401` en las
+  rutas que piden login; en las públicas entra como anónimo). Sale de todas partes (perfil, listas, «Chi ci
+  va», contadores), pero sus follows no se borran: con el unban todo vuelve como estaba. Sigue contando en
+  `goingCount`.
 
 ---
 

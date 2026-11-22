@@ -36,6 +36,8 @@ public class UserProfileDto {
     /** Solo el nombre de la ciudad, y solo si el dueño activo «Mostra la città nel profilo». */
     private String homeCityName;
     private SocialRelation relation;
+    /** Quien mira lo silencio (menu ⋯: «Silenzia» / «Riattiva»). Solo puede ser true si lo sigue. */
+    private boolean muted;
     private long followersCount;
     private long followingCount;
     private long eventsCount;

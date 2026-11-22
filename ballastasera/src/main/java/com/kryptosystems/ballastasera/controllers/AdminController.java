@@ -3,16 +3,20 @@ package com.kryptosystems.ballastasera.controllers;
 import com.kryptosystems.ballastasera.enums.EventManagementTab;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
+import com.kryptosystems.ballastasera.enums.ReportStatus;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.OrganizerRequests;
+import com.kryptosystems.ballastasera.models.entities.UserReports;
 import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerRequestMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserReportMapper;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
+import com.kryptosystems.ballastasera.services.manager.ModerationService;
 import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
@@ -65,6 +69,11 @@ public class AdminController {
     private static final String GET_ORGANIZER_REQUEST_BY_ID = "/organizer-requests/{id}";
     private static final String APPROVE_ORGANIZER_REQUEST = "/organizer-requests/{id}/approve";
     private static final String REJECT_ORGANIZER_REQUEST = "/organizer-requests/{id}/reject";
+    private static final String GET_REPORTS = "/reports";
+    private static final String REVIEW_REPORT = "/reports/{id}";
+    private static final String BAN_USER = "/users/{id}/ban";
+    private static final String UNBAN_USER = "/users/{id}/unban";
+    private static final String GET_BANNED_USERS = "/users/banned";
 
     private final OrganizersService organizersService;
     private final OrganizerMapper organizerMapper;
@@ -75,6 +84,8 @@ public class AdminController {
     private final EventSeriesService eventSeriesService;
     private final OrganizerRequestsService organizerRequestsService;
     private final OrganizerRequestMapper organizerRequestMapper;
+    private final ModerationService moderationService;
+    private final UserReportMapper userReportMapper;
 
     /** Gestión de serate: pestaña obligatoria, organizador y título opcionales. */
     @GetMapping(GET_EVENTS)
@@ -269,6 +280,58 @@ public class AdminController {
                                                                            @Valid @RequestBody OrganizerRequestRejectDto body) {
         var request = organizerRequestsService.reject(id, principal.getId(), body);
         return ResponseEntity.ok(toOrganizerRequestAdminDto(request));
+    }
+
+    /** Cola de denuncias por estado: tabs «Da rivedere» (OPEN) / «Ignorate» / «Bannati». totalElements de OPEN
+     * es el contador del tab. Una fila por denuncia, con las abiertas contra la misma persona. */
+    @GetMapping(GET_REPORTS)
+    public ResponseEntity<Page<UserReportAdminDto>> getReports(@RequestParam ReportStatus status,
+                                                               @RequestParam(defaultValue = "0") @Min(0) int page,
+                                                               @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+        Page<UserReportAdminDto> result = moderationService
+                .findReportsByStatus(status, PageRequest.of(page, size))
+                .map(this::toUserReportAdminDto);
+        return ResponseEntity.ok(result);
+    }
+
+    /** «Ignora» (DISMISSED) cierra solo esta; «Banna» (BANNED) banea y cierra todas las abiertas contra esa persona.
+     * 409 REPORT_NOT_OPEN si ya se reviso, CANNOT_BAN_ADMIN si es un admin, CONCURRENT_UPDATE si otro admin la revisó a la vez. */
+    @PatchMapping(REVIEW_REPORT)
+    public ResponseEntity<UserReportAdminDto> reviewReport(@AuthenticationPrincipal UserPrincipal principal,
+                                                           @PathVariable UUID id,
+                                                           @Valid @RequestBody UserReportReviewDto body) {
+        var report = moderationService.reviewReport(id, principal.getId(), body.getStatus());
+        return ResponseEntity.ok(toUserReportAdminDto(report));
+    }
+
+    /** Ban directo, sin denuncia. Idempotente. Cierra sus denuncias abiertas. Su sesion deja de valer en la
+     * siguiente request (JwtAuthenticationFilter). 409 CANNOT_BAN_ADMIN. */
+    @PatchMapping(BAN_USER)
+    public ResponseEntity<Void> banUser(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        moderationService.ban(id, principal.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Idempotente. No reabre denuncias; los follows siguen como estaban. */
+    @PatchMapping(UNBAN_USER)
+    public ResponseEntity<Void> unbanUser(@PathVariable UUID id) {
+        moderationService.unban(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** «Utenti bannati», los ultimos baneados primero, con el boton «Sbanna». */
+    @GetMapping(GET_BANNED_USERS)
+    public ResponseEntity<Page<BannedUserAdminDto>> getBannedUsers(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                                                   @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
+        Page<BannedUserAdminDto> result = moderationService.findBanned(PageRequest.of(page, size))
+                .map(userReportMapper::toBannedUserAdminDto);
+        return ResponseEntity.ok(result);
+    }
+
+    /** Una query de mas por fila para el contador: aceptable con size ≤ 50. */
+    private UserReportAdminDto toUserReportAdminDto(UserReports report) {
+        return userReportMapper.toUserReportAdminDto(report,
+                moderationService.countOpenReportsAgainst(report.getReported().getId()));
     }
 
     /** Rellena lo que necesita queries: rechazos anteriores y, en CLAIM, los venues del organizador pedido.

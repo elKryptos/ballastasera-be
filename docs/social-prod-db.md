@@ -14,6 +14,7 @@ suma su bloque aquí; en prod se corren todos juntos antes del deploy del BE con
 | 1 | `MUTUALS`, default de WhatsApp, `user_follows`, `user_blocks` | ☐ | ☐ |
 | 2 | Columnas del perfil en `users` (bio, serate, escuela, ciudad, país, foto) | ☐ | ☐ |
 | 3 | `looking_for_partner` en `event_attendance` | ☐ | ☐ |
+| 4 | `user_reports`, `muted` en `user_follows`, `banned_at` en `users` | ☐ | ☐ |
 
 ---
 
@@ -191,3 +192,60 @@ SELECT looking_for_partner, count(*) FROM event_attendance GROUP BY 1;
 ```
 
 Rollback: `ALTER TABLE event_attendance DROP COLUMN looking_for_partner;`
+
+---
+
+## Fase 4 — Denuncias, ban, silenciar
+
+Todo aditivo y sin `ALTER TYPE ... ADD VALUE` (los dos enums son nuevos), así que va en una sola transacción.
+Los follows que ya existen quedan sin silenciar; `banned_at` queda null también para los que ya estaban baneados
+(no sabemos cuándo fue).
+
+```sql
+-- Antes: no existen → NULL | NULL | NULL
+SELECT to_regclass('public.user_reports'), to_regtype('report_reason'), to_regtype('report_status');
+
+BEGIN;
+CREATE TYPE report_reason AS ENUM ('FAKE_PROFILE', 'HARASSMENT', 'INAPPROPRIATE_PHOTO', 'OTHER');
+CREATE TYPE report_status AS ENUM ('OPEN', 'DISMISSED', 'BANNED');
+
+CREATE TABLE user_reports (
+    id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reported_id UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason      report_reason NOT NULL,
+    note        VARCHAR(500),
+    status      report_status NOT NULL DEFAULT 'OPEN',
+    reviewed_by UUID          REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    version     BIGINT        NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    CHECK (reporter_id <> reported_id),
+    CHECK (reason <> 'OTHER' OR note IS NOT NULL)
+);
+CREATE UNIQUE INDEX uq_user_reports_one_open ON user_reports(reporter_id, reported_id) WHERE status = 'OPEN';
+CREATE INDEX idx_user_reports_status ON user_reports(status, created_at DESC);
+CREATE INDEX idx_user_reports_reported ON user_reports(reported_id) WHERE status = 'OPEN';
+
+ALTER TABLE user_follows ADD COLUMN muted BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN banned_at TIMESTAMPTZ;
+COMMIT;
+
+-- Después: muted en false para todos → una fila: false | <total>
+SELECT muted, count(*) FROM user_follows GROUP BY 1;
+
+-- banned_at null para todos → is_banned | <total> | 0
+SELECT is_banned, count(*), count(banned_at) FROM users GROUP BY 1;
+```
+
+### Rollback
+
+```sql
+BEGIN;
+DROP TABLE user_reports;
+DROP TYPE report_status;
+DROP TYPE report_reason;
+ALTER TABLE user_follows DROP COLUMN muted;
+ALTER TABLE users DROP COLUMN banned_at;
+COMMIT;
+```

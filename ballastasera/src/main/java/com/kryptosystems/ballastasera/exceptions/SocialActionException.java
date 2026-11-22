@@ -2,11 +2,11 @@ package com.kryptosystems.ballastasera.exceptions;
 
 import lombok.Getter;
 
-/** 400 de las acciones sociales (seguir, bloquear). code lo traduce el frontend. */
+/** 400 de las acciones sociales (seguir, bloquear, denunciar). code lo traduce el frontend. */
 @Getter
 public class SocialActionException extends RuntimeException {
 
-    /** Seguirse o bloquearse a uno mismo. */
+    /** Seguirse, bloquearse o denunciarse a uno mismo. */
     public static final String SELF_ACTION = "SELF_ACTION";
 
     private final String code;

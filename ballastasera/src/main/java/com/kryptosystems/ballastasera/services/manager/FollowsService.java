@@ -17,6 +17,12 @@ public interface FollowsService {
     /** Idempotente y sin chequeos de visibilidad: se puede dejar de seguir a quien se volvio privado. */
     void unfollow(UUID followerId, UUID followedId);
 
+    /** Silenciar o reactivar a quien sigues: sale de tu feed y de tu campanita, y no se entera. 404 si no lo sigues. */
+    void setMuted(UUID followerId, UUID followedId, boolean muted);
+
+    /** ¿followerId sigue a followedId y lo tiene silenciado? false si no lo sigue. */
+    boolean isMuted(UUID followerId, UUID followedId);
+
     /** Relacion de viewerId con userId. NONE si son la misma persona. */
     SocialRelation findRelation(UUID viewerId, UUID userId);
 

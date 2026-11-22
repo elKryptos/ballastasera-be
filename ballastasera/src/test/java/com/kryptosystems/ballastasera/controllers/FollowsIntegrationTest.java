@@ -5,11 +5,14 @@ import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.ResultActions;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -187,8 +190,61 @@ class FollowsIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.nextCursorId").value(nullValue()));
     }
 
+    /** Silenciar sale solo en el perfil de quien silencia: el silenciado no se entera. */
+    @Test
+    void mutingShowsOnlyOnTheProfileOfWhoMuted() throws Exception {
+        Users ana = createUser("Ana");
+        Users luca = createUser("Luca");
+        follow(ana, luca);
+        follow(luca, ana);
+
+        mute(ana, luca, true).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/rest/users/" + luca.getId()).with(as(ana)))
+                .andExpect(jsonPath("$.muted").value(true))
+                .andExpect(jsonPath("$.relation").value("MUTUAL"));
+        mockMvc.perform(get("/rest/users/" + ana.getId()).with(as(luca)))
+                .andExpect(jsonPath("$.muted").value(false));
+
+        mute(ana, luca, false).andExpect(status().isNoContent());
+        mockMvc.perform(get("/rest/users/" + luca.getId()).with(as(ana)))
+                .andExpect(jsonPath("$.muted").value(false));
+    }
+
+    /** Solo se silencia a quien sigues; y dejar de seguir pierde el silencio con la fila. */
+    @Test
+    void youCanOnlyMuteSomeoneYouFollow() throws Exception {
+        Users ana = createUser("Ana");
+        Users luca = createUser("Luca");
+
+        mute(ana, luca, true).andExpect(status().isNotFound());
+
+        follow(ana, luca);
+        mute(ana, luca, true).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/rest/users/" + luca.getId() + "/follow").with(as(ana))).andExpect(status().isNoContent());
+        follow(ana, luca);
+        mockMvc.perform(get("/rest/users/" + luca.getId()).with(as(ana)))
+                .andExpect(jsonPath("$.muted").value(false));
+    }
+
+    @Test
+    void muteNeedsABody() throws Exception {
+        Users ana = createUser("Ana");
+        Users luca = createUser("Luca");
+        follow(ana, luca);
+
+        mockMvc.perform(patch("/rest/users/" + luca.getId() + "/follow").with(as(ana))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
     private void follow(Users follower, Users followed) throws Exception {
         mockMvc.perform(post("/rest/users/" + followed.getId() + "/follow").with(as(follower)))
                 .andExpect(status().isNoContent());
+    }
+
+    private ResultActions mute(Users follower, Users followed, boolean muted) throws Exception {
+        return mockMvc.perform(patch("/rest/users/" + followed.getId() + "/follow").with(as(follower))
+                .contentType(MediaType.APPLICATION_JSON).content("{ \"muted\": " + muted + " }"));
     }
 }

@@ -18,11 +18,13 @@ import com.kryptosystems.ballastasera.models.entities.Venues;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerMapper;
 import com.kryptosystems.ballastasera.models.mappers.OrganizerRequestMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserReportMapper;
 import com.kryptosystems.ballastasera.models.mappers.VenuesMapper;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventSeriesService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
+import com.kryptosystems.ballastasera.services.manager.ModerationService;
 import com.kryptosystems.ballastasera.services.manager.OrganizerRequestsService;
 import com.kryptosystems.ballastasera.services.manager.OrganizersService;
 import com.kryptosystems.ballastasera.services.manager.VenuesService;
@@ -101,6 +103,12 @@ class AdminControllerTest {
 
     @MockitoBean
     private OrganizerRequestMapper organizerRequestMapper;
+
+    @MockitoBean
+    private ModerationService moderationService;
+
+    @MockitoBean
+    private UserReportMapper userReportMapper;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;

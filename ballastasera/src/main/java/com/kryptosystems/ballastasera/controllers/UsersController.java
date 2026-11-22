@@ -5,13 +5,16 @@ import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.UserAvatarUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
+import com.kryptosystems.ballastasera.models.dtos.UserMuteDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
+import com.kryptosystems.ballastasera.models.dtos.UserReportCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.BlocksService;
 import com.kryptosystems.ballastasera.services.manager.FollowsService;
+import com.kryptosystems.ballastasera.services.manager.ModerationService;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import jakarta.validation.Valid;
@@ -57,11 +60,13 @@ public class UsersController {
     private static final String USER_ATTENDANCE = "/{id}/attendance";
     private static final String FOLLOW = "/{id}/follow";
     private static final String BLOCK = "/{id}/block";
+    private static final String REPORT = "/{id}/report";
 
     private final UserActivityService userActivityService;
     private final UsersService usersService;
     private final FollowsService followsService;
     private final BlocksService blocksService;
+    private final ModerationService moderationService;
     private final EventsMapper eventsMapper;
     private final UserMapper userMapper;
 
@@ -74,9 +79,10 @@ public class UsersController {
                                                          @PathVariable UUID id) {
         var user = usersService.findPublicProfile(principal.getId(), id);
         var relation = followsService.findRelation(principal.getId(), id);
+        var muted = followsService.isMuted(principal.getId(), id);
         var counts = followsService.countSocial(id);
         var activity = userActivityService.findProfileActivity(principal.getId(), user, relation);
-        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId(), relation, counts, activity));
+        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId(), relation, muted, counts, activity));
     }
 
     /** Requiere estar autenticado. «Le sue prossime serate» (past=true: las pasadas), mismo orden y cursor que
@@ -107,6 +113,24 @@ public class UsersController {
     @DeleteMapping(FOLLOW)
     public ResponseEntity<Void> unfollow(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         followsService.unfollow(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Silenzia» / «Riattiva» a quien sigo: sale de mi feed y de mi campanita,
+     * y no se entera. 404 si no lo sigo. */
+    @PatchMapping(FOLLOW)
+    public ResponseEntity<Void> setMuted(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
+                                         @Valid @RequestBody UserMuteDto body) {
+        followsService.setMuted(principal.getId(), id, body.getMuted());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Segnala»: va a la cola del admin, no oculta nada. Idempotente mientras
+     * siga abierta. 400 si es uno mismo; 404 si no existe o esta borrado. */
+    @PostMapping(REPORT)
+    public ResponseEntity<Void> report(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
+                                       @Valid @RequestBody UserReportCreateDto body) {
+        moderationService.report(principal.getId(), id, body);
         return ResponseEntity.noContent().build();
     }
 

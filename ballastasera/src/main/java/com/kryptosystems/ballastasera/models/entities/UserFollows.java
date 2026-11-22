@@ -27,6 +27,10 @@ public class UserFollows {
     @JoinColumn(name = "followed_id")
     private Users followed;
 
+    /** follower silencio a followed: sale de su feed y de su campanita, y followed no se entera. */
+    @Column(name = "muted", nullable = false)
+    private boolean muted = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
