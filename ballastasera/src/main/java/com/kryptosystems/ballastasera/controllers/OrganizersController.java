@@ -38,6 +38,7 @@ public class OrganizersController {
     private static final String GET_BY_SLUG = "/{slug}";
     private static final String GET_MY_ORGANIZERS = "/me";
     private static final String GET_CLAIMABLE = "/claimable";
+    private static final String GET_SCHOOLS = "/schools";
     private static final String UPDATE = "/{id}";
     private static final String GET_ORGANIZERS_LIST = "";
     private static final String GET_ORGANIZER_EVENTS = "/{id}/events";
@@ -93,6 +94,18 @@ public class OrganizersController {
                 .map(organizerMapper::toOrganizerSummaryDto)
                 .toList();
         return ResponseEntity.ok(organizers);
+    }
+
+    /** Público. Autocompletado de «Scuola o crew» en Modifica profilo: escuelas verificadas cuyo nombre contiene
+     * name, en orden alfabetico. name mínimo 2 caracteres, limit máximo 10 (400 si no). La ruta literal
+     * /schools gana a /{slug}, como /claimable. */
+    @GetMapping(GET_SCHOOLS)
+    public ResponseEntity<List<OrganizerSummaryDto>> getSchools(@RequestParam @Size(min = 2, max = 120) String name,
+                                                                @RequestParam(defaultValue = "5") @Min(1) @Max(10) int limit) {
+        var schools = organizersService.findSchools(name, limit).stream()
+                .map(organizerMapper::toOrganizerSummaryDto)
+                .toList();
+        return ResponseEntity.ok(schools);
     }
 
     /** Requiere estar autenticado. Editar el propio perfil de organizador. No estoy actulizando

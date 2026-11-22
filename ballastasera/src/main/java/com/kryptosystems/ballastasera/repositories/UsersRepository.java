@@ -11,11 +11,12 @@ public interface UsersRepository extends JpaRepository<Users, UUID> {
     Optional<Users> findByEmail(String email);
     Optional<Users> findByGoogleId(String googleId);
 
-    /** Usuario con sus estilos y el nombre/slug de cada uno, para /auth/me y el perfil publico. */
+    /** Usuario con sus estilos y el nombre/slug de cada uno, y su escuela, para /auth/me y el perfil publico. */
     @Query("""
             SELECT u FROM Users u
             LEFT JOIN FETCH u.danceStyles uds
             LEFT JOIN FETCH uds.danceStyle
+            LEFT JOIN FETCH u.schoolOrganizer
             WHERE u.id = :id
             """)
     Optional<Users> findByIdWithDanceStyles(UUID id);

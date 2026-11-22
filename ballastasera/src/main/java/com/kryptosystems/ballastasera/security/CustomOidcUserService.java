@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.security;
 
+import com.kryptosystems.ballastasera.enums.AvatarSource;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,12 +49,23 @@ public class CustomOidcUserService extends OidcUserService {
         user.setGoogleId(googleId);
         user.setEmail(email);
         user.setDisplayName(displayName);
-        user.setAvatarUrl(avatarUrl);
+        applyGoogleAvatar(user, avatarUrl);
         user.setLoginCount(user.getLoginCount() + 1);
         user.setLastLogin(OffsetDateTime.now());
 
         Users saved = usersRepository.save(user);
 
         return new CustomOidcUser(oidcUser, saved);
+    }
+
+    /**
+     * La foto de Google se guarda siempre (cambia si el usuario la cambia en Google), pero solo se muestra si
+     * eligio la de Google. Antes se pisaba avatarUrl en cada login y una foto subida se perdia.
+     */
+    static void applyGoogleAvatar(Users user, String googleAvatarUrl) {
+        user.setGoogleAvatarUrl(googleAvatarUrl);
+        if (user.getAvatarSource() == AvatarSource.GOOGLE) {
+            user.setAvatarUrl(googleAvatarUrl);
+        }
     }
 }

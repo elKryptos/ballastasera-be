@@ -26,6 +26,14 @@ public class UserProfileDto {
     private DanceRole danceRole;
     private String whatsapp;
     private List<UserDanceStyleDto> danceStyles;
+    private String bio;
+    /** Escuela enlazada: id, nombre y slug del organizer (para ir a su pagina). Escrita a mano: solo schoolName. */
+    private UUID schoolOrganizerId;
+    private String schoolName;
+    private String schoolSlug;
+    private String originCountry;
+    /** Solo el nombre de la ciudad, y solo si el dueño activo «Mostra la città nel profilo». */
+    private String homeCityName;
     private SocialRelation relation;
     private long followersCount;
     private long followingCount;

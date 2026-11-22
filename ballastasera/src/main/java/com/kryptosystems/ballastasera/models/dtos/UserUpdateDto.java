@@ -14,6 +14,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Formulario completo del perfil (PATCH /auth/me): el front manda siempre todo,
@@ -51,6 +52,29 @@ public class UserUpdateDto {
 
     @Size(max = 10, message = "at most 10 dance styles")
     private List<@Valid @NotNull UserDanceStyleUpdateDto> danceStyles;
+
+    @Size(max = 150, message = "bio must be at most 150 characters")
+    private String bio;
+
+    /** Quien ve las serate a las que va. Null se guarda como EVERYONE (como el DEFAULT de la DB). */
+    private ContactVisibility attendanceVisibility;
+
+    /** Escuela enlazada: tiene que ser un organizer de tipo SCHOOL. Si viene, schoolName se ignora. */
+    private UUID schoolOrganizerId;
+
+    /** Escuela escrita a mano, cuando no esta en la app. */
+    @Size(max = 80, message = "school name must be at most 80 characters")
+    private String schoolName;
+
+    @Pattern(regexp = "^[A-Z]{2}$", message = "originCountry must be an ISO 3166-1 alpha-2 code, e.g. CO")
+    private String originCountry;
+
+    /** Null = sin ciudad. */
+    @Valid
+    private HomeCityDto homeCity;
+
+    /** «Mostra la città nel profilo». Null se guarda como false. */
+    private Boolean showHomeCity;
 
     @AssertTrue(message = "age must be between 16 and 100")
     public boolean isBirthDateValid() {

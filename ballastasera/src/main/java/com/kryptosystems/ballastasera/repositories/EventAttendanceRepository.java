@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.repositories;
 
+import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
 import org.springframework.data.domain.Page;
@@ -26,7 +27,9 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
      * (mismo filtro que el perfil de GET /users/{id}, si no la lista enlaza a perfiles que dan 404).
      * El conteo total de "van" (arriba) es independiente y siempre incluye a todos.
      * Sin quien tenga un bloqueo con viewerId en cualquier sentido. Sin login, viewerId es
-     * EventAttendanceServiceImpl.ANONYMOUS_VIEWER, que no tiene bloqueos.
+     * EventAttendanceServiceImpl.ANONYMOUS_VIEWER, que no tiene bloqueos ni amigos.
+     * attendanceVisibility: everyone (EVERYONE) sale siempre, mutuals (MUTUALS) solo si viewerId es amigo
+     * (se siguen los dos), NOBODY nunca. Cada uno se ve siempre a si mismo.
      */
     @Query(value = """
             SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u
@@ -35,6 +38,11 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             AND NOT EXISTS (SELECT 1 FROM UserBlocks b
                 WHERE (b.id.blockerId = :viewerId AND b.id.blockedId = u.id)
                    OR (b.id.blockerId = u.id AND b.id.blockedId = :viewerId))
+            AND (u.attendanceVisibility = :everyone
+                 OR u.id = :viewerId
+                 OR (u.attendanceVisibility = :mutuals
+                     AND EXISTS (SELECT 1 FROM UserFollows f1 WHERE f1.id.followerId = :viewerId AND f1.id.followedId = u.id)
+                     AND EXISTS (SELECT 1 FROM UserFollows f2 WHERE f2.id.followerId = u.id AND f2.id.followedId = :viewerId)))
             ORDER BY ea.createdAt ASC
             """,
             countQuery = """
@@ -44,9 +52,16 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             AND NOT EXISTS (SELECT 1 FROM UserBlocks b
                 WHERE (b.id.blockerId = :viewerId AND b.id.blockedId = u.id)
                    OR (b.id.blockerId = u.id AND b.id.blockedId = :viewerId))
+            AND (u.attendanceVisibility = :everyone
+                 OR u.id = :viewerId
+                 OR (u.attendanceVisibility = :mutuals
+                     AND EXISTS (SELECT 1 FROM UserFollows f1 WHERE f1.id.followerId = :viewerId AND f1.id.followedId = u.id)
+                     AND EXISTS (SELECT 1 FROM UserFollows f2 WHERE f2.id.followerId = u.id AND f2.id.followedId = :viewerId)))
             """)
     Page<EventAttendance> findPublicByEventId(@Param("eventId") UUID eventId,
                                               @Param("viewerId") UUID viewerId,
+                                              @Param("everyone") ContactVisibility everyone,
+                                              @Param("mutuals") ContactVisibility mutuals,
                                               Pageable pageable);
 
     /** Ids de los eventos a los que el usuario marco "voy", para /me/attendance:
@@ -95,19 +110,23 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
     long countPastByUserId(@Param("userId") UUID userId);
 
     /** Primeros asistentes publicos con foto de cada evento, para las caritas
-     * del mapa y la lista. Mismo filtro de privacidad que findByEventIdAndStatus... */
+     * del mapa y la lista. Mismo filtro de privacidad que findByEventIdAndStatus...
+     * Solo attendanceVisibility = everyone (EVERYONE): la lista es la misma para todos, no depende de quien mira. */
     @Query(value = """
             SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u
             WHERE ea.id.eventId IN :eventIds
             AND u.showProfilePublic = true AND u.avatarUrl IS NOT NULL
             AND u.isDeleted = false AND u.isBanned = false
+            AND u.attendanceVisibility = :everyone
             AND (SELECT COUNT(ea2) FROM EventAttendance ea2 JOIN ea2.user u2
                WHERE ea2.id.eventId = ea.id.eventId
                AND u2.showProfilePublic = true AND u2.avatarUrl IS NOT NULL
                AND u2.isDeleted = false AND u2.isBanned = false
+               AND u2.attendanceVisibility = :everyone
                AND ea2.createdAt < ea.createdAt) < :perEvent
           ORDER BY ea.createdAt ASC
           """)
     List<EventAttendance> findAvatarPreviewsByEventIdIn(@Param("eventIds") Collection<UUID> eventIds,
-                                                        @Param("perEvent") long perEvent);
+                                                        @Param("perEvent") long perEvent,
+                                                        @Param("everyone") ContactVisibility everyone);
 }

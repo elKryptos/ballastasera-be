@@ -1,12 +1,14 @@
 package com.kryptosystems.ballastasera.models.mappers;
 
 import com.kryptosystems.ballastasera.enums.SocialRelation;
+import com.kryptosystems.ballastasera.models.dtos.HomeCityDto;
 import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
+import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.UserDanceStyles;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import org.mapstruct.Mapper;
@@ -28,6 +30,10 @@ public interface UserMapper {
 
     /** Sin contadores: los pone toDto(user, counts). */
     @Mapping(target = "userId", source = "id")
+    @Mapping(target = "schoolOrganizerId", source = "schoolOrganizer.id")
+    @Mapping(target = "schoolSlug", source = "schoolOrganizer.slug")
+    @Mapping(target = "schoolName", expression = "java(toSchoolName(user))")
+    @Mapping(target = "homeCity", expression = "java(toHomeCityDto(user))")
     @Mapping(target = "followersCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "eventsCount", ignore = true)
@@ -42,9 +48,20 @@ public interface UserMapper {
         return dto;
     }
 
-    /** Los estilos no: los sincroniza UsersServiceImpl.syncDanceStyles por diferencia. */
+    /**
+     * Los estilos no: los sincroniza UsersServiceImpl.syncDanceStyles por diferencia. La escuela enlazada tampoco:
+     * la busca y valida el service (tiene que ser un organizer SCHOOL). homeCity null deja las 5 columnas en null.
+     */
     @Mapping(target = "whatsappVisibility", defaultValue = "MUTUALS")
+    @Mapping(target = "attendanceVisibility", defaultValue = "EVERYONE")
+    @Mapping(target = "showHomeCity", defaultValue = "false")
     @Mapping(target = "danceStyles", ignore = true)
+    @Mapping(target = "schoolOrganizer", ignore = true)
+    @Mapping(target = "homeCity", source = "homeCity.name")
+    @Mapping(target = "homeRegion", source = "homeCity.region")
+    @Mapping(target = "homeCountry", source = "homeCity.country")
+    @Mapping(target = "homeLatitude", source = "homeCity.latitude")
+    @Mapping(target = "homeLongitude", source = "homeCity.longitude")
     void updateProfileFromDto(UserUpdateDto dto, @MappingTarget Users user);
 
     /** Lo usa MapStruct para la coleccion danceStyles de UserDto y UserProfileDto. */
@@ -57,6 +74,10 @@ public interface UserMapper {
     @Mapping(target = "userId", source = "id")
     @Mapping(target = "age", expression = "java(toAge(user.getBirthDate()))")
     @Mapping(target = "whatsapp", ignore = true)
+    @Mapping(target = "schoolOrganizerId", source = "schoolOrganizer.id")
+    @Mapping(target = "schoolSlug", source = "schoolOrganizer.slug")
+    @Mapping(target = "schoolName", expression = "java(toSchoolName(user))")
+    @Mapping(target = "homeCityName", expression = "java(user.isShowHomeCity() ? user.getHomeCity() : null)")
     @Mapping(target = "relation", ignore = true)
     @Mapping(target = "followersCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
@@ -78,6 +99,25 @@ public interface UserMapper {
 
     @Mapping(target = "userId", source = "user.id")
     UserSummaryDto toSummaryDto(Users user, SocialRelation relation);
+
+    /** Nombre de la escuela enlazada o, si no hay, el escrito a mano. */
+    default String toSchoolName(Users user) {
+        Organizers organizer = user.getSchoolOrganizer();
+        return organizer != null ? organizer.getName() : user.getSchoolName();
+    }
+
+    default HomeCityDto toHomeCityDto(Users user) {
+        if (user.getHomeCity() == null) {
+            return null;
+        }
+        HomeCityDto city = new HomeCityDto();
+        city.setName(user.getHomeCity());
+        city.setRegion(user.getHomeRegion());
+        city.setCountry(user.getHomeCountry());
+        city.setLatitude(user.getHomeLatitude());
+        city.setLongitude(user.getHomeLongitude());
+        return city;
+    }
 
     default Integer toAge(LocalDate birthDate) {
         return birthDate == null ? null : Period.between(birthDate, LocalDate.now()).getYears();

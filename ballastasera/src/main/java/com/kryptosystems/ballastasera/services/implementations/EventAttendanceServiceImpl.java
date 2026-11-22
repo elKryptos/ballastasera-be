@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
+import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.models.dtos.AttendeeDto;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
@@ -62,7 +63,8 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
         }
 
         UUID viewer = viewerId != null ? viewerId : ANONYMOUS_VIEWER;
-        return eventAttendanceRepository.findPublicByEventId(eventId, viewer, pageable)
+        return eventAttendanceRepository.findPublicByEventId(eventId, viewer,
+                        ContactVisibility.EVERYONE, ContactVisibility.MUTUALS, pageable)
                 .map(ea -> attendeeMapper.toDto(ea.getUser()));
     }
 
@@ -112,6 +114,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
         if (eventIds.isEmpty()) {
             return List.of();
         }
-        return eventAttendanceRepository.findAvatarPreviewsByEventIdIn(eventIds, AVATAR_PREVIEW_LIMIT);
+        return eventAttendanceRepository.findAvatarPreviewsByEventIdIn(eventIds, AVATAR_PREVIEW_LIMIT,
+                ContactVisibility.EVERYONE);
     }
 }

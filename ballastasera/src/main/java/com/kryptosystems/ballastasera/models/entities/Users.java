@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.entities;
 
+import com.kryptosystems.ballastasera.enums.AvatarSource;
 import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.enums.DanceRole;
 import com.kryptosystems.ballastasera.enums.Gender;
@@ -39,8 +40,64 @@ public class Users {
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
+    /** La foto que se muestra, ya resuelta segun avatarSource. Las queries y los DTOs leen solo esta. */
     @Column(name = "avatar_url")
     private String avatarUrl;
+
+    /** La de Google: se actualiza en cada login (CustomOidcUserService), aunque no sea la que se muestra. */
+    @Column(name = "google_avatar_url")
+    private String googleAvatarUrl;
+
+    /** La subida por el usuario (bucket de logos, prefijo avatars/). */
+    @Column(name = "custom_avatar_url")
+    private String customAvatarUrl;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "avatar_source", nullable = false, columnDefinition = "avatar_source")
+    private AvatarSource avatarSource = AvatarSource.GOOGLE;
+
+    /** Max. 150 caracteres. */
+    @Column(name = "bio")
+    private String bio;
+
+    /** Quien ve las serate a las que va, en «Chi ci va» y en su perfil. Sigue contando en goingCount. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "attendance_visibility", nullable = false, columnDefinition = "contact_visibility")
+    private ContactVisibility attendanceVisibility = ContactVisibility.EVERYONE;
+
+    /** Escuela enlazada (organizer de tipo SCHOOL). Si no esta en la app, schoolName con texto libre. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_organizer_id")
+    private Organizers schoolOrganizer;
+
+    @Column(name = "school_name")
+    private String schoolName;
+
+    /** ISO 3166-1 alpha-2 (CO, VE, IT...). Publico en el perfil. */
+    @Column(name = "origin_country", columnDefinition = "char(2)")
+    private String originCountry;
+
+    /** Ciudad donde vive, normalizada con Photon (citta-plan.md). Privada salvo showHomeCity. */
+    @Column(name = "home_city")
+    private String homeCity;
+
+    @Column(name = "home_region")
+    private String homeRegion;
+
+    @Column(name = "home_country", columnDefinition = "char(2)")
+    private String homeCountry;
+
+    @Column(name = "home_latitude")
+    private Double homeLatitude;
+
+    @Column(name = "home_longitude")
+    private Double homeLongitude;
+
+    /** «Mostra la città nel profilo»: el perfil publico muestra solo homeCity, nunca region ni coordenadas. */
+    @Column(name = "show_home_city", nullable = false)
+    private boolean showHomeCity = false;
 
     @Column(name = "instagram")
     private String instagram;

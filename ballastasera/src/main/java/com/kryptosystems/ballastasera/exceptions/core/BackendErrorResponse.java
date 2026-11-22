@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import tools.jackson.databind.exc.MismatchedInputException;
@@ -340,6 +341,33 @@ public class BackendErrorResponse {
                 Map.of("code", ex.getCode())
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<ErrorDetails> handleFileTooLarge(FileTooLargeException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "File too large",
+                HttpStatus.CONTENT_TOO_LARGE
+        );
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(errorDetails);
+    }
+
+    /** Pasa spring.servlet.multipart.max-file-size (10 MB): sin este handler caia en el generico como 500. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorDetails> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "File too large",
+                request.getRequestURI(),
+                "The uploaded file is larger than the server limit",
+                HttpStatus.CONTENT_TOO_LARGE
+        );
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(errorDetails);
     }
 
     /** Seguirse o bloquearse a uno mismo. code para que el frontend traduzca el mensaje. */

@@ -386,14 +386,30 @@ campo, se manda el formulario entero con los valores actuales (los de `GET /auth
   "danceStyles": [
     { "danceStyleId": 1, "level": "ADVANCED" },
     { "danceStyleId": 2, "level": "BEGINNER" }
-  ]
+  ],
+  "bio": "Bachata e salsa, sempre in pista",
+  "attendanceVisibility": "EVERYONE",
+  "schoolOrganizerId": "…",
+  "schoolName": null,
+  "originCountry": "CO",
+  "homeCity": { "name": "Milano", "region": "Lombardia", "country": "IT", "latitude": 45.46, "longitude": 9.19 },
+  "showHomeCity": false
 }
 ```
 
 - `showProfilePublic` es obligatorio.
 - `instagram` acepta con o sin `@` inicial (se normaliza); `""` o `null` lo vacía.
 - `whatsapp` en formato E.164 (`+` y prefijo de país, sin espacios); `""` o `null` lo vacía.
-- `whatsappVisibility` `null` se guarda como `EVERYONE`.
+- `whatsappVisibility` `null` se guarda como `MUTUALS`.
+- `bio`: máx. 150 caracteres; se recortan los espacios, `""` o `null` la vacía.
+- `attendanceVisibility` (quién ve las serate a las que vas): `EVERYONE`, `MUTUALS` (solo amigos) o
+  `NOBODY`. `null` se guarda como `EVERYONE`.
+- Escuela: `schoolOrganizerId` tiene que ser un organizer **SCHOOL verificado** (si no → `404`); si viene,
+  `schoolName` se ignora. Si la escuela no está en la app, `schoolName` (máx. 80) con texto libre.
+- `originCountry`: ISO 3166-1 alpha-2 en mayúsculas (`CO`, `VE`, `IT`).
+- `homeCity`: el objeto que devuelve Photon en el FE, ya normalizado; `null` = sin ciudad. `name` y
+  `country` (alpha-2) obligatorios, lat/lng en rango.
+- `showHomeCity` («Mostra la città nel profilo»): `null` se guarda como `false`.
 - `birthDate`: edad entre 16 y 100 años.
 - `danceStyles`: máximo 10, `level` obligatorio en cada uno. `null` o `[]` borra todos. Si un estilo se
   repite, gana el último. Un `danceStyleId` que no existe → `404`.
@@ -438,8 +454,38 @@ Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de
   cualquier sentido, salvo que lo pida el propio usuario. Mismo `404` en todos los casos: no se revela el bloqueo.
 - Sin token → `401`.
 
-`GET /auth/me` y la respuesta de `PATCH /auth/me` suman `followersCount`, `followingCount` y `eventsCount`.
+Desde la fase 2 también trae `bio`, `schoolOrganizerId`/`schoolName`/`schoolSlug` (enlazada: id, nombre y
+slug del organizer; escrita a mano: solo `schoolName`), `originCountry` y `homeCityName` (solo el nombre, y
+solo si el dueño activó `showHomeCity`; nunca región ni coordenadas).
+
+`GET /auth/me` y la respuesta de `PATCH /auth/me` suman `followersCount`, `followingCount` y `eventsCount`,
+y los campos de la fase 2 tal cual: `bio`, `attendanceVisibility`, la escuela, `originCountry`, `homeCity`
+(el objeto completo), `showHomeCity`, `avatarSource` (`GOOGLE`/`CUSTOM`/`NONE`) y `googleAvatarUrl` (la de
+Google aunque se muestre otra, para la opción «Usa la foto di Google»).
 `whatsappVisibility` admite `MUTUALS`, que es el valor por defecto de los usuarios nuevos y de un `null`.
+
+### Foto de perfil — requiere login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `PATCH /users/me/avatar` (multipart, parte `avatar`) | `UserDto` | Sube o cambia la foto propia: máx. 5 MB (`413`), JPG/PNG/WebP (`415`). Se guarda en webp (lado largo 512 px) y pasa a `avatarSource = CUSTOM` |
+| `PATCH /users/me/avatar/source` `{ "source": "GOOGLE" \| "NONE" }` | `UserDto` | «Usa la foto di Google» o «Nessuna foto». `CUSTOM` → `400` (se sube con el multipart). La foto propia se borra del bucket |
+
+- `avatarUrl` (en todos los DTOs) es siempre la foto que se muestra: la de Google, la propia o `null`.
+- El login con Google ya no pisa una foto propia: guarda la de Google en `googleAvatarUrl` y solo la
+  muestra si `avatarSource = GOOGLE`.
+
+### `GET /organizers/schools?name=&limit=` — público
+
+Autocompletado de «Scuola o crew»: organizers `SCHOOL` verificados cuyo nombre contiene `name` (mín. 2
+caracteres), en orden alfabético. `limit` 1–10 (default 5). Devuelve `List<OrganizerSummaryDto>`.
+
+### Quién ve tus serate
+
+`GET /events/{id}/attendees` («Chi ci va») respeta `attendanceVisibility`: `EVERYONE` sale para todos,
+`MUTUALS` solo para sus amigos, `NOBODY` para nadie. Cada uno se ve siempre a sí mismo. El número de los que
+van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards solo muestran a quien tiene
+`EVERYONE`.
 
 ### Seguir y bloquear — requieren login
 

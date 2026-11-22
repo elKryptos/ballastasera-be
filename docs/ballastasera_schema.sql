@@ -39,6 +39,7 @@ CREATE TYPE gender             AS ENUM ('MALE', 'FEMALE', 'OTHER', 'UNDISCLOSED'
 CREATE TYPE dance_role         AS ENUM ('LEADER', 'FOLLOWER', 'BOTH');
 CREATE TYPE dance_level        AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'TEACHER');
 CREATE TYPE contact_visibility AS ENUM ('NOBODY', 'EVERYONE', 'MUTUALS');   -- MUTUALS = solo amigos (social fase 1)
+CREATE TYPE avatar_source      AS ENUM ('GOOGLE', 'CUSTOM', 'NONE');        -- social fase 2
 
 
 -- ============================================================================
@@ -76,6 +77,21 @@ CREATE TABLE users (
     gender                      gender,
     dance_role                  dance_role,
     show_profile_public         BOOLEAN NOT NULL DEFAULT TRUE,
+    -- social fase 2: perfil
+    google_avatar_url           TEXT,                            -- la de Google, se actualiza en cada login
+    custom_avatar_url           TEXT,                            -- la subida por el usuario (bucket logos, avatars/)
+    avatar_source               avatar_source NOT NULL DEFAULT 'GOOGLE',   -- avatar_url = la que se muestra
+    bio                         TEXT CHECK (char_length(bio) <= 150),
+    attendance_visibility       contact_visibility NOT NULL DEFAULT 'EVERYONE',
+    school_organizer_id         UUID,                            -- FK a organizers más abajo (se crea después)
+    school_name                 TEXT CHECK (char_length(school_name) <= 80),
+    origin_country              CHAR(2),                         -- ISO 3166-1 alpha-2
+    home_city                   TEXT,                            -- normalizada con Photon (citta-plan.md)
+    home_region                 TEXT,
+    home_country                CHAR(2),
+    home_latitude               DOUBLE PRECISION,
+    home_longitude              DOUBLE PRECISION,
+    show_home_city              BOOLEAN NOT NULL DEFAULT FALSE,
     role                        user_role   NOT NULL DEFAULT 'USER',
     is_banned                   BOOLEAN     NOT NULL DEFAULT FALSE,
     is_deleted                  BOOLEAN     NOT NULL DEFAULT FALSE,
@@ -112,6 +128,10 @@ CREATE TABLE organizers (
 CREATE INDEX idx_organizers_user ON organizers(user_id);
 CREATE INDEX idx_organizers_type ON organizers(type);
 CREATE INDEX idx_organizers_claimed ON organizers(claimed);
+
+-- La escuela del perfil (social fase 2): users se crea antes que organizers
+ALTER TABLE users ADD CONSTRAINT fk_users_school_organizer
+    FOREIGN KEY (school_organizer_id) REFERENCES organizers(id) ON DELETE SET NULL;
 
 
 -- ============================================================================

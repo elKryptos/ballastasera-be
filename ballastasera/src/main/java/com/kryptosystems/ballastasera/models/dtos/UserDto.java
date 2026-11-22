@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.AvatarSource;
 import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.enums.DanceRole;
 import com.kryptosystems.ballastasera.enums.Gender;
@@ -28,6 +29,18 @@ public class UserDto {
     private Gender gender;
     private DanceRole danceRole;
     private List<UserDanceStyleDto> danceStyles;
+    /** Para la opcion «Usa la foto di Google» de Modifica profilo, aunque se muestre otra. */
+    private String googleAvatarUrl;
+    private AvatarSource avatarSource;
+    private String bio;
+    private ContactVisibility attendanceVisibility;
+    /** Escuela enlazada: id, nombre y slug del organizer. Escrita a mano: solo schoolName. */
+    private UUID schoolOrganizerId;
+    private String schoolName;
+    private String schoolSlug;
+    private String originCountry;
+    private HomeCityDto homeCity;
+    private boolean showHomeCity;
     private long followersCount;
     private long followingCount;
     private long eventsCount;

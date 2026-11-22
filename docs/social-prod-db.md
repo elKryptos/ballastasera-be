@@ -12,6 +12,7 @@ suma su bloque aquí; en prod se corren todos juntos antes del deploy del BE con
 | Fase | Qué | Dev | Prod |
 |---|---|---|---|
 | 1 | `MUTUALS`, default de WhatsApp, `user_follows`, `user_blocks` | ☐ | ☐ |
+| 2 | Columnas del perfil en `users` (bio, serate, escuela, ciudad, país, foto) | ☐ | ☐ |
 
 ---
 
@@ -93,3 +94,80 @@ COMMIT;
 
 El `UPDATE` del rollback pasa a `NOBODY` a quien eligió «solo amigos»: sin amigos no se puede respetar esa
 elección, y `EVERYONE` mostraría su WhatsApp a gente que no eligieron.
+
+---
+
+## Fase 2 — Perfil
+
+Va **después** de la fase 1 (`attendance_visibility` usa `contact_visibility`). Solo columnas nuevas en
+`users`, todas con default o nullable: no se toca ningún dato existente salvo copiar la foto de Google.
+
+### Comprobaciones previas (solo lectura)
+
+```sql
+-- El tipo no existe todavía → 0 filas
+SELECT typname FROM pg_type WHERE typname = 'avatar_source';
+
+-- Las columnas no existen todavía → 0 filas
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'users'
+  AND column_name IN ('bio', 'attendance_visibility', 'school_organizer_id', 'avatar_source', 'home_city');
+```
+
+### Script
+
+```sql
+BEGIN;
+
+CREATE TYPE avatar_source AS ENUM ('GOOGLE', 'CUSTOM', 'NONE');
+
+ALTER TABLE users
+    ADD COLUMN google_avatar_url     TEXT,
+    ADD COLUMN custom_avatar_url     TEXT,
+    ADD COLUMN avatar_source         avatar_source NOT NULL DEFAULT 'GOOGLE',
+    ADD COLUMN bio                   TEXT CHECK (char_length(bio) <= 150),
+    ADD COLUMN attendance_visibility contact_visibility NOT NULL DEFAULT 'EVERYONE',
+    ADD COLUMN school_organizer_id   UUID REFERENCES organizers(id) ON DELETE SET NULL,
+    ADD COLUMN school_name           TEXT CHECK (char_length(school_name) <= 80),
+    ADD COLUMN origin_country        CHAR(2),
+    ADD COLUMN home_city             TEXT,
+    ADD COLUMN home_region           TEXT,
+    ADD COLUMN home_country          CHAR(2),
+    ADD COLUMN home_latitude         DOUBLE PRECISION,
+    ADD COLUMN home_longitude        DOUBLE PRECISION,
+    ADD COLUMN show_home_city        BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Hoy avatar_url es siempre la de Google: se copia para que el login nuevo la tenga desde el primer día
+UPDATE users SET google_avatar_url = avatar_url;
+
+COMMIT;
+```
+
+En la DB de **dev**, la FK `school_organizer_id` queda con un nombre automático; en `ballastasera_schema.sql`
+se llama `fk_users_school_organizer` porque ahí `users` se crea antes que `organizers`. Funcionan igual.
+
+### Comprobaciones posteriores
+
+```sql
+-- Todos los que tenían foto la tienen copiada → 0
+SELECT count(*) FROM users WHERE avatar_url IS NOT NULL AND google_avatar_url IS NULL;
+
+-- Defaults → GOOGLE | EVERYONE | false para todos
+SELECT avatar_source, attendance_visibility, show_home_city, count(*) FROM users GROUP BY 1, 2, 3;
+```
+
+### Rollback
+
+```sql
+BEGIN;
+ALTER TABLE users
+    DROP COLUMN google_avatar_url, DROP COLUMN custom_avatar_url, DROP COLUMN avatar_source,
+    DROP COLUMN bio, DROP COLUMN attendance_visibility, DROP COLUMN school_organizer_id, DROP COLUMN school_name,
+    DROP COLUMN origin_country, DROP COLUMN home_city, DROP COLUMN home_region, DROP COLUMN home_country,
+    DROP COLUMN home_latitude, DROP COLUMN home_longitude, DROP COLUMN show_home_city;
+DROP TYPE avatar_source;
+COMMIT;
+```
+
+Antes del rollback, si alguien subió una foto propia, `avatar_url` apunta a ella (bucket de logos, `avatars/`):
+sigue funcionando, pero el login la pisará con la de Google como antes.

@@ -3,6 +3,8 @@ package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.UserAvatarUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.UserDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
@@ -12,18 +14,23 @@ import com.kryptosystems.ballastasera.services.manager.BlocksService;
 import com.kryptosystems.ballastasera.services.manager.FollowsService;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -43,6 +50,8 @@ public class UsersController {
     private static final String MY_FOLLOWING = "/me/following";
     private static final String MY_FRIENDS = "/me/friends";
     private static final String MY_BLOCKS = "/me/blocks";
+    private static final String MY_AVATAR = "/me/avatar";
+    private static final String MY_AVATAR_SOURCE = "/me/avatar/source";
     private static final String USER_PROFILE = "/{id}";
     private static final String FOLLOW = "/{id}/follow";
     private static final String BLOCK = "/{id}/block";
@@ -92,6 +101,23 @@ public class UsersController {
     public ResponseEntity<Void> unblock(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
         blocksService.unblock(principal.getId(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Sube o cambia la foto propia (parte multipart "avatar", max. 5 MB,
+     * JPG/PNG/WebP): se guarda en webp y pasa a ser la foto de perfil. 413 si pesa mas, 415 si no es una imagen. */
+    @PatchMapping(value = MY_AVATAR, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserDto> uploadMyAvatar(@AuthenticationPrincipal UserPrincipal principal,
+                                                  @RequestParam("avatar") MultipartFile file) {
+        var user = usersService.uploadAvatar(principal.getId(), file);
+        return ResponseEntity.ok(userMapper.toDto(user, followsService.countSocial(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. «Usa la foto di Google» (GOOGLE) o «Nessuna foto» (NONE). */
+    @PatchMapping(MY_AVATAR_SOURCE)
+    public ResponseEntity<UserDto> changeMyAvatarSource(@AuthenticationPrincipal UserPrincipal principal,
+                                                        @Valid @RequestBody UserAvatarUpdateDto body) {
+        var user = usersService.changeAvatarSource(principal.getId(), body.getSource());
+        return ResponseEntity.ok(userMapper.toDto(user, followsService.countSocial(principal.getId())));
     }
 
     /** Requiere estar autenticado. Quienes me siguen, los mas recientes primero.

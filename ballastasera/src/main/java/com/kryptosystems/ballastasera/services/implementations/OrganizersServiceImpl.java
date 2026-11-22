@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestStatus;
 import com.kryptosystems.ballastasera.enums.OrganizerRequestType;
+import com.kryptosystems.ballastasera.enums.OrganizerType;
 import com.kryptosystems.ballastasera.events.OrganizerClaimedEvent;
 import com.kryptosystems.ballastasera.events.OrganizerDeletedEvent;
 import com.kryptosystems.ballastasera.events.OrganizerLogoDeletedEvent;
@@ -260,6 +261,13 @@ public class OrganizersServiceImpl implements OrganizersService {
         // name (mín. 3) y limit (1-10) ya los valida el controller
         return organizersRepository.findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(
                 name.trim(), Limit.of(limit));
+    }
+
+    @Override
+    public List<Organizers> findSchools(String name, int limit) {
+        // name (mín. 2) y limit (1-10) ya los valida el controller
+        return organizersRepository.findByIsVerifiedTrueAndTypeAndNameContainingIgnoreCaseOrderByNameAsc(
+                OrganizerType.SCHOOL, name.trim(), Limit.of(limit));
     }
 
     /** D13: el dueño solo borra lo que creó él con una NEW aprobada. Lo que llegó por CLAIM solo lo borra el admin:

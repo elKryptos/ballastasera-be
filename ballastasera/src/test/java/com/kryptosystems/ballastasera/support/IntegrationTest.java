@@ -132,6 +132,15 @@ public abstract class IntegrationTest {
                 """, UUID.class, title, "test-" + UUID.randomUUID());
     }
 
+    /** Organizer verificado del tipo dado (PERSON, VENUE, CLUB, SCHOOL). Devuelve su id. */
+    protected UUID createOrganizer(String name, String type) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO organizers (name, slug, type, is_verified)
+                VALUES (?, ?, CAST(? AS organizer_type), TRUE)
+                RETURNING id
+                """, UUID.class, name, "test-" + UUID.randomUUID(), type);
+    }
+
     /** «Ci vado» directo en la DB, sin pasar por el endpoint. */
     protected void attend(Users user, UUID eventId) {
         jdbcTemplate.update("INSERT INTO event_attendance (user_id, event_id) VALUES (?, ?)", user.getId(), eventId);

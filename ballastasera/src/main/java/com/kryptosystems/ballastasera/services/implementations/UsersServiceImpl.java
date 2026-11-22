@@ -1,24 +1,36 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
+import com.kryptosystems.ballastasera.enums.AvatarSource;
 import com.kryptosystems.ballastasera.enums.DanceLevel;
+import com.kryptosystems.ballastasera.enums.OrganizerType;
 import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.events.UserAvatarDeletedEvent;
+import com.kryptosystems.ballastasera.exceptions.FileTooLargeException;
+import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
+import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.UserDanceStyles;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.repositories.*;
+import com.kryptosystems.ballastasera.services.manager.ObjectStorageService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
+import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +42,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UsersServiceImpl implements UsersService {
 
+    private static final long AVATAR_MAX_BYTES = 5L * 1024 * 1024;
+    private static final int AVATAR_MAX_LONG_EDGE = 512;
+
     private final UsersRepository usersRepository;
     private final DanceStylesRepository danceStylesRepository;
     private final UserMapper userMapper;
@@ -38,6 +53,9 @@ public class UsersServiceImpl implements UsersService {
     private final EventsRepository eventsRepository;
     private final OrganizersRepository organizersRepository;
     private final UserBlocksRepository userBlocksRepository;
+    private final WebpConverterService webpConverterService;
+    private final ObjectStorageService objectStorageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public List<Users> findAll() {
@@ -85,6 +103,8 @@ public class UsersServiceImpl implements UsersService {
         if (!attendedEventIds.isEmpty()) {
             eventsRepository.decrementGoingCountForEvents(attendedEventIds);
         }
+        // La foto subida se borra del bucket despues del commit (RGPD: no queda nada suyo)
+        usersRepository.findById(id).map(Users::getCustomAvatarUrl).ifPresent(this::discardAvatar);
         usersRepository.deleteById(id);
     }
 
@@ -116,8 +136,50 @@ public class UsersServiceImpl implements UsersService {
         // Si el input viene vacio ("") en la DB queda null
         user.setInstagram(InstagramUtils.normalizeHandle(user.getInstagram()));
         user.setWhatsapp(StringUtils.hasText(user.getWhatsapp()) ? user.getWhatsapp() : null);
+        user.setBio(StringUtils.hasText(user.getBio()) ? user.getBio().trim() : null);
+        user.setSchoolName(StringUtils.hasText(user.getSchoolName()) ? user.getSchoolName().trim() : null);
+        syncSchool(user, dto.getSchoolOrganizerId());
         syncDanceStyles(user, dto.getDanceStyles() != null ? dto.getDanceStyles() : List.of());
         return user; // sin save(): se guarda al commit, ver javadoc
+    }
+
+    /** Sin save(), como updateProfile. La foto anterior se borra del bucket despues del commit. */
+    @Override
+    @Transactional
+    public Users uploadAvatar(UUID userId, MultipartFile file) {
+        if (file.getSize() > AVATAR_MAX_BYTES) {
+            throw new FileTooLargeException("Avatar must be at most 5 MB");
+        }
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new MediaStorageException("Failed to read avatar file", e);
+        }
+        ImageTypeValidator.detectExtension(content);
+        byte[] webpContent = webpConverterService.convertToWebp(content, AVATAR_MAX_LONG_EDGE);
+
+        Users user = findByIdWithDanceStyles(userId);
+        String previousAvatarUrl = user.getCustomAvatarUrl();
+        String avatarUrl = objectStorageService.uploadUserAvatar(userId, webpContent);
+        user.setCustomAvatarUrl(avatarUrl);
+        user.setAvatarSource(AvatarSource.CUSTOM);
+        user.setAvatarUrl(avatarUrl);
+        discardAvatar(previousAvatarUrl);
+        return user;
+    }
+
+    /** Sin save(), como updateProfile. La foto propia no se guarda para despues: se borra del bucket. */
+    @Override
+    @Transactional
+    public Users changeAvatarSource(UUID userId, AvatarSource source) {
+        Users user = findByIdWithDanceStyles(userId);
+        String previousAvatarUrl = user.getCustomAvatarUrl();
+        user.setCustomAvatarUrl(null);
+        user.setAvatarSource(source);
+        user.setAvatarUrl(source == AvatarSource.GOOGLE ? user.getGoogleAvatarUrl() : null);
+        discardAvatar(previousAvatarUrl);
+        return user;
     }
 
     /** Con un bloqueo en cualquier sentido da el mismo 404 que un perfil privado: no se revela el bloqueo. */
@@ -130,6 +192,28 @@ public class UsersServiceImpl implements UsersService {
             throw new EntityNotFoundException("User not found with id " + userId);
         }
         return user;
+    }
+
+    /**
+     * Escuela enlazada: tiene que ser un organizer SCHOOL verificado (los mismos que salen en el buscador).
+     * Si viene, el texto libre se borra: o una o la otra.
+     */
+    private void syncSchool(Users user, UUID schoolOrganizerId) {
+        if (schoolOrganizerId == null) {
+            user.setSchoolOrganizer(null);
+            return;
+        }
+        Organizers school = organizersRepository.findById(schoolOrganizerId)
+                .filter(organizer -> organizer.getType() == OrganizerType.SCHOOL && organizer.isVerified())
+                .orElseThrow(() -> new EntityNotFoundException("School not found with id " + schoolOrganizerId));
+        user.setSchoolOrganizer(school);
+        user.setSchoolName(null);
+    }
+
+    private void discardAvatar(String avatarUrl) {
+        if (avatarUrl != null) {
+            eventPublisher.publishEvent(new UserAvatarDeletedEvent(avatarUrl));
+        }
     }
 
     /**

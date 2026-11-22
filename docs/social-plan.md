@@ -12,14 +12,14 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 |---|---|---|
 | 0 | Rate limit en todas las APIs | [~] BE hecho con tests (22/11), falta el aviso en el FE |
 | 1 | Seguir + bloquear | [~] BE hecho con tests (22/11), falta el FE |
-| 2 | Perfil: bio, ciudad, escuela, foto propia | [ ] |
+| 2 | Perfil: bio, ciudad, escuela, foto propia | [~] BE hecho con tests (22/11), falta el FE |
 | 3 | Serate de otra persona y «Avete in comune» | [ ] |
 | 4 | Denuncias, ban, silenciar | [ ] |
 | 5 | Pestaña Amici: feed y sugerencias | [ ] |
 | 6 | Avisos (campanita + email) e invitaciones | [ ] |
 | 7 | Traguardi y @username | [ ] |
 
-**Siguiente paso:** fase 2 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
+**Siguiente paso:** fase 3 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
 va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
@@ -107,14 +107,15 @@ Botón Segui / Ricambia / Amici, listas de amigos, WhatsApp «solo amigos», Blo
 
 ### Fase 2 — Perfil
 Canvas 4b: bio, quién ve tus serate, escuela, ciudad y país de origen, foto propia.
-- [ ] **Antes**: `CustomOidcUserService` pisa la foto en cada login. Guardar la de Google aparte (`google_avatar_url`) y resolver `avatarUrl` según `avatar_source` (`GOOGLE`/`CUSTOM`/`NONE`)
-- [ ] SQL: `bio` (≤ 150), `attendance_visibility` (default `EVERYONE`), `school_organizer_id` + `school_name`, `origin_country`, `home_city`/`home_region`/`home_country`/`home_latitude`/`home_longitude` (los de `citta-plan.md`) + `show_home_city` (default false), columnas de avatar
-- [ ] `PATCH /auth/me` y `UserDto` con los campos nuevos y sus validaciones
-- [ ] `UserProfileDto` suma `bio`, escuela (id, nombre y slug, o el texto libre), `originCountry` y la ciudad solo si `show_home_city`
-- [ ] «Chi ci va» respeta `attendance_visibility`: `NOBODY` no sale, `MUTUALS` solo lo ven sus amigos (sigue contando en `goingCount`)
-- [ ] `PUT /rest/users/me/avatar` (multipart, máx. 5 MB, JPG/PNG/WebP, a S3 como el logo de los organizers) y `DELETE /rest/users/me/avatar` (vuelve a la de Google); «sin foto» con `avatar_source = NONE`
-- [ ] `GET /rest/organizers/schools?q=` para el autocompletado
-- [ ] Tests de integración · FE canvas 4b
+- [x] **Antes**: `CustomOidcUserService` pisa la foto en cada login. Guardar la de Google aparte (`google_avatar_url`) y resolver `avatarUrl` según `avatar_source` (`GOOGLE`/`CUSTOM`/`NONE`)
+- [x] SQL: `bio` (≤ 150), `attendance_visibility` (default `EVERYONE`), `school_organizer_id` + `school_name`, `origin_country`, `home_city`/`home_region`/`home_country`/`home_latitude`/`home_longitude` (los de `citta-plan.md`) + `show_home_city` (default false), columnas de avatar (`social-prod-db.md`; dev ☐)
+- [x] `PATCH /auth/me` y `UserDto` con los campos nuevos y sus validaciones
+- [x] `UserProfileDto` suma `bio`, escuela en campos planos (`schoolOrganizerId`, `schoolName`, `schoolSlug`), `originCountry` y `homeCityName` solo si `show_home_city`
+- [x] «Chi ci va» respeta `attendance_visibility`: `NOBODY` no sale, `MUTUALS` solo lo ven sus amigos (sigue contando en `goingCount`). Las caritas del mapa, solo `EVERYONE`
+- [x] `PATCH /rest/users/me/avatar` (multipart como los otros uploads, máx. 5 MB, JPG/PNG/WebP, webp en el bucket de logos con prefijo `avatars/`) y `PATCH /rest/users/me/avatar/source` `{ GOOGLE | NONE }`
+- [x] `GET /rest/organizers/schools?name=` para el autocompletado
+- [x] Tests de integración (perfil, escuela, «Chi ci va», foto con S3 mockeado) y del login
+- [ ] FE canvas 4b
 
 ### Fase 3 — En común
 Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci vanno».

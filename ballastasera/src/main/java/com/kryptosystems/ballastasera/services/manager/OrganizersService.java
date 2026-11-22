@@ -56,4 +56,7 @@ public interface OrganizersService {
 
     /** Buscador del wizard (CLAIM): organizadores verificados y sin dueño cuyo nombre contiene name, por orden alfabético. */
     List<Organizers> findClaimable(String name, int limit);
+
+    /** Escuelas verificadas cuyo nombre contiene name, para «Scuola o crew» del perfil. */
+    List<Organizers> findSchools(String name, int limit);
 }

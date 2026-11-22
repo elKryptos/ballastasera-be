@@ -46,7 +46,9 @@ seguridad.
   olvido (RGPD) hay que anonimizar los datos personales: `email`, `displayName`, `avatarUrl`, `instagram` y
   `googleId`, y los del perfil ampliado (16/11/2026, `user-profile-plan.md`): `whatsapp`, `birthDate`,
   `gender` y `danceRole` a `null`, y borrar sus filas de `user_dance_styles` (con soft delete no se borran
-  solas).
+  solas). Desde la social fase 2 (22/11/2026) también: `bio`, `schoolName`, `schoolOrganizer`, `originCountry`,
+  los `home_*`, `googleAvatarUrl` y `customAvatarUrl` a `null`, y borrar del bucket la foto subida (evento
+  `UserAvatarDeletedEvent`; el borrado real `deleteById` ya lo hace).
 - **Borrado real:** más simple con los datos personales, pero dispara las FK de la sección 2.
 - En los dos casos: con soft delete y el `email`/`googleId` intactos, `CustomOidcUserService` encuentra la
   cuenta y devuelve `account_deleted` para siempre, así que el usuario no puede volver con la misma cuenta

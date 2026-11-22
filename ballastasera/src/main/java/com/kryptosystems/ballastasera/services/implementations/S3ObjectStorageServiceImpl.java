@@ -27,6 +27,7 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
 
     private static final String VENUE_LOGO_PREFIX = "venues/";
     private static final String ORGANIZER_LOGO_PREFIX = "organizers/";
+    private static final String USER_AVATAR_PREFIX = "avatars/";
 
     private final S3Client s3Client;
 
@@ -105,6 +106,22 @@ public class S3ObjectStorageServiceImpl implements ObjectStorageService {
         // Solo borra logos de organizador subidos aquí: una URL externa (las que pone el admin a mano) se ignora
         if (logoUrl != null && logoUrl.startsWith(base + ORGANIZER_LOGO_PREFIX)) {
             delete(logosBucket, logoUrl.substring(base.length()));
+        }
+    }
+
+    @Override
+    public String uploadUserAvatar(UUID userId, byte[] webpContent) {
+        // Clave nueva en cada subida, por lo mismo que en uploadVenueLogo
+        String key = USER_AVATAR_PREFIX + userId + "/avatar-" + UUID.randomUUID() + ".webp";
+        putObject(logosBucket, key, webpContent, "image/webp");
+        return logosPublicBaseUrl + "/" + key;
+    }
+
+    @Override
+    public void deleteUserAvatar(String avatarUrl) {
+        String base = logosPublicBaseUrl + "/";
+        if (avatarUrl != null && avatarUrl.startsWith(base + USER_AVATAR_PREFIX)) {
+            delete(logosBucket, avatarUrl.substring(base.length()));
         }
     }
 
