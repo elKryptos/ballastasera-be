@@ -124,20 +124,23 @@ Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci van
 - [ ] `GET /rest/events/{id}/friends-going` (fuera de la cache)
 - [ ] «Cerco qualcuno»: columna `looking_for_partner` en `event_attendance`; `POST /attendance` la acepta
 - [ ] `AttendeeDto` suma `relation` y `lookingForPartner` (sin login, `relation` null)
-- [ ] Tests + Postman · FE canvas 4c
+- [ ] Tests de integración
+- [ ] FE canvas 4c
 
 ### Fase 4 — Denuncias, ban, silenciar
 Menú ⋯ del perfil y cola en el admin.
 - [ ] Tabla `user_reports`; `POST /rest/users/{id}/report` (una abierta por pareja)
 - [ ] Admin: `GET /rest/admin/reports`, `PATCH /rest/admin/reports/{id}`, `PATCH /rest/admin/users/{id}/ban` y `/unban`
 - [ ] Silenciar: columna `muted` en `user_follows`; `PATCH /rest/users/{id}/follow { muted }`
-- [ ] Tests + Postman · FE menú ⋯ y cola en el admin
+- [ ] Tests de integración
+- [ ] FE menú ⋯ y cola en el admin
 
 ### Fase 5 — Pestaña Amici
 Canvas 4d.
 - [ ] `GET /rest/users/me/feed`: «esce stasera», «ti segue», «va a X» (próximos 7 días). Sin silenciados ni bloqueados
 - [ ] `GET /rest/users/me/suggestions`: gente de tus próximas serate y amigos de amigos. Sin bloqueados ni menores
-- [ ] Tests + Postman · FE canvas 4d
+- [ ] Tests de integración
+- [ ] FE canvas 4d
 
 ### Fase 6 — Avisos e invitaciones
 Campanita del Home e «Invita a ballare».
@@ -145,7 +148,8 @@ Campanita del Home e «Invita a ballare».
 - [ ] Tipos: nuevo seguidor, nuevo amigo, invitación. Limpieza a los 60 días con `@Scheduled`
 - [ ] Emails de nuevo amigo e invitación (listener como `OrganizerEmailListener`) + columna `email_notifications`
 - [ ] `POST /rest/users/{id}/invites { eventId, message }`: frase fija, no texto libre; 10 al día, 1 por persona y serata, solo serate futuras a las que vas; 429 si te pasas
-- [ ] Tests + Postman · FE campanita y diálogo
+- [ ] Tests de integración
+- [ ] FE campanita y diálogo
 
 ### Fase 7 — Traguardi y @username
 - [ ] `stats` en el perfil: serate pasadas con «Ci vado», locales distintos, primera serata
@@ -153,8 +157,9 @@ Campanita del Home e «Invita a ballare».
 - [ ] FE: traguardi, ruta `/@username`, tarjeta para stories (como `social-posts/cards.ts`, con el logo)
 
 ### Docs al cerrar cada fase
-`API.md`, `POSTMAN_TESTING.md`, `ballastasera_schema.sql`, `user-account-deletion-plan.md` (bio, ciudad,
-foto propia en S3, username y notas de denuncias). El SQL de prod va en `social-prod-db.md`, por fase.
+`API.md`, `ballastasera_schema.sql` (lo cargan los tests de integración), `user-account-deletion-plan.md`
+(bio, ciudad y foto propia ya están; faltan username y notas de denuncias). El SQL de prod va en
+`social-prod-db.md`, por fase.
 
 ## 5. Fuera por ahora
 - Fotos de las serate (para eso está Instagram).
