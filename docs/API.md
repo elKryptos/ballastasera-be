@@ -466,8 +466,9 @@ Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de
 - `relation` de quien mira con este usuario: `NONE` «Segui», `FOLLOWING` «Segui già», `FOLLOWED_BY`
   «Ricambia», `MUTUAL` «Amici». `NONE` si es el propio perfil.
 - `eventsCount` = serate pasadas a las que dijo «Ci vado».
-- `404` si el perfil es privado (`showProfilePublic = false`), está borrado, baneado o hay un bloqueo en
-  cualquier sentido, salvo que lo pida el propio usuario. Mismo `404` en todos los casos: no se revela el bloqueo.
+- `404` si el perfil es privado (`showProfilePublic = false`, también para sus amigos), está borrado, baneado o
+  hay un bloqueo en cualquier sentido, salvo que lo pida el propio usuario. Mismo `404` en todos los casos: no se
+  revela el bloqueo.
 - Sin token → `401`.
 
 Desde la fase 3 trae «Avete in comune» y el pallino, en campos planos:

@@ -48,9 +48,15 @@ Piezas que se reutilizan:
 - Seguir es abierto: tocas «Segui» y listo, sin solicitud.
 - Amigos = os seguís los dos. No hay tabla de amistad aparte.
 - A un perfil privado no se le puede seguir (ya da 404).
-- Los contadores (seguidores, seguidos, serate) se ven siempre.
+- Los contadores (seguidores, seguidos, serate) se ven siempre, en los perfiles que se pueden ver.
 
 **Privacidad**
+- Privado = no te ve nadie, **tampoco tus amigos** (decidido el 23/11; la otra opción, «solo amigos», queda para más
+  adelante). Los follows no se borran: sigue contando como amigo y, si vuelve a público, todo vuelve. Mientras es
+  privado: su perfil y sus serate dan 404 a todos; no sale en «Chi ci va», en «ci vanno», en las serate del feed ni
+  en las sugerencias; sí sale, sin enlace ni botón para seguirlo (`profilePublic = false`), en las listas, en «ti
+  segue» de quien él siga y en «Avete in comune». Quien lo deje de seguir no puede volver a seguirlo hasta que
+  vuelva a público.
 - WhatsApp: se suma la opción «solo amigos». Los usuarios nuevos arrancan ahí; a los que ya existen no se les toca.
 - Las serate a las que vas las ven todos, solo tus amigos o nadie (por defecto, todos). Con «nadie» no sales en «Chi ci va» ni en tu perfil, pero sí cuentas en el número de los que van.
 - Ciudad donde vives: se elige con Photon limitado a ciudades (comuni, nunca direcciones). En el perfil solo se ve si activas «Mostra la città nel profilo», y solo el nombre («Milano»).
@@ -104,6 +110,7 @@ Botón Segui / Ricambia / Amici, listas de amigos, WhatsApp «solo amigos», Blo
 - [x] Bloqueos filtrados en perfil, follow, «Chi ci va» y listas
 - [x] Tests de integración (uno por sitio donde un bloqueo esconde a alguien) y del mapper
 - [ ] FE: página `/persona/{id}` (reutiliza `attendee-profile`), botón de follow, contadores, lista de amigos, Blocca
+- [ ] FE: en las listas, con `profilePublic = false` la fila va sin enlace y con «Profilo privato» en vez de «Segui»/«Ricambia» (dejar de seguir y desbloquear sí). Al dejar de seguir a alguien privado, confirmar: «È un profilo privato: non potrai seguirlo di nuovo finché non lo rende pubblico.»
 
 ### Fase 2 — Perfil
 Canvas 4b: bio, quién ve tus serate, escuela, ciudad y país de origen, foto propia.
@@ -115,7 +122,9 @@ Canvas 4b: bio, quién ve tus serate, escuela, ciudad y país de origen, foto pr
 - [x] `PATCH /rest/users/me/avatar` (multipart como los otros uploads, máx. 5 MB, JPG/PNG/WebP, webp en el bucket de logos con prefijo `avatars/`) y `PATCH /rest/users/me/avatar/source` `{ GOOGLE | NONE }`
 - [x] `GET /rest/organizers/schools?name=` para el autocompletado
 - [x] Tests de integración (perfil, escuela, «Chi ci va», foto con S3 mockeado) y del login
-- [ ] FE canvas 4b
+- [ ] FE canvas 4b. En el toggle «Profilo pubblico», explicar bien qué pasa al apagarlo: «Nessuno, nemmeno i tuoi
+  amici, potrà vedere il tuo profilo e le tue serate. Non comparirai in "Chi ci va" e le tue serate non usciranno
+  nel feed degli amici. Nessuno potrà iniziare a seguirti; le persone che ti seguono restano.»
 
 ### Fase 3 — En común
 Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci vanno».
