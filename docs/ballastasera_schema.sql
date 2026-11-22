@@ -30,6 +30,11 @@ CREATE TYPE event_status       AS ENUM ('DRAFT', 'PENDING', 'PUBLISHED', 'CANCEL
 CREATE TYPE flyer_status       AS ENUM ('NONE', 'PROCESSING', 'READY', 'FAILED');
 CREATE TYPE event_type         AS ENUM ('EVENT', 'SCHOOL', 'CLUB', 'BAR', 'RESTAURANT');
 CREATE TYPE venue_type         AS ENUM ('SCHOOL', 'CLUB', 'BAR', 'RESTAURANT', 'OTHER');
+--organizer request
+CREATE TYPE organizer_request_type   AS ENUM ('NEW', 'CLAIM');
+CREATE TYPE organizer_request_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+CREATE TYPE organizer_reject_reason  AS ENUM ('INSTAGRAM_NOT_FOUND', 'INCOMPLETE_DATA', 'NOT_DANCE_ORGANIZER', 'DUPLICATE', 'OTHER');
+--user profile
 CREATE TYPE gender             AS ENUM ('MALE', 'FEMALE', 'OTHER', 'UNDISCLOSED');
 CREATE TYPE dance_role         AS ENUM ('LEADER', 'FOLLOWER', 'BOTH');
 CREATE TYPE dance_level        AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'TEACHER');
@@ -330,6 +335,46 @@ CREATE TABLE revoked_tokens (
     revoked_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_revoked_tokens_expires_at ON revoked_tokens(expires_at);
+
+-- ============================================================================
+--  ORGANIZER_REQUEST 
+-- ============================================================================
+CREATE TABLE organizer_requests (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type               organizer_request_type   NOT NULL,
+    status             organizer_request_status NOT NULL DEFAULT 'PENDING',
+    organizer_id       UUID REFERENCES organizers(id) ON DELETE SET NULL,
+    venue_address      VARCHAR(150),
+    venue_city_id      BIGINT REFERENCES cities(id),
+    venue_id           UUID REFERENCES venues(id) ON DELETE SET NULL,
+    name               TEXT,
+    organizer_type     organizer_type,
+    description        TEXT,
+    logo_url           TEXT,
+    website            TEXT,
+    phone              TEXT,
+    contact_email      TEXT NOT NULL,
+    instagram          TEXT NOT NULL,
+    facebook           TEXT,
+    message            TEXT,
+    terms_accepted_at  TIMESTAMPTZ NOT NULL,
+    rejection_reason   organizer_reject_reason,
+    rejection_message  TEXT,
+    reviewed_by        UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at        TIMESTAMPTZ,
+    acknowledged_at    TIMESTAMPTZ,
+    version            BIGINT NOT NULL DEFAULT 0,
+    submitted_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_org_request_new   CHECK (type <> 'NEW'   OR (name IS NOT NULL AND organizer_type IS NOT NULL)),
+    CONSTRAINT chk_org_request_claim CHECK (type <> 'CLAIM' OR organizer_id IS NOT NULL OR status <> 'PENDING'),
+    CONSTRAINT chk_org_request_venue_proposal CHECK ((venue_address IS NULL) = (venue_city_id IS NULL))
+);
+CREATE UNIQUE INDEX uq_org_requests_one_pending ON organizer_requests(user_id) WHERE status = 'PENDING';
+CREATE INDEX idx_org_requests_status    ON organizer_requests(status, submitted_at);
+CREATE INDEX idx_org_requests_organizer ON organizer_requests(organizer_id);
+CREATE INDEX idx_org_requests_user      ON organizer_requests(user_id, submitted_at DESC);
 
 
 -- ============================================================================
