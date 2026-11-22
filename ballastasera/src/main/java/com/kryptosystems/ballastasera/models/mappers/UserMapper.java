@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.models.mappers;
 
 import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.HomeCityDto;
+import com.kryptosystems.ballastasera.models.dtos.ProfileActivity;
 import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
@@ -82,10 +83,18 @@ public interface UserMapper {
     @Mapping(target = "followersCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "eventsCount", ignore = true)
+    @Mapping(target = "mutualFriends", ignore = true)
+    @Mapping(target = "mutualFriendsCount", ignore = true)
+    @Mapping(target = "eventsTogetherCount", ignore = true)
+    @Mapping(target = "lastEventTogetherId", ignore = true)
+    @Mapping(target = "lastEventTogetherTitle", ignore = true)
+    @Mapping(target = "lastEventTogetherStartAt", ignore = true)
+    @Mapping(target = "lookingForPartnerToday", ignore = true)
     UserProfileDto toProfileDtoBase(Users user);
 
     /** Perfil de GET /users/{id} visto por viewerId. */
-    default UserProfileDto toProfileDto(Users user, UUID viewerId, SocialRelation relation, SocialCounts counts) {
+    default UserProfileDto toProfileDto(Users user, UUID viewerId, SocialRelation relation, SocialCounts counts,
+                                        ProfileActivity activity) {
         UserProfileDto dto = toProfileDtoBase(user);
         dto.setRelation(relation);
         dto.setFollowersCount(counts.followers());
@@ -94,6 +103,18 @@ public interface UserMapper {
         if (canSeeWhatsapp(user, viewerId, relation)) {
             dto.setWhatsapp(user.getWhatsapp());
         }
+        // Los amigos en comun son amigos de quien mira: MUTUAL
+        dto.setMutualFriends(activity.mutualFriends().stream()
+                .map(friend -> toSummaryDto(friend, SocialRelation.MUTUAL))
+                .toList());
+        dto.setMutualFriendsCount(activity.mutualFriendsCount());
+        dto.setEventsTogetherCount(activity.eventsTogetherCount());
+        if (activity.lastEventTogether() != null) {
+            dto.setLastEventTogetherId(activity.lastEventTogether().getId());
+            dto.setLastEventTogetherTitle(activity.lastEventTogether().getTitle());
+            dto.setLastEventTogetherStartAt(activity.lastEventTogether().getStartAt());
+        }
+        dto.setLookingForPartnerToday(activity.lookingForPartnerToday());
         return dto;
     }
 
@@ -135,10 +156,6 @@ public interface UserMapper {
         if (age != null && age < ADULT_AGE) {
             return false;
         }
-        return switch (user.getWhatsappVisibility()) {
-            case EVERYONE -> true;
-            case MUTUALS -> relation == SocialRelation.MUTUAL;
-            case NOBODY -> false;
-        };
+        return user.getWhatsappVisibility().allows(relation);
     }
 }

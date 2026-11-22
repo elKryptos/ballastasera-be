@@ -124,12 +124,20 @@ public abstract class IntegrationTest {
 
     /** Serata publicada de mañana en la primera ciudad del seed. Devuelve su id. */
     protected UUID createEvent(String title) {
+        return createEventStartingIn(title, "1 day");
+    }
+
+    /**
+     * Serata publicada que empieza dentro de startsIn, un intervalo de Postgres: "2 hours" (cercana),
+     * "-3 days" (ya terminada: sin end_at dura 4 horas). Devuelve su id.
+     */
+    protected UUID createEventStartingIn(String title, String startsIn) {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO events (city_id, title, slug, start_at, address, latitude, longitude, status)
-                VALUES ((SELECT id FROM cities ORDER BY id LIMIT 1), ?, ?, now() + INTERVAL '1 day',
+                VALUES ((SELECT id FROM cities ORDER BY id LIMIT 1), ?, ?, now() + CAST(? AS interval),
                         'Via Roma 1', 45.46, 9.19, 'PUBLISHED')
                 RETURNING id
-                """, UUID.class, title, "test-" + UUID.randomUUID());
+                """, UUID.class, title, "test-" + UUID.randomUUID(), startsIn);
     }
 
     /** Organizer verificado del tipo dado (PERSON, VENUE, CLUB, SCHOOL). Devuelve su id. */

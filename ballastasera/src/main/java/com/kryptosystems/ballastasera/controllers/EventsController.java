@@ -42,6 +42,8 @@ public class EventsController {
     private static final String ADD_ATTENDANCE = "/{id}/attendance";
     private static final String REMOVE_ATTENDANCE = "/{id}/attendance";
     private static final String IS_GOING = "/{id}/going";
+    private static final String MY_ATTENDANCE = "/{id}/attendance/me";
+    private static final String FRIENDS_GOING = "/{id}/friends-going";
     private static final String ADD_FAVORITE = "/{id}/favorite";
     private static final String REMOVE_FAVORITE = "/{id}/favorite";
     private static final String IS_FAVORITE = "/{id}/favorite";
@@ -130,9 +132,26 @@ public class EventsController {
 
     /** Requiere estar autenticado. Marca "voy" al evento. Idempotente. +1 in Events dbtable */
     @PostMapping(ADD_ATTENDANCE)
-    public ResponseEntity<Void> setAttendance(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
-        eventAttendanceService.addAttendance(principal.getId(), id);
+    public ResponseEntity<Void> setAttendance(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal,
+                                              @RequestBody(required = false) EventAttendanceUpdateDto body) {
+        Boolean lookingForPartner = body != null ? body.getLookingForPartner() : null;
+        eventAttendanceService.addAttendance(principal.getId(), id, lookingForPartner);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Si el usuario logueado dijo «Ci vado» y si marco «Cerco qualcuno». */
+    @GetMapping(MY_ATTENDANCE)
+    public ResponseEntity<EventAttendanceStatusDto> getMyAttendance(@PathVariable UUID id,
+                                                                    @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventAttendanceService.findMyAttendanceStatus(principal.getId(), id));
+    }
+
+    /** Requiere estar autenticado. Amigos que van a la serata («Sara e Luca ci vanno»). Fuera de la cache del
+     * detalle: depende de quien mira. */
+    @GetMapping(FRIENDS_GOING)
+    public ResponseEntity<List<UserSummaryDto>> getFriendsGoing(@PathVariable UUID id,
+                                                                @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(eventAttendanceService.findFriendsGoing(principal.getId(), id));
     }
 
     /** Requiere estar autenticado. Quita la marca "voy". La lista de asistentes se actualiza con -1 */

@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
+import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface EventAttendanceRepository extends JpaRepository<EventAttendance, UserEventId> {
@@ -108,6 +110,56 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') <= now()
             """, nativeQuery = true)
     long countPastByUserId(@Param("userId") UUID userId);
+
+    /** «Avete in comune»: serate ya terminadas a las que dijeron «Ci vado» los dos. Mismo filtro que countPastByUserId. */
+    @Query(value = """
+            SELECT COUNT(*) FROM event_attendance a
+            JOIN event_attendance b ON b.event_id = a.event_id
+            JOIN events e ON e.id = a.event_id
+            WHERE a.user_id = :userA AND b.user_id = :userB AND e.status = 'PUBLISHED'
+            AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') <= now()
+            """, nativeQuery = true)
+    long countPastTogether(@Param("userA") UUID userA, @Param("userB") UUID userB);
+
+    /** La ultima de esas serate juntos. */
+    @Query(value = """
+            SELECT e.id FROM event_attendance a
+            JOIN event_attendance b ON b.event_id = a.event_id
+            JOIN events e ON e.id = a.event_id
+            WHERE a.user_id = :userA AND b.user_id = :userB AND e.status = 'PUBLISHED'
+            AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') <= now()
+            ORDER BY e.start_at DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<UUID> findLastPastEventIdTogether(@Param("userA") UUID userA, @Param("userB") UUID userB);
+
+    /** Pallino del perfil: marco «Cerco qualcuno» en una serata en curso o que empieza en las proximas 24 horas. */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM event_attendance a JOIN events e ON e.id = a.event_id
+                WHERE a.user_id = :userId AND a.looking_for_partner = TRUE AND e.status = 'PUBLISHED'
+                AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') > now()
+                AND e.start_at < now() + INTERVAL '24 hours')
+            """, nativeQuery = true)
+    boolean existsLookingForPartnerSoon(@Param("userId") UUID userId);
+
+    /**
+     * «Sara e Luca ci vanno»: amigos de viewerId (se siguen los dos) que van a la serata. Mismo filtro que
+     * «Chi ci va»: perfil publico, ni borrados ni baneados, y sin quien eligio que nadie vea sus serate (nobody).
+     * Los bloqueados no hace falta filtrarlos: con un bloqueo no hay follows.
+     */
+    @Query("""
+            SELECT u FROM EventAttendance ea JOIN ea.user u
+            WHERE ea.event.id = :eventId AND u.showProfilePublic = true
+            AND u.isDeleted = false AND u.isBanned = false
+            AND u.attendanceVisibility <> :nobody
+            AND EXISTS (SELECT 1 FROM UserFollows f1 WHERE f1.id.followerId = :viewerId AND f1.id.followedId = u.id)
+            AND EXISTS (SELECT 1 FROM UserFollows f2 WHERE f2.id.followerId = u.id AND f2.id.followedId = :viewerId)
+            ORDER BY ea.createdAt ASC
+            """)
+    List<Users> findFriendsGoing(@Param("eventId") UUID eventId,
+                                 @Param("viewerId") UUID viewerId,
+                                 @Param("nobody") ContactVisibility nobody);
 
     /** Primeros asistentes publicos con foto de cada evento, para las caritas
      * del mapa y la lista. Mismo filtro de privacidad que findByEventIdAndStatus...

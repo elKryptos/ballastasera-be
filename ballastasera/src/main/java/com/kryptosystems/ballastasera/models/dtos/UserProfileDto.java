@@ -6,6 +6,7 @@ import com.kryptosystems.ballastasera.enums.SocialRelation;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,4 +39,14 @@ public class UserProfileDto {
     private long followersCount;
     private long followingCount;
     private long eventsCount;
+    /** «Avete in comune»: hasta 3 amigos en comun (relation MUTUAL: son amigos de quien mira) y su total. */
+    private List<UserSummaryDto> mutualFriends;
+    private long mutualFriendsCount;
+    /** Serate pasadas a las que fueron los dos, y la ultima. 0 y null si sus serate no son visibles para quien mira. */
+    private long eventsTogetherCount;
+    private UUID lastEventTogetherId;
+    private String lastEventTogetherTitle;
+    private OffsetDateTime lastEventTogetherStartAt;
+    /** Pallino «Cerco qualcuno con cui ballare»: lo marco en una serata en curso o de las proximas 24 horas. */
+    private boolean lookingForPartnerToday;
 }

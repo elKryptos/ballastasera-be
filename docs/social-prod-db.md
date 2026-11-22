@@ -13,6 +13,7 @@ suma su bloque aquí; en prod se corren todos juntos antes del deploy del BE con
 |---|---|---|---|
 | 1 | `MUTUALS`, default de WhatsApp, `user_follows`, `user_blocks` | ☐ | ☐ |
 | 2 | Columnas del perfil en `users` (bio, serate, escuela, ciudad, país, foto) | ☐ | ☐ |
+| 3 | `looking_for_partner` en `event_attendance` | ☐ | ☐ |
 
 ---
 
@@ -171,3 +172,22 @@ COMMIT;
 
 Antes del rollback, si alguien subió una foto propia, `avatar_url` apunta a ella (bucket de logos, `avatars/`):
 sigue funcionando, pero el login la pisará con la de Google como antes.
+
+---
+
+## Fase 3 — «Cerco qualcuno con cui ballare»
+
+Una columna con default en `event_attendance`: los «Ci vado» que ya existen quedan con `false`.
+
+```sql
+-- Antes: la columna no existe → 0 filas
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'event_attendance' AND column_name = 'looking_for_partner';
+
+ALTER TABLE event_attendance ADD COLUMN looking_for_partner BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Después: todos en false → una fila: false | <total>
+SELECT looking_for_partner, count(*) FROM event_attendance GROUP BY 1;
+```
+
+Rollback: `ALTER TABLE event_attendance DROP COLUMN looking_for_partner;`

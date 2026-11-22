@@ -365,6 +365,7 @@ CREATE INDEX idx_favorites_event ON favorites(event_id);
 CREATE TABLE event_attendance (
     user_id    UUID NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    looking_for_partner BOOLEAN NOT NULL DEFAULT FALSE,   -- «Cerco qualcuno con cui ballare» (social fase 3)
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, event_id)
 );

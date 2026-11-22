@@ -6,6 +6,7 @@ import com.kryptosystems.ballastasera.enums.DanceRole;
 import com.kryptosystems.ballastasera.enums.Gender;
 import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.models.dtos.ProfileActivity;
 import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
@@ -13,12 +14,15 @@ import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
+import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.UserDanceStyles;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +33,7 @@ class UserMapperTest {
     private static final UUID VIEWER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final String WHATSAPP = "+393331234567";
     private static final SocialCounts NO_COUNTS = new SocialCounts(0, 0, 0);
+    private static final ProfileActivity NO_ACTIVITY = new ProfileActivity(List.of(), 0, 0, null, false);
 
     private final UserMapper mapper = Mappers.getMapper(UserMapper.class);
 
@@ -37,7 +42,7 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.NOBODY);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isNull();
     }
 
     @Test
@@ -45,7 +50,7 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.EVERYONE);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isEqualTo(WHATSAPP);
     }
 
     @Test
@@ -53,7 +58,7 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.NOBODY);
 
-        assertThat(mapper.toProfileDto(user, OWNER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, OWNER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isEqualTo(WHATSAPP);
     }
 
     /** «Solo amici»: lo ve quien se sigue con el dueño en los dos sentidos, no quien solo lo sigue. */
@@ -62,10 +67,10 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.MUTUALS);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.FOLLOWING, NO_COUNTS).getWhatsapp()).isNull();
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.FOLLOWED_BY, NO_COUNTS).getWhatsapp()).isNull();
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.FOLLOWING, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.FOLLOWED_BY, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isNull();
     }
 
     /** Con 17 años no lo ve nadie aunque haya elegido EVERYONE o sean amigos. Él sí ve el suyo. */
@@ -75,8 +80,8 @@ class UserMapperTest {
         user.setBirthDate(LocalDate.now().minusYears(17));
         user.setWhatsappVisibility(ContactVisibility.EVERYONE);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, NO_COUNTS).getWhatsapp()).isNull();
-        assertThat(mapper.toProfileDto(user, OWNER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, OWNER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isEqualTo(WHATSAPP);
     }
 
     /** El dia que cumple 18 ya cuenta como adulto. */
@@ -86,17 +91,43 @@ class UserMapperTest {
         user.setBirthDate(LocalDate.now().minusYears(18));
         user.setWhatsappVisibility(ContactVisibility.EVERYONE);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isEqualTo(WHATSAPP);
     }
 
     @Test
     void profileDtoCarriesTheRelationAndTheCounters() {
-        UserProfileDto dto = mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.FOLLOWED_BY, new SocialCounts(12, 7, 30));
+        UserProfileDto dto = mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.FOLLOWED_BY, new SocialCounts(12, 7, 30), NO_ACTIVITY);
 
         assertThat(dto.getRelation()).isEqualTo(SocialRelation.FOLLOWED_BY);
         assertThat(dto.getFollowersCount()).isEqualTo(12);
         assertThat(dto.getFollowingCount()).isEqualTo(7);
         assertThat(dto.getEventsCount()).isEqualTo(30);
+    }
+
+    /** Los amigos en comun salen como amigos de quien mira (MUTUAL), y la ultima serata juntos en campos planos. */
+    @Test
+    void profileDtoCarriesWhatTheyHaveInCommon() {
+        Users sara = new Users();
+        sara.setId(UUID.randomUUID());
+        sara.setDisplayName("Sara");
+        Events lastNight = new Events();
+        lastNight.setId(UUID.randomUUID());
+        lastNight.setTitle("Bachata al Tropical");
+        lastNight.setStartAt(OffsetDateTime.parse("2026-11-20T21:00:00+01:00"));
+        ProfileActivity activity = new ProfileActivity(List.of(sara), 4, 2, lastNight, true);
+
+        UserProfileDto dto = mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.NONE, NO_COUNTS, activity);
+
+        assertThat(dto.getMutualFriends()).singleElement().satisfies(friend -> {
+            assertThat(friend.getDisplayName()).isEqualTo("Sara");
+            assertThat(friend.getRelation()).isEqualTo(SocialRelation.MUTUAL);
+        });
+        assertThat(dto.getMutualFriendsCount()).isEqualTo(4);
+        assertThat(dto.getEventsTogetherCount()).isEqualTo(2);
+        assertThat(dto.getLastEventTogetherId()).isEqualTo(lastNight.getId());
+        assertThat(dto.getLastEventTogetherTitle()).isEqualTo("Bachata al Tropical");
+        assertThat(dto.getLastEventTogetherStartAt()).isEqualTo(lastNight.getStartAt());
+        assertThat(dto.isLookingForPartnerToday()).isTrue();
     }
 
     @Test
@@ -118,7 +149,7 @@ class UserMapperTest {
         Users user = user();
         user.setBirthDate(LocalDate.now().minusYears(31).plusDays(1));
 
-        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS);
+        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY);
 
         assertThat(dto.getAge()).isEqualTo(30);
         assertThat(dto.getUserId()).isEqualTo(OWNER_ID);
@@ -128,7 +159,7 @@ class UserMapperTest {
 
     @Test
     void profileDtoWithoutBirthDateHasNoAge() {
-        assertThat(mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getAge()).isNull();
+        assertThat(mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY).getAge()).isNull();
     }
 
     @Test
@@ -136,7 +167,7 @@ class UserMapperTest {
         Users user = user();
         user.getDanceStyles().add(userStyle(user, DanceLevel.ADVANCED));
 
-        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS);
+        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS, NO_ACTIVITY);
 
         assertThat(dto.getDanceStyles()).singleElement().satisfies(style -> {
             assertThat(style.getDanceStyleId()).isEqualTo(1L);

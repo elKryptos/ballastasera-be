@@ -17,6 +17,7 @@ import com.kryptosystems.ballastasera.services.manager.UsersService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,7 @@ public class UsersController {
     private static final String MY_AVATAR = "/me/avatar";
     private static final String MY_AVATAR_SOURCE = "/me/avatar/source";
     private static final String USER_PROFILE = "/{id}";
+    private static final String USER_ATTENDANCE = "/{id}/attendance";
     private static final String FOLLOW = "/{id}/follow";
     private static final String BLOCK = "/{id}/block";
 
@@ -65,14 +67,33 @@ public class UsersController {
 
     /** Requiere estar autenticado. Perfil de un usuario (ej. desde la lista de "parteciperò"):
      * 404 si es privado, borrado, baneado o hay un bloqueo, salvo que sea el propio.
-     * Suma la relacion con quien mira (boton Segui / Ricambia / Amici) y los contadores. */
+     * Suma la relacion con quien mira (boton Segui / Ricambia / Amici), los contadores, «Avete in comune»
+     * y el pallino «Cerco qualcuno». */
     @GetMapping(USER_PROFILE)
     public ResponseEntity<UserProfileDto> getUserProfile(@AuthenticationPrincipal UserPrincipal principal,
                                                          @PathVariable UUID id) {
         var user = usersService.findPublicProfile(principal.getId(), id);
         var relation = followsService.findRelation(principal.getId(), id);
         var counts = followsService.countSocial(id);
-        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId(), relation, counts));
+        var activity = userActivityService.findProfileActivity(principal.getId(), user, relation);
+        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId(), relation, counts, activity));
+    }
+
+    /** Requiere estar autenticado. «Le sue prossime serate» (past=true: las pasadas), mismo orden y cursor que
+     * /me/attendance. 404 si el perfil no se puede ver. Si eligio que quien mira no vea sus serate: lista vacia. */
+    @GetMapping(USER_ATTENDANCE)
+    public ResponseEntity<CursorPageDto<EventCardDto>> findUserAttendance(@AuthenticationPrincipal UserPrincipal principal,
+                                                                         @PathVariable UUID id,
+                                                                         @RequestParam(defaultValue = "false") boolean past,
+                                                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                         @RequestParam(required = false) UUID cursorId,
+                                                                         @RequestParam(defaultValue = "20") int limit) {
+        if (!userActivityService.canSeeAttendanceOf(principal.getId(), id)) {
+            return ResponseEntity.ok(eventsMapper.toEventCardCursorPage(new SliceImpl<>(List.of()), 0));
+        }
+        var events = userActivityService.findMyAttendance(id, past, cursorStartAt, cursorId, limit);
+        var total = userActivityService.countMyAttendance(id, past);
+        return ResponseEntity.ok(eventsMapper.toEventCardCursorPage(events, total));
     }
 
     /** Requiere estar autenticado. Seguir. Idempotente. 400 si es uno mismo; 404 si el perfil no se puede ver. */

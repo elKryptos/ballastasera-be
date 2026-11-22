@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.models.dtos;
 
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,4 +18,8 @@ public class AttendeeDto {
     private String displayName;
     private String avatarUrl;
     private String instagram;
+    /** «Cerco qualcuno con cui ballare» en esta serata. */
+    private boolean lookingForPartner;
+    /** Relacion de quien mira con esta persona. null sin login (la lista es publica). */
+    private SocialRelation relation;
 }

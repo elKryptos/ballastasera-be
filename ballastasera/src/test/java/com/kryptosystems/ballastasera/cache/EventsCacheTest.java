@@ -49,7 +49,7 @@ import static org.mockito.Mockito.*;
  */
 @SpringJUnitConfig
 @MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class,
-        DanceStylesRepository.class, UserBlocksRepository.class,
+        DanceStylesRepository.class, UserBlocksRepository.class, UserFollowsRepository.class,
         EventResolverService.class, ObjectStorageService.class, WebpConverterService.class, GeocodingService.class,
         EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class,
         UserMapper.class})
@@ -222,7 +222,7 @@ class EventsCacheTest {
                 write("flyer convertAndPublish", t -> t.eventFlyerProcessingService.convertAndPublish(EVENT_ID, JPEG_BYTES)),
                 write("favorite add", t -> t.favoritesService.addFavorite(USER_ID, EVENT_ID)),
                 write("favorite remove", t -> t.favoritesService.removeFavorite(USER_ID, EVENT_ID)),
-                write("attendance add", t -> t.eventAttendanceService.addAttendance(USER_ID, EVENT_ID)),
+                write("attendance add", t -> t.eventAttendanceService.addAttendance(USER_ID, EVENT_ID, null)),
                 write("attendance remove", t -> t.eventAttendanceService.removeAttendance(USER_ID, EVENT_ID)));
     }
 

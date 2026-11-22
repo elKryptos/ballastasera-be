@@ -266,7 +266,9 @@ card del mapa ni el detalle con datos de usuarios.
 
 **Query params**: `page` (default `0`), `size` (default `20`).
 
-**Respuesta** — `Page<AttendeeDto>`, cada item con `userId`, `displayName`, `avatarUrl`, `instagram`.
+**Respuesta** — `Page<AttendeeDto>`, cada item con `userId`, `displayName`, `avatarUrl`, `instagram`,
+`lookingForPartner` («Cerco qualcuno con cui ballare» en esta serata) y `relation` (con login, la relación
+de quien mira con esa persona; `null` sin login).
 
 `404` si el evento no existe.
 
@@ -274,16 +276,29 @@ card del mapa ni el detalle con datos de usuarios.
 
 ### `POST /api/events/{id}/attendance` — requiere login
 
-Marca "voy" o "me interesa". Es un **upsert**: si el usuario ya tenía un registro para ese evento, se
-actualiza el `status`; si no, se crea.
+Marca «Ci vado». Idempotente: si ya iba, no suma otra vez a `goingCount`.
 
-**Body**:
+**Body** opcional:
 
 ```json
-{ "status": "GOING" }
+{ "lookingForPartner": true }
 ```
 
-`status` ∈ `GOING | INTERESTED`. `204 No Content` en éxito. `404` si el evento no existe.
+- Sin body o con `lookingForPartner: null`: la marca no cambia (`false` al crear, la que tenía si ya iba).
+- Con `true`/`false`: la pone o la quita, vaya ya o no.
+
+`204 No Content` en éxito. `404` si el evento no existe.
+
+### `GET /api/events/{id}/attendance/me` — requiere login
+
+`{ "going": true, "lookingForPartner": false }`: si el usuario dijo «Ci vado» y si marcó «Cerco qualcuno».
+`GET /events/{id}/going` sigue devolviendo solo `true`/`false`.
+
+### `GET /api/events/{id}/friends-going` — requiere login
+
+`List<UserSummaryDto>` con los amigos de quien mira que van (`relation = MUTUAL`), para «Sara e Luca ci
+vanno». Mismo filtro que «Chi ci va»; no salen los que eligieron que nadie vea sus serate. Fuera de la cache
+del detalle porque depende de quien mira. `404` si el evento no existe.
 
 ---
 
@@ -453,6 +468,20 @@ Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de
 - `404` si el perfil es privado (`showProfilePublic = false`), está borrado, baneado o hay un bloqueo en
   cualquier sentido, salvo que lo pida el propio usuario. Mismo `404` en todos los casos: no se revela el bloqueo.
 - Sin token → `401`.
+
+Desde la fase 3 trae «Avete in comune» y el pallino, en campos planos:
+- `mutualFriends` (hasta 3 `UserSummaryDto`, en orden alfabético, `relation = MUTUAL`) y `mutualFriendsCount`.
+- `eventsTogetherCount` (serate ya pasadas a las que fueron los dos), `lastEventTogetherId`,
+  `lastEventTogetherTitle`, `lastEventTogetherStartAt`. `0`/`null` si quien mira no puede ver sus serate.
+- `lookingForPartnerToday`: marcó «Cerco qualcuno» en una serata en curso o de las próximas 24 horas. Solo si
+  quien mira puede ver sus serate.
+- En el propio perfil, los amigos en común y las serate juntos vienen vacíos.
+
+### `GET /users/{id}/attendance?past=&cursorStartAt=&cursorId=&limit=` — requiere login
+
+«Le sue prossime serate» (`past=true`: las pasadas). Mismo orden, cursor y `CursorPage<EventCardDto>` que
+`/users/me/attendance`. `404` si el perfil no se puede ver. Si eligió que quien mira no vea sus serate
+(`attendanceVisibility`), lista vacía con `total = 0`.
 
 Desde la fase 2 también trae `bio`, `schoolOrganizerId`/`schoolName`/`schoolSlug` (enlazada: id, nombre y
 slug del organizer; escrita a mano: solo `schoolName`), `originCountry` y `homeCityName` (solo el nombre, y

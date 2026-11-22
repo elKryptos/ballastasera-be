@@ -13,13 +13,13 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | 0 | Rate limit en todas las APIs | [~] BE hecho con tests (22/11), falta el aviso en el FE |
 | 1 | Seguir + bloquear | [~] BE hecho con tests (22/11), falta el FE |
 | 2 | Perfil: bio, ciudad, escuela, foto propia | [~] BE hecho con tests (22/11), falta el FE |
-| 3 | Serate de otra persona y «Avete in comune» | [ ] |
+| 3 | Serate de otra persona y «Avete in comune» | [~] BE hecho con tests (22/11), falta el FE |
 | 4 | Denuncias, ban, silenciar | [ ] |
 | 5 | Pestaña Amici: feed y sugerencias | [ ] |
 | 6 | Avisos (campanita + email) e invitaciones | [ ] |
 | 7 | Traguardi y @username | [ ] |
 
-**Siguiente paso:** fase 3 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
+**Siguiente paso:** fase 4 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
 va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
@@ -119,12 +119,13 @@ Canvas 4b: bio, quién ve tus serate, escuela, ciudad y país de origen, foto pr
 
 ### Fase 3 — En común
 Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci vanno».
-- [ ] `GET /rest/users/{id}/attendance` (respeta visibilidad y bloqueos)
-- [ ] `GET /rest/users/{id}` suma `inCommon`: hasta 3 amigos en común con el total, serate juntos y la última
-- [ ] `GET /rest/events/{id}/friends-going` (fuera de la cache)
-- [ ] «Cerco qualcuno»: columna `looking_for_partner` en `event_attendance`; `POST /attendance` la acepta
-- [ ] `AttendeeDto` suma `relation` y `lookingForPartner` (sin login, `relation` null)
-- [ ] Tests de integración
+- [x] `GET /rest/users/{id}/attendance` (respeta visibilidad y bloqueos; si no se pueden ver, lista vacía)
+- [x] `GET /rest/users/{id}` suma «Avete in comune» en campos planos: hasta 3 amigos en común con el total, serate pasadas juntos y la última (solo si sus serate son visibles para quien mira)
+- [x] `GET /rest/events/{id}/friends-going` (fuera de la cache)
+- [x] «Cerco qualcuno»: columna `looking_for_partner` en `event_attendance`; `POST /attendance` acepta `{ lookingForPartner }` opcional (sin body no cambia) y `GET /events/{id}/attendance/me` → `{ going, lookingForPartner }`
+- [x] Pallino del perfil `lookingForPartnerToday`: serata en curso o de las próximas 24 horas
+- [x] `AttendeeDto` suma `relation` y `lookingForPartner` (sin login, `relation` null)
+- [x] Tests de integración (SQL en `social-prod-db.md`; dev ☐)
 - [ ] FE canvas 4c
 
 ### Fase 4 — Denuncias, ban, silenciar

@@ -2,12 +2,17 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.config.RedisCacheConfig;
 import com.kryptosystems.ballastasera.enums.ContactVisibility;
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.AttendeeDto;
+import com.kryptosystems.ballastasera.models.dtos.EventAttendanceStatusDto;
+import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
 import com.kryptosystems.ballastasera.models.mappers.AttendeeMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
+import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import jakarta.persistence.EntityNotFoundException;
@@ -19,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -34,7 +41,9 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
     private final UsersRepository usersRepository;
+    private final UserFollowsRepository userFollowsRepository;
     private final AttendeeMapper attendeeMapper;
+    private final UserMapper userMapper;
 
     @Override
     public List<EventAttendance> findByUserId(UUID userId) {
@@ -63,29 +72,69 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
         }
 
         UUID viewer = viewerId != null ? viewerId : ANONYMOUS_VIEWER;
-        return eventAttendanceRepository.findPublicByEventId(eventId, viewer,
-                        ContactVisibility.EVERYONE, ContactVisibility.MUTUALS, pageable)
-                .map(ea -> attendeeMapper.toDto(ea.getUser()));
+        Page<EventAttendance> page = eventAttendanceRepository.findPublicByEventId(eventId, viewer,
+                ContactVisibility.EVERYONE, ContactVisibility.MUTUALS, pageable);
+        if (viewerId == null) {
+            return page.map(ea -> attendeeMapper.toDto(ea, null));
+        }
+
+        // Relacion de cada fila con dos queries para toda la pagina (sin N+1)
+        List<UUID> ids = page.getContent().stream().map(ea -> ea.getUser().getId()).toList();
+        Set<UUID> viewerFollows = ids.isEmpty() ? Set.of() : userFollowsRepository.findFollowedIdsAmong(viewerId, ids);
+        Set<UUID> followViewer = ids.isEmpty() ? Set.of() : userFollowsRepository.findFollowerIdsAmong(viewerId, ids);
+        return page.map(ea -> {
+            UUID attendeeId = ea.getUser().getId();
+            SocialRelation relation = SocialRelation.of(viewerFollows.contains(attendeeId), followViewer.contains(attendeeId));
+            return attendeeMapper.toDto(ea, relation);
+        });
     }
 
+    /** Sin save() cuando ya iba: la fila esta "managed" en la transaccion y el cambio se guarda al commit. */
     @Override
     @Transactional
     @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
-    public void addAttendance(UUID userId, UUID eventId) {
+    public void addAttendance(UUID userId, UUID eventId, Boolean lookingForPartner) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
         UserEventId id = new UserEventId();
         id.setUserId(userId);
         id.setEventId(eventId);
-        if (eventAttendanceRepository.existsById(id)) {
+        Optional<EventAttendance> existing = eventAttendanceRepository.findById(id);
+        if (existing.isPresent()) {
+            if (lookingForPartner != null) {
+                existing.get().setLookingForPartner(lookingForPartner);
+            }
             return;
         }
         EventAttendance attendance = new EventAttendance();
         attendance.setUser(usersRepository.getReferenceById(userId));
         attendance.setEvent(eventsRepository.getReferenceById(eventId));
+        attendance.setLookingForPartner(Boolean.TRUE.equals(lookingForPartner));
         eventAttendanceRepository.save(attendance);
         eventsRepository.incrementGoingCount(eventId);
+    }
+
+    @Override
+    public EventAttendanceStatusDto findMyAttendanceStatus(UUID userId, UUID eventId) {
+        UserEventId id = new UserEventId();
+        id.setUserId(userId);
+        id.setEventId(eventId);
+        Optional<EventAttendance> attendance = eventAttendanceRepository.findById(id);
+        EventAttendanceStatusDto dto = new EventAttendanceStatusDto();
+        dto.setGoing(attendance.isPresent());
+        dto.setLookingForPartner(attendance.map(EventAttendance::isLookingForPartner).orElse(false));
+        return dto;
+    }
+
+    @Override
+    public List<UserSummaryDto> findFriendsGoing(UUID viewerId, UUID eventId) {
+        if (!eventsRepository.existsById(eventId)) {
+            throw new EntityNotFoundException("Event not found with id " + eventId);
+        }
+        return eventAttendanceRepository.findFriendsGoing(eventId, viewerId, ContactVisibility.NOBODY).stream()
+                .map(friend -> userMapper.toSummaryDto(friend, SocialRelation.MUTUAL))
+                .toList();
     }
 
     @Override
