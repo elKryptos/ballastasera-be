@@ -24,6 +24,35 @@ asistencia o editar el perfil sí.
 `BackendErrorResponse` traduce `EntityNotFoundException` → `404` y `AccessDeniedException` → `403`
 con un `ErrorDetails` JSON en vez del `500` por defecto de Spring.
 
+### Rate limit
+
+`RateLimitFilter` (en la cadena de Security, después del JWT) limita las requests con Bucket4j sobre el
+mismo Redis de la cache. Cuenta por usuario si hay login y por IP si no. Pasado el límite responde:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 12
+Content-Type: application/json
+
+{ "timestamp": "...", "message": "Too many requests", "path": "/rest/events",
+  "details": "Rate limit exceeded, retry in 12 seconds", "status": "TOO_MANY_REQUESTS",
+  "errors": { "code": "RATE_LIMITED" } }
+```
+
+| Grupo | Qué cuenta | Límite (default) |
+|---|---|---|
+| `READ` | `GET` y `HEAD` | 120/min |
+| `WRITE` | el resto de `POST`/`PATCH`/`PUT`/`DELETE` | 60/min |
+| `AUTH` | `/oauth2/**`, `/login/**` (siempre por IP) | 20/min |
+| `SOCIAL` | escribir en `/rest/users/{id}/follow`, `/block`, `/report`, `/invites` | 30/min y 300/día |
+| `UPLOAD` | requests multipart (flyer, logo, avatar) | 10/hora |
+
+- No cuentan los `OPTIONS` (preflight de CORS) ni `/rest/health`.
+- Los límites se cambian con variables de entorno (`RATE_LIMIT_READ_PER_MINUTE`, etc., en
+  `application.properties`), y `RATE_LIMIT_ENABLED=false` lo apaga.
+- Si Redis no responde, la request pasa: un Redis caído no tumba la API.
+- `Retry-After` no está en los headers expuestos por CORS: el FE ve el `429` y el `code`, no los segundos.
+
 ---
 
 ## 2. Modelo de datos (resumen relevante para la API)
