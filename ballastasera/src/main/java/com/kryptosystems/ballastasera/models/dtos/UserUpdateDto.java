@@ -38,7 +38,7 @@ public class UserUpdateDto {
     @Pattern(regexp = "^$|^\\+[1-9]\\d{6,14}$", message = "whatsapp must be in E.164 format, e.g. +393331234567")
     private String whatsapp;
 
-    /** Null se guarda como EVERYONE (defaultValue en UserMapper, igual que el DEFAULT de la DB).
+    /** Null se guarda como MUTUALS, solo amigos (defaultValue en UserMapper, igual que el DEFAULT de la DB).
      * Quien no quiere mostrarlo manda NOBODY. */
     private ContactVisibility whatsappVisibility;
 

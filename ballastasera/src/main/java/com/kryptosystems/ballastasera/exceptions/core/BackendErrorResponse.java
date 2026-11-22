@@ -342,6 +342,21 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
 
+    /** Seguirse o bloquearse a uno mismo. code para que el frontend traduzca el mensaje. */
+    @ExceptionHandler(SocialActionException.class)
+    public ResponseEntity<ErrorDetails> handleSocialAction(SocialActionException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Social action not allowed",
+                HttpStatus.BAD_REQUEST,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
     /** @Version (hoy solo OrganizerRequests): otra petición la modificó entre la lectura y el commit. Salta
      * en el commit, fuera del servicio, por eso se traduce aquí. Mismo formato que los otros 409 con code. */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)

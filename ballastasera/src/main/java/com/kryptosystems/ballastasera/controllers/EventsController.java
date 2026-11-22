@@ -117,12 +117,15 @@ public class EventsController {
 
     /** Público. Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
-     * de esta lista y siempre incluye a todos, con o sin opt-in. */
+     * de esta lista y siempre incluye a todos, con o sin opt-in.
+     * Con login no salen las personas con las que hay un bloqueo (principal es null sin login). */
     @GetMapping(GET_ATTENDEES)
     public ResponseEntity<Page<AttendeeDto>> getAttendees(@PathVariable UUID id,
+                                                          @AuthenticationPrincipal UserPrincipal principal,
                                                           @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(eventAttendanceService.findPublicAttendees(id, PageRequest.of(page, size)));
+        UUID viewerId = principal != null ? principal.getId() : null;
+        return ResponseEntity.ok(eventAttendanceService.findPublicAttendees(id, viewerId, PageRequest.of(page, size)));
     }
 
     /** Requiere estar autenticado. Marca "voy" al evento. Idempotente. +1 in Events dbtable */

@@ -26,6 +26,10 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
 
     private static final int AVATAR_PREVIEW_LIMIT = 3;
 
+    /** «Chi ci va» sin login: un id que no es de nadie, asi la query de bloqueos no excluye a nadie.
+     * Evita pasar null a la query (Postgres no sabe el tipo de un parametro null). */
+    static final UUID ANONYMOUS_VIEWER = new UUID(0L, 0L);
+
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
     private final UsersRepository usersRepository;
@@ -52,12 +56,13 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
     }
 
     @Override
-    public Page<AttendeeDto> findPublicAttendees(UUID eventId, Pageable pageable) {
+    public Page<AttendeeDto> findPublicAttendees(UUID eventId, UUID viewerId, Pageable pageable) {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
 
-        return eventAttendanceRepository.findPublicByEventId(eventId, pageable)
+        UUID viewer = viewerId != null ? viewerId : ANONYMOUS_VIEWER;
+        return eventAttendanceRepository.findPublicByEventId(eventId, viewer, pageable)
                 .map(ea -> attendeeMapper.toDto(ea.getUser()));
     }
 

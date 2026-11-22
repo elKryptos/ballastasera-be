@@ -27,6 +27,8 @@ cuidado y el orden que tiene que seguir el servicio. Revisar contra el código a
 | `favorites.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` en `Users`) | Se borran | No, si antes se restan los contadores (ya lo hace `deleteById`) |
 | `event_attendance.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` en `Users`) | Se borran | Igual que favoritos |
 | `user_dance_styles.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` + `orphanRemoval` en `Users`) | Se borran sus estilos | No (añadida el 16/11/2026) |
+| `user_follows.follower_id` / `followed_id` | `ON DELETE CASCADE` | Se borran sus follows en los dos sentidos | No (social fase 1, 22/11/2026). Con soft delete las listas y contadores ya lo esconden (filtran `is_deleted`), pero las filas se borran a mano para el RGPD |
+| `user_blocks.blocker_id` / `blocked_id` | `ON DELETE CASCADE` | Se borran sus bloqueos | No (social fase 1). Con soft delete, borrarlos a mano |
 
 `events`, `event_series` y `revoked_tokens` no tienen FK a `users`.
 

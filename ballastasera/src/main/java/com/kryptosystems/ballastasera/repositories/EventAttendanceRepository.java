@@ -25,19 +25,29 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
      * Solo quienes van, activaron show_profile_public y no estan borrados ni baneados
      * (mismo filtro que el perfil de GET /users/{id}, si no la lista enlaza a perfiles que dan 404).
      * El conteo total de "van" (arriba) es independiente y siempre incluye a todos.
+     * Sin quien tenga un bloqueo con viewerId en cualquier sentido. Sin login, viewerId es
+     * EventAttendanceServiceImpl.ANONYMOUS_VIEWER, que no tiene bloqueos.
      */
     @Query(value = """
             SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u
             WHERE ea.event.id = :eventId AND u.showProfilePublic = true
             AND u.isDeleted = false AND u.isBanned = false
+            AND NOT EXISTS (SELECT 1 FROM UserBlocks b
+                WHERE (b.id.blockerId = :viewerId AND b.id.blockedId = u.id)
+                   OR (b.id.blockerId = u.id AND b.id.blockedId = :viewerId))
             ORDER BY ea.createdAt ASC
             """,
             countQuery = """
             SELECT COUNT(ea) FROM EventAttendance ea JOIN ea.user u
             WHERE ea.event.id = :eventId AND u.showProfilePublic = true
             AND u.isDeleted = false AND u.isBanned = false
+            AND NOT EXISTS (SELECT 1 FROM UserBlocks b
+                WHERE (b.id.blockerId = :viewerId AND b.id.blockedId = u.id)
+                   OR (b.id.blockerId = u.id AND b.id.blockedId = :viewerId))
             """)
-    Page<EventAttendance> findPublicByEventId(@Param("eventId") UUID eventId, Pageable pageable);
+    Page<EventAttendance> findPublicByEventId(@Param("eventId") UUID eventId,
+                                              @Param("viewerId") UUID viewerId,
+                                              Pageable pageable);
 
     /** Ids de los eventos a los que el usuario marco "voy", para /me/attendance:
      * solo publicados y en curso o futuros, los mas cercanos primero.

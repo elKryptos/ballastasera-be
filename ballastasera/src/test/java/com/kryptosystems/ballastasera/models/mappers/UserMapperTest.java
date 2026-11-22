@@ -4,10 +4,13 @@ import com.kryptosystems.ballastasera.enums.ContactVisibility;
 import com.kryptosystems.ballastasera.enums.DanceLevel;
 import com.kryptosystems.ballastasera.enums.DanceRole;
 import com.kryptosystems.ballastasera.enums.Gender;
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
+import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
 import com.kryptosystems.ballastasera.models.entities.UserDanceStyles;
@@ -25,6 +28,7 @@ class UserMapperTest {
     private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID VIEWER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final String WHATSAPP = "+393331234567";
+    private static final SocialCounts NO_COUNTS = new SocialCounts(0, 0, 0);
 
     private final UserMapper mapper = Mappers.getMapper(UserMapper.class);
 
@@ -33,7 +37,7 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.NOBODY);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isNull();
     }
 
     @Test
@@ -41,7 +45,7 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.EVERYONE);
 
-        assertThat(mapper.toProfileDto(user, VIEWER_ID).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
     }
 
     @Test
@@ -49,7 +53,63 @@ class UserMapperTest {
         Users user = user();
         user.setWhatsappVisibility(ContactVisibility.NOBODY);
 
-        assertThat(mapper.toProfileDto(user, OWNER_ID).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, OWNER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+    }
+
+    /** «Solo amici»: lo ve quien se sigue con el dueño en los dos sentidos, no quien solo lo sigue. */
+    @Test
+    void profileDtoShowsAMutualsWhatsappOnlyToFriends() {
+        Users user = user();
+        user.setWhatsappVisibility(ContactVisibility.MUTUALS);
+
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.FOLLOWING, NO_COUNTS).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.FOLLOWED_BY, NO_COUNTS).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isNull();
+    }
+
+    /** Con 17 años no lo ve nadie aunque haya elegido EVERYONE o sean amigos. Él sí ve el suyo. */
+    @Test
+    void profileDtoNeverShowsAMinorsWhatsappToOthers() {
+        Users user = user();
+        user.setBirthDate(LocalDate.now().minusYears(17));
+        user.setWhatsappVisibility(ContactVisibility.EVERYONE);
+
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, NO_COUNTS).getWhatsapp()).isNull();
+        assertThat(mapper.toProfileDto(user, OWNER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+    }
+
+    /** El dia que cumple 18 ya cuenta como adulto. */
+    @Test
+    void profileDtoShowsTheWhatsappFromTheEighteenthBirthday() {
+        Users user = user();
+        user.setBirthDate(LocalDate.now().minusYears(18));
+        user.setWhatsappVisibility(ContactVisibility.EVERYONE);
+
+        assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getWhatsapp()).isEqualTo(WHATSAPP);
+    }
+
+    @Test
+    void profileDtoCarriesTheRelationAndTheCounters() {
+        UserProfileDto dto = mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.FOLLOWED_BY, new SocialCounts(12, 7, 30));
+
+        assertThat(dto.getRelation()).isEqualTo(SocialRelation.FOLLOWED_BY);
+        assertThat(dto.getFollowersCount()).isEqualTo(12);
+        assertThat(dto.getFollowingCount()).isEqualTo(7);
+        assertThat(dto.getEventsCount()).isEqualTo(30);
+    }
+
+    @Test
+    void summaryDtoCarriesIdNameAvatarAndRelation() {
+        Users user = user();
+        user.setAvatarUrl("https://example.com/ana.jpg");
+
+        UserSummaryDto dto = mapper.toSummaryDto(user, SocialRelation.MUTUAL);
+
+        assertThat(dto.getUserId()).isEqualTo(OWNER_ID);
+        assertThat(dto.getDisplayName()).isEqualTo("Ana");
+        assertThat(dto.getAvatarUrl()).isEqualTo("https://example.com/ana.jpg");
+        assertThat(dto.getRelation()).isEqualTo(SocialRelation.MUTUAL);
     }
 
     /** El dia antes de cumplir 31 todavia tiene 30. */
@@ -58,7 +118,7 @@ class UserMapperTest {
         Users user = user();
         user.setBirthDate(LocalDate.now().minusYears(31).plusDays(1));
 
-        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID);
+        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS);
 
         assertThat(dto.getAge()).isEqualTo(30);
         assertThat(dto.getUserId()).isEqualTo(OWNER_ID);
@@ -68,7 +128,7 @@ class UserMapperTest {
 
     @Test
     void profileDtoWithoutBirthDateHasNoAge() {
-        assertThat(mapper.toProfileDto(user(), VIEWER_ID).getAge()).isNull();
+        assertThat(mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.NONE, NO_COUNTS).getAge()).isNull();
     }
 
     @Test
@@ -76,7 +136,7 @@ class UserMapperTest {
         Users user = user();
         user.getDanceStyles().add(userStyle(user, DanceLevel.ADVANCED));
 
-        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID);
+        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, NO_COUNTS);
 
         assertThat(dto.getDanceStyles()).singleElement().satisfies(style -> {
             assertThat(style.getDanceStyleId()).isEqualTo(1L);
@@ -96,12 +156,12 @@ class UserMapperTest {
         UserDto dto = mapper.toDto(user);
 
         assertThat(dto.getWhatsapp()).isEqualTo(WHATSAPP);
-        assertThat(dto.getWhatsappVisibility()).isEqualTo(ContactVisibility.EVERYONE);
+        assertThat(dto.getWhatsappVisibility()).isEqualTo(ContactVisibility.MUTUALS);
         assertThat(dto.getBirthDate()).isEqualTo(LocalDate.of(1995, 4, 12));
         assertThat(dto.getDanceStyles()).extracting(UserDanceStyleDto::getName).containsExactly("Salsa");
     }
 
-    /** Reemplazo completo: lo que no viene queda null, whatsappVisibility null queda EVERYONE,
+    /** Reemplazo completo: lo que no viene queda null, whatsappVisibility null queda MUTUALS,
      * y no toca los campos que no son del formulario ni los estilos. */
     @Test
     void updateFromDtoReplacesTheFormFieldsOnly() {
@@ -115,7 +175,7 @@ class UserMapperTest {
         mapper.updateProfileFromDto(dto, user);
 
         assertThat(user.isShowProfilePublic()).isFalse();
-        assertThat(user.getWhatsappVisibility()).isEqualTo(ContactVisibility.EVERYONE);
+        assertThat(user.getWhatsappVisibility()).isEqualTo(ContactVisibility.MUTUALS);
         assertThat(user.getWhatsapp()).isNull();
         assertThat(user.getInstagram()).isNull();
         assertThat(user.getBirthDate()).isNull();

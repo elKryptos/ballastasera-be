@@ -55,7 +55,7 @@ public class Users {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "whatsapp_visibility", nullable = false, columnDefinition = "contact_visibility")
-    private ContactVisibility whatsappVisibility = ContactVisibility.EVERYONE;
+    private ContactVisibility whatsappVisibility = ContactVisibility.MUTUALS;
 
     @Column(name = "birth_date")
     private LocalDate birthDate;

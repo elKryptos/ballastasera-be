@@ -38,7 +38,7 @@ CREATE TYPE organizer_reject_reason  AS ENUM ('INSTAGRAM_NOT_FOUND', 'INCOMPLETE
 CREATE TYPE gender             AS ENUM ('MALE', 'FEMALE', 'OTHER', 'UNDISCLOSED');
 CREATE TYPE dance_role         AS ENUM ('LEADER', 'FOLLOWER', 'BOTH');
 CREATE TYPE dance_level        AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'TEACHER');
-CREATE TYPE contact_visibility AS ENUM ('NOBODY', 'EVERYONE');   -- MUTUALS en la fase 2 (follows)
+CREATE TYPE contact_visibility AS ENUM ('NOBODY', 'EVERYONE', 'MUTUALS');   -- MUTUALS = solo amigos (social fase 1)
 
 
 -- ============================================================================
@@ -71,7 +71,7 @@ CREATE TABLE users (
     avatar_url                  TEXT,
     instagram                   TEXT,
     whatsapp                    TEXT,
-    whatsapp_visibility         contact_visibility NOT NULL DEFAULT 'EVERYONE',
+    whatsapp_visibility         contact_visibility NOT NULL DEFAULT 'MUTUALS',
     birth_date                  DATE,
     gender                      gender,
     dance_role                  dance_role,
@@ -165,6 +165,31 @@ CREATE TABLE user_dance_styles (
     PRIMARY KEY (user_id, dance_style_id)
 );
 CREATE INDEX idx_user_dance_styles_style ON user_dance_styles(dance_style_id);
+
+-- ============================================================================
+--  USER_FOLLOWS — follower segue followed. Amici = si seguono a vicenda
+-- ============================================================================
+CREATE TABLE user_follows (
+    follower_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followed_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (follower_id, followed_id),
+    CHECK (follower_id <> followed_id)
+);
+CREATE INDEX idx_user_follows_followed ON user_follows(followed_id, created_at DESC);
+CREATE INDEX idx_user_follows_follower ON user_follows(follower_id, created_at DESC);
+
+-- ============================================================================
+--  USER_BLOCKS — blocker ha bloccato blocked (vale nei due sensi)
+-- ============================================================================
+CREATE TABLE user_blocks (
+    blocker_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (blocker_id, blocked_id),
+    CHECK (blocker_id <> blocked_id)
+);
+CREATE INDEX idx_user_blocks_blocked ON user_blocks(blocked_id);
 
 -- ============================================================================
 --  EVENT_SERIES — raggruppa eventi ricorrenti ("ogni giovedì salsa al locale X")

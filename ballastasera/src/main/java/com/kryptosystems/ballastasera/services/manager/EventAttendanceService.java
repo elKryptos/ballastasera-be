@@ -15,8 +15,8 @@ public interface EventAttendanceService {
     EventAttendance save(EventAttendance attendance);
     void deleteById(UserEventId id);
 
-    /** Asistentes con status GOING que optaron por mostrar su perfil. */
-    Page<AttendeeDto> findPublicAttendees(UUID eventId, Pageable pageable);
+    /** Asistentes que optaron por mostrar su perfil, sin bloqueos con viewerId (null = sin login). */
+    Page<AttendeeDto> findPublicAttendees(UUID eventId, UUID viewerId, Pageable pageable);
 
     /** Crea o actualiza el "voy"/"me interesa" del usuario logueado para el evento. */
     void addAttendance(UUID userId, UUID eventId);

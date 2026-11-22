@@ -11,7 +11,7 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | Fase | Qué | Estado |
 |---|---|---|
 | 0 | Rate limit en todas las APIs | [~] BE hecho con tests (22/11), falta el aviso en el FE |
-| 1 | Seguir + bloquear | [ ] |
+| 1 | Seguir + bloquear | [~] BE hecho con tests (22/11), falta el FE |
 | 2 | Perfil: bio, ciudad, escuela, foto propia | [ ] |
 | 3 | Serate de otra persona y «Avete in comune» | [ ] |
 | 4 | Denuncias, ban, silenciar | [ ] |
@@ -19,7 +19,8 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | 6 | Avisos (campanita + email) e invitaciones | [ ] |
 | 7 | Traguardi y @username | [ ] |
 
-**Siguiente paso:** aviso de 429 en el FE y después la fase 1.
+**Siguiente paso:** fase 2 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
+va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
 entera contra un Postgres y un Redis reales en Docker, con el esquema de `ballastasera_schema.sql`.
@@ -94,24 +95,26 @@ El usuario no ve nada, salvo «Troppe richieste, riprova tra poco» si abusa.
 
 ### Fase 1 — Seguir + bloquear
 Botón Segui / Ricambia / Amici, listas de amigos, WhatsApp «solo amigos», Blocca.
-- [ ] SQL: `MUTUALS` en `contact_visibility`, tablas `user_follows` y `user_blocks`, default de WhatsApp a `MUTUALS`
-- [ ] `POST`/`DELETE /rest/users/{id}/follow` (idempotentes, no a ti mismo, 404 si es privado o hay bloqueo)
-- [ ] `GET /rest/users/me/followers`, `/me/following`, `/me/friends?q=` (cursor, `UserSummaryDto`)
-- [ ] `POST`/`DELETE /rest/users/{id}/block`, `GET /rest/users/me/blocks`
-- [ ] `GET /rest/users/{id}` y `/auth/me` suman `relation` (`NONE`/`FOLLOWING`/`FOLLOWED_BY`/`MUTUAL`) y contadores
-- [ ] `UserMapper`: WhatsApp entre amigos; menores siempre ocultos
-- [ ] Bloqueos filtrados en perfil, follow, «Chi ci va» y listas
-- [ ] Tests (uno por endpoint que muestra gente) + Postman
+- [x] SQL: `MUTUALS` en `contact_visibility`, tablas `user_follows` y `user_blocks`, default de WhatsApp a `MUTUALS` (`social-prod-db.md`; dev ☐)
+- [x] `POST`/`DELETE /rest/users/{id}/follow` (idempotentes, no a ti mismo, 404 si es privado o hay bloqueo)
+- [x] `GET /rest/users/me/followers`, `/me/following`, `/me/friends?q=` (cursor, `UserSummaryDto`)
+- [x] `POST`/`DELETE /rest/users/{id}/block`, `GET /rest/users/me/blocks`
+- [x] `GET /rest/users/{id}` y `/auth/me` suman `relation` (`NONE`/`FOLLOWING`/`FOLLOWED_BY`/`MUTUAL`) y contadores
+- [x] `UserMapper`: WhatsApp entre amigos; menores siempre ocultos
+- [x] Bloqueos filtrados en perfil, follow, «Chi ci va» y listas
+- [x] Tests de integración (uno por sitio donde un bloqueo esconde a alguien) y del mapper
 - [ ] FE: página `/persona/{id}` (reutiliza `attendee-profile`), botón de follow, contadores, lista de amigos, Blocca
 
 ### Fase 2 — Perfil
-Canvas 4b: bio, quién ve tus serate, escuela, ciudad, foto propia.
-- [ ] **Antes**: `CustomOidcUserService` pisa la foto en cada login. Guardar la de Google aparte y elegir según `avatar_source` (`GOOGLE`/`CUSTOM`/`NONE`)
-- [ ] SQL: `bio`, `attendance_visibility`, `school_organizer_id` + `school_name`, ciudad y país de origen (los de `citta-plan.md`) + `show_home_city`, columnas de avatar
-- [ ] `PATCH /auth/me` y DTOs con los campos nuevos
-- [ ] `PUT`/`DELETE /rest/users/me/avatar`
+Canvas 4b: bio, quién ve tus serate, escuela, ciudad y país de origen, foto propia.
+- [ ] **Antes**: `CustomOidcUserService` pisa la foto en cada login. Guardar la de Google aparte (`google_avatar_url`) y resolver `avatarUrl` según `avatar_source` (`GOOGLE`/`CUSTOM`/`NONE`)
+- [ ] SQL: `bio` (≤ 150), `attendance_visibility` (default `EVERYONE`), `school_organizer_id` + `school_name`, `origin_country`, `home_city`/`home_region`/`home_country`/`home_latitude`/`home_longitude` (los de `citta-plan.md`) + `show_home_city` (default false), columnas de avatar
+- [ ] `PATCH /auth/me` y `UserDto` con los campos nuevos y sus validaciones
+- [ ] `UserProfileDto` suma `bio`, escuela (id, nombre y slug, o el texto libre), `originCountry` y la ciudad solo si `show_home_city`
+- [ ] «Chi ci va» respeta `attendance_visibility`: `NOBODY` no sale, `MUTUALS` solo lo ven sus amigos (sigue contando en `goingCount`)
+- [ ] `PUT /rest/users/me/avatar` (multipart, máx. 5 MB, JPG/PNG/WebP, a S3 como el logo de los organizers) y `DELETE /rest/users/me/avatar` (vuelve a la de Google); «sin foto» con `avatar_source = NONE`
 - [ ] `GET /rest/organizers/schools?q=` para el autocompletado
-- [ ] Tests + Postman · FE canvas 4b
+- [ ] Tests de integración · FE canvas 4b
 
 ### Fase 3 — En común
 Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci vanno».

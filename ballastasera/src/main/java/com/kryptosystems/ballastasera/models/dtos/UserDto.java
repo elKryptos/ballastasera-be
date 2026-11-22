@@ -28,4 +28,7 @@ public class UserDto {
     private Gender gender;
     private DanceRole danceRole;
     private List<UserDanceStyleDto> danceStyles;
+    private long followersCount;
+    private long followingCount;
+    private long eventsCount;
 }

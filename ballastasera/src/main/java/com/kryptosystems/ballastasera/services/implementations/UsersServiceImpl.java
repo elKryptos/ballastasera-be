@@ -37,6 +37,7 @@ public class UsersServiceImpl implements UsersService {
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
     private final OrganizersRepository organizersRepository;
+    private final UserBlocksRepository userBlocksRepository;
 
     @Override
     public List<Users> findAll() {
@@ -119,11 +120,13 @@ public class UsersServiceImpl implements UsersService {
         return user; // sin save(): se guarda al commit, ver javadoc
     }
 
+    /** Con un bloqueo en cualquier sentido da el mismo 404 que un perfil privado: no se revela el bloqueo. */
     @Override
     public Users findPublicProfile(UUID viewerId, UUID userId) {
         Users user = findByIdWithDanceStyles(userId);
         boolean isOwner = userId.equals(viewerId);
-        if (!isOwner && (!user.isShowProfilePublic() || user.isDeleted() || user.isBanned())) {
+        if (!isOwner && (!user.isShowProfilePublic() || user.isDeleted() || user.isBanned()
+                || userBlocksRepository.existsBetween(viewerId, userId))) {
             throw new EntityNotFoundException("User not found with id " + userId);
         }
         return user;

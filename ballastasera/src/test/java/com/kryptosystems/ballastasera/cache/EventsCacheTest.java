@@ -49,7 +49,7 @@ import static org.mockito.Mockito.*;
  */
 @SpringJUnitConfig
 @MockitoBean(types = {EventAttendanceRepository.class, FavoritesRepository.class, CitiesRepository.class,
-        DanceStylesRepository.class,
+        DanceStylesRepository.class, UserBlocksRepository.class,
         EventResolverService.class, ObjectStorageService.class, WebpConverterService.class, GeocodingService.class,
         EmailService.class, AttendeeMapper.class, OrganizerMapper.class, VenuesMapper.class, EventSeriesMapper.class,
         UserMapper.class})

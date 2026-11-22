@@ -16,6 +16,7 @@ import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
+import com.kryptosystems.ballastasera.repositories.UserBlocksRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,9 @@ class UsersServiceImplTest {
 
     @Mock
     private OrganizersRepository organizersRepository;
+
+    @Mock
+    private UserBlocksRepository userBlocksRepository;
 
     @InjectMocks
     private UsersServiceImpl usersService;
@@ -133,7 +137,7 @@ class UsersServiceImplTest {
         verify(organizersRepository, never()).countByUserId(any());
     }
 
-    /** Reemplazo completo del formulario: "" pasa a null y whatsappVisibility null queda EVERYONE. */
+    /** Reemplazo completo del formulario: "" pasa a null y whatsappVisibility null queda MUTUALS. */
     @Test
     void updateProfileCopiesTheFormAndNormalizesEmptyInputs() {
         Users user = user(UserRole.USER);
@@ -152,7 +156,7 @@ class UsersServiceImplTest {
 
         assertThat(updated.getInstagram()).isEqualTo("juan.baila");
         assertThat(updated.getWhatsapp()).isNull();
-        assertThat(updated.getWhatsappVisibility()).isEqualTo(ContactVisibility.EVERYONE);
+        assertThat(updated.getWhatsappVisibility()).isEqualTo(ContactVisibility.MUTUALS);
         assertThat(updated.getBirthDate()).isEqualTo(LocalDate.of(1995, 4, 12));
         assertThat(updated.getGender()).isEqualTo(Gender.MALE);
         assertThat(updated.getDanceRole()).isEqualTo(DanceRole.LEADER);
@@ -262,6 +266,16 @@ class UsersServiceImplTest {
         Users user = user(UserRole.USER);
         user.setDeleted(true);
         when(usersRepository.findByIdWithDanceStyles(USER_ID)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> usersService.findPublicProfile(VIEWER_ID, USER_ID))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    /** Mismo 404 que un perfil privado: no se revela el bloqueo. */
+    @Test
+    void findPublicProfileHidesAUserWithABlockInEitherDirection() {
+        when(usersRepository.findByIdWithDanceStyles(USER_ID)).thenReturn(Optional.of(user(UserRole.USER)));
+        when(userBlocksRepository.existsBetween(VIEWER_ID, USER_ID)).thenReturn(true);
 
         assertThatThrownBy(() -> usersService.findPublicProfile(VIEWER_ID, USER_ID))
                 .isInstanceOf(EntityNotFoundException.class);

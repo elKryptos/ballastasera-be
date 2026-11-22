@@ -5,6 +5,7 @@ import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.JwtService;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
+import com.kryptosystems.ballastasera.services.manager.FollowsService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,12 +34,14 @@ public class AuthController {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final UsersService usersService;
+    private final FollowsService followsService;
     private final UserMapper userMapper;
     private final JwtService jwtService;
 
     @GetMapping(GET_ME)
     public ResponseEntity<UserDto> me(@AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(userMapper.toDto(usersService.findByIdWithDanceStyles(principal.getId())));
+        var user = usersService.findByIdWithDanceStyles(principal.getId());
+        return ResponseEntity.ok(userMapper.toDto(user, followsService.countSocial(principal.getId())));
     }
 
     /** Formulario completo del perfil: reemplaza todos los campos y sincroniza los estilos con su nivel. */
@@ -47,7 +50,8 @@ public class AuthController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UserUpdateDto body
     ) {
-        return ResponseEntity.ok(userMapper.toDto(usersService.updateProfile(principal.getId(), body)));
+        var user = usersService.updateProfile(principal.getId(), body);
+        return ResponseEntity.ok(userMapper.toDto(user, followsService.countSocial(principal.getId())));
     }
 
     /** Requiere estar autenticado. Revoca el JWT actual: no vuelve a ser aceptado aunque no haya expirado. */

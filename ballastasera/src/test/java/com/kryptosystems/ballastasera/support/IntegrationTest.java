@@ -1,17 +1,24 @@
 package com.kryptosystems.ballastasera.support;
 
+import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.repositories.UsersRepository;
+import com.kryptosystems.ballastasera.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
+
+import java.util.UUID;
 
 /**
  * Base de los tests de integracion: la app entera (controller, service, repository) contra un Postgres y un
@@ -70,13 +77,63 @@ public abstract class IntegrationTest {
     protected MockMvc mockMvc;
 
     @Autowired
+    protected JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private RedisConnectionFactory redisConnectionFactory;
 
-    /** Cada test empieza sin buckets de rate limit ni cache de un test anterior. */
+    @Autowired
+    private UsersRepository usersRepository;
+
+    @Autowired
+    private JwtService jwtService;
+
+    /**
+     * Cada test empieza sin buckets de rate limit ni cache, y sin usuarios de un test anterior. TRUNCATE ... CASCADE
+     * vacia tambien todo lo que cuelga de users (follows, bloqueos, organizers, eventos...). Ciudades y estilos
+     * de baile (el seed del esquema) se quedan.
+     */
     @BeforeEach
-    void flushRedis() {
+    void cleanState() {
         try (var connection = redisConnectionFactory.getConnection()) {
             connection.serverCommands().flushDb();
         }
+        jdbcTemplate.execute("TRUNCATE users, events CASCADE");
+    }
+
+    /** Usuario con perfil publico, como recien llegado del login con Google. */
+    protected Users createUser(String displayName) {
+        Users user = new Users();
+        user.setEmail(displayName.toLowerCase() + "-" + UUID.randomUUID() + "@example.com");
+        user.setDisplayName(displayName);
+        return usersRepository.save(user);
+    }
+
+    protected Users save(Users user) {
+        return usersRepository.save(user);
+    }
+
+    /** La request va con el JWT de user, como si hubiera hecho login. */
+    protected RequestPostProcessor as(Users user) {
+        String token = jwtService.generateToken(user);
+        return request -> {
+            request.addHeader("Authorization", "Bearer " + token);
+            return request;
+        };
+    }
+
+    /** Serata publicada de mañana en la primera ciudad del seed. Devuelve su id. */
+    protected UUID createEvent(String title) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO events (city_id, title, slug, start_at, address, latitude, longitude, status)
+                VALUES ((SELECT id FROM cities ORDER BY id LIMIT 1), ?, ?, now() + INTERVAL '1 day',
+                        'Via Roma 1', 45.46, 9.19, 'PUBLISHED')
+                RETURNING id
+                """, UUID.class, title, "test-" + UUID.randomUUID());
+    }
+
+    /** «Ci vado» directo en la DB, sin pasar por el endpoint. */
+    protected void attend(Users user, UUID eventId) {
+        jdbcTemplate.update("INSERT INTO event_attendance (user_id, event_id) VALUES (?, ?)", user.getId(), eventId);
     }
 }

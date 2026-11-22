@@ -420,15 +420,48 @@ Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de
   "gender": "FEMALE",
   "danceRole": "FOLLOWER",
   "whatsapp": "+393331234567",
-  "danceStyles": [{ "danceStyleId": 1, "name": "Salsa", "slug": "salsa", "level": "ADVANCED" }]
+  "danceStyles": [{ "danceStyleId": 1, "name": "Salsa", "slug": "salsa", "level": "ADVANCED" }],
+  "relation": "MUTUAL",
+  "followersCount": 12,
+  "followingCount": 7,
+  "eventsCount": 30
 }
 ```
 
 - `age` en vez de la fecha de nacimiento.
-- `whatsapp` es `null` si el dueño eligió `NOBODY`. El dueño siempre ve el suyo.
-- `404` si el perfil es privado (`showProfilePublic = false`), está borrado o baneado, salvo que lo pida el
-  propio usuario.
+- `whatsapp`: el dueño siempre ve el suyo. Los demás, según `whatsappVisibility`: `EVERYONE` todos, `MUTUALS`
+  solo los amigos (`relation = MUTUAL`), `NOBODY` nadie. Con menos de 18 años no lo ve nadie más.
+- `relation` de quien mira con este usuario: `NONE` «Segui», `FOLLOWING` «Segui già», `FOLLOWED_BY`
+  «Ricambia», `MUTUAL` «Amici». `NONE` si es el propio perfil.
+- `eventsCount` = serate pasadas a las que dijo «Ci vado».
+- `404` si el perfil es privado (`showProfilePublic = false`), está borrado, baneado o hay un bloqueo en
+  cualquier sentido, salvo que lo pida el propio usuario. Mismo `404` en todos los casos: no se revela el bloqueo.
 - Sin token → `401`.
+
+`GET /auth/me` y la respuesta de `PATCH /auth/me` suman `followersCount`, `followingCount` y `eventsCount`.
+`whatsappVisibility` admite `MUTUALS`, que es el valor por defecto de los usuarios nuevos y de un `null`.
+
+### Seguir y bloquear — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `POST /users/{id}/follow` | `204` | Idempotente. `400` con `code: SELF_ACTION` si es uno mismo. `404` si el perfil es privado, borrado, baneado o hay un bloqueo |
+| `DELETE /users/{id}/follow` | `204` | Idempotente. Sin chequeos: se puede dejar de seguir a quien se volvió privado |
+| `POST /users/{id}/block` | `204` | Idempotente. Borra los follows en los dos sentidos. `400 SELF_ACTION` si es uno mismo; `404` si no existe o está borrado. Se puede bloquear un perfil privado |
+| `DELETE /users/{id}/block` | `204` | Idempotente. Los follows borrados no vuelven |
+| `GET /users/me/followers` | `CursorPage<UserSummaryDto>` | Quienes me siguen |
+| `GET /users/me/following` | `CursorPage<UserSummaryDto>` | A quienes sigo |
+| `GET /users/me/friends?q=` | `CursorPage<UserSummaryDto>` | Amigos (nos seguimos los dos). `q` busca en el nombre, sin distinguir mayúsculas, máx. 50 caracteres |
+| `GET /users/me/blocks` | `List<UserSummaryDto>` | Personas que bloqueé, sin paginar |
+
+```json
+{ "userId": "…", "displayName": "Luca", "avatarUrl": "https://…", "relation": "MUTUAL" }
+```
+
+- Las tres listas paginadas: las más recientes primero, `limit` (default 20, máx. 50) y el cursor de la
+  respuesta (`nextCursorStartAt` = fecha del follow, `nextCursorId` = id de la persona). `null` = no hay más.
+- `total` = el total con el mismo filtro. No salen usuarios borrados ni baneados.
+- `GET /events/{id}/attendees` («Chi ci va») con login no muestra a quien tenga un bloqueo con quien mira.
 
 ---
 
