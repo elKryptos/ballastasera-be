@@ -1,9 +1,11 @@
 package com.kryptosystems.ballastasera.repositories;
 
 import com.kryptosystems.ballastasera.enums.ContactVisibility;
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.models.entities.EventAttendance;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.keys.UserEventId;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -15,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public interface EventAttendanceRepository extends JpaRepository<EventAttendance, UserEventId> {
@@ -181,4 +184,69 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
     List<EventAttendance> findAvatarPreviewsByEventIdIn(@Param("eventIds") Collection<UUID> eventIds,
                                                         @Param("perEvent") long perEvent,
                                                         @Param("everyone") ContactVisibility everyone);
+
+    /**
+     * Feed «Stasera escono»: «Ci vado» de la gente que viewerId sigue sin silenciar, a serate en curso o que empiezan
+     * antes de until. Visibilidad como «Chi ci va»: everyone siempre, mutuals solo si tambien siguen a viewerId.
+     * Sin end_at, en curso = empezo despues de liveSince (now - 4 horas, la duracion por defecto).
+     * Los bloqueados no hace falta filtrarlos: con un bloqueo no hay follows. El venue para «Città Studi · dalle 22:00».
+     */
+    @Query("""
+            SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u JOIN FETCH ea.event e LEFT JOIN FETCH e.venue v
+            WHERE e.status = :published
+            AND (e.endAt > :now OR (e.endAt IS NULL AND e.startAt > :liveSince))
+            AND e.startAt < :until
+            AND EXISTS (SELECT 1 FROM UserFollows f WHERE f.id.followerId = :viewerId AND f.id.followedId = u.id
+                        AND f.muted = false)
+            AND u.showProfilePublic = true AND u.isDeleted = false AND u.isBanned = false
+            AND (u.attendanceVisibility = :everyone
+                 OR (u.attendanceVisibility = :mutuals
+                     AND EXISTS (SELECT 1 FROM UserFollows f2 WHERE f2.id.followerId = u.id AND f2.id.followedId = :viewerId)))
+            ORDER BY e.startAt ASC, e.id ASC, ea.createdAt ASC
+            """)
+    List<EventAttendance> findFollowedGoingTonight(UUID viewerId, OffsetDateTime now, OffsetDateTime liveSince,
+                                                   OffsetDateTime until, EventStatus published,
+                                                   ContactVisibility everyone, ContactVisibility mutuals);
+
+    /**
+     * Feed «Novità», «va a X»: «Ci vado» dados desde since por la gente que viewerId sigue, a serate que empiezan
+     * entre from y until (las de esta noche ya salen en «Stasera escono»). Mismo filtro que findFollowedGoingTonight.
+     * Los mas recientes primero.
+     */
+    @Query("""
+            SELECT ea FROM EventAttendance ea JOIN FETCH ea.user u JOIN FETCH ea.event e
+            WHERE e.status = :published
+            AND e.startAt >= :from AND e.startAt < :until
+            AND ea.createdAt >= :since
+            AND EXISTS (SELECT 1 FROM UserFollows f WHERE f.id.followerId = :viewerId AND f.id.followedId = u.id
+                        AND f.muted = false)
+            AND u.showProfilePublic = true AND u.isDeleted = false AND u.isBanned = false
+            AND (u.attendanceVisibility = :everyone
+                 OR (u.attendanceVisibility = :mutuals
+                     AND EXISTS (SELECT 1 FROM UserFollows f2 WHERE f2.id.followerId = u.id AND f2.id.followedId = :viewerId)))
+            ORDER BY ea.createdAt DESC
+            """)
+    List<EventAttendance> findFollowedGoingSoon(UUID viewerId, OffsetDateTime since, OffsetDateTime from,
+                                                OffsetDateTime until, EventStatus published,
+                                                ContactVisibility everyone, ContactVisibility mutuals, Limit limit);
+
+    /** De eventIds, a cuales dijo «Ci vado» userId: el «ci vai anche tu» del feed en una sola query. */
+    @Query("SELECT a.id.eventId FROM EventAttendance a WHERE a.id.userId = :userId AND a.id.eventId IN :eventIds")
+    Set<UUID> findEventIdsAmong(UUID userId, Collection<UUID> eventIds);
+
+    /**
+     * Sugerencias: «Ci vado» de userIds a serate en curso o futuras a las que tambien va viewerId, las mas cercanas
+     * primero. Solo de quien muestra sus serate a todos (everyone): son desconocidos para viewerId.
+     */
+    @Query("""
+            SELECT ea FROM EventAttendance ea JOIN FETCH ea.event e JOIN ea.user u
+            WHERE ea.id.userId IN :userIds AND e.status = :published
+            AND (e.endAt > :now OR (e.endAt IS NULL AND e.startAt > :liveSince))
+            AND u.attendanceVisibility = :everyone
+            AND EXISTS (SELECT 1 FROM EventAttendance mine WHERE mine.id.userId = :viewerId AND mine.id.eventId = e.id)
+            ORDER BY e.startAt ASC
+            """)
+    List<EventAttendance> findSharedUpcoming(UUID viewerId, Collection<UUID> userIds, OffsetDateTime now,
+                                             OffsetDateTime liveSince, EventStatus published,
+                                             ContactVisibility everyone);
 }

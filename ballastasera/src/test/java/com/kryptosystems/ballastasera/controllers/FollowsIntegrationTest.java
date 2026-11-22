@@ -190,6 +190,23 @@ class FollowsIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.nextCursorId").value(nullValue()));
     }
 
+    /** Un seguidor privado sale en la lista, con profilePublic false para que el FE no muestre «Ricambia». */
+    @Test
+    void aPrivateFollowerIsListedAsPrivate() throws Exception {
+        Users ana = createUser("Ana");
+        Users hidden = createUser("Hidden");
+        hidden.setShowProfilePublic(false);
+        save(hidden);
+        follow(hidden, ana);
+
+        mockMvc.perform(get("/rest/users/me/followers").with(as(ana)))
+                .andExpect(jsonPath("$.items[0].displayName").value("Hidden"))
+                .andExpect(jsonPath("$.items[0].relation").value("FOLLOWED_BY"))
+                .andExpect(jsonPath("$.items[0].profilePublic").value(false));
+        mockMvc.perform(post("/rest/users/" + hidden.getId() + "/follow").with(as(ana)))
+                .andExpect(status().isNotFound());
+    }
+
     /** Silenciar sale solo en el perfil de quien silencia: el silenciado no se entera. */
     @Test
     void mutingShowsOnlyOnTheProfileOfWhoMuted() throws Exception {

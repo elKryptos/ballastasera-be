@@ -118,6 +118,34 @@ public interface UserFollowsRepository extends JpaRepository<UserFollows, UserFo
     @Query("SELECT f.id.followerId FROM UserFollows f WHERE f.id.followedId = :followedId AND f.id.followerId IN :userIds")
     Set<UUID> findFollowerIdsAmong(@Param("followedId") UUID followedId, @Param("userIds") Collection<UUID> userIds);
 
+    /**
+     * Feed «Novità», «ti segue»: quienes empezaron a seguir a userId desde since, los mas recientes primero.
+     * Sin borrados ni baneados (como findFollowers) y sin quien userId silencio.
+     */
+    @Query("""
+            SELECT f FROM UserFollows f JOIN FETCH f.follower u
+            WHERE f.followed.id = :userId AND f.createdAt >= :since
+            AND u.isDeleted = false AND u.isBanned = false
+            AND NOT EXISTS (SELECT 1 FROM UserFollows m WHERE m.id.followerId = :userId AND m.id.followedId = u.id
+                            AND m.muted = true)
+            ORDER BY f.createdAt DESC
+            """)
+    List<UserFollows> findRecentFollowers(UUID userId, OffsetDateTime since, Limit limit);
+
+    /**
+     * Sugerencias, «N amici in comune»: amistades entre las personas de userIds y los amigos de viewerId.
+     * Una fila por cada pareja (persona de userIds = follower, amigo en comun = followed); se cuentan por follower.
+     */
+    @Query("""
+            SELECT f FROM UserFollows f
+            WHERE f.id.followerId IN :userIds
+            AND f.followed.isDeleted = false AND f.followed.isBanned = false
+            AND EXISTS (SELECT 1 FROM UserFollows f2 WHERE f2.id.followerId = f.id.followedId AND f2.id.followedId = f.id.followerId)
+            AND EXISTS (SELECT 1 FROM UserFollows v1 WHERE v1.id.followerId = :viewerId AND v1.id.followedId = f.id.followedId)
+            AND EXISTS (SELECT 1 FROM UserFollows v2 WHERE v2.id.followerId = f.id.followedId AND v2.id.followedId = :viewerId)
+            """)
+    List<UserFollows> findFriendshipsWithFriendsOf(UUID viewerId, Collection<UUID> userIds);
+
     /** Al bloquear: borra el follow en los dos sentidos. */
     @Modifying
     @Query("""

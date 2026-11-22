@@ -15,11 +15,11 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | 2 | Perfil: bio, ciudad, escuela, foto propia | [~] BE hecho con tests (22/11), falta el FE |
 | 3 | Serate de otra persona y «Avete in comune» | [~] BE hecho con tests (22/11), falta el FE |
 | 4 | Denuncias, ban, silenciar | [~] BE hecho con tests (22/11), falta el FE |
-| 5 | Pestaña Amici: feed y sugerencias | [ ] |
+| 5 | Pestaña Amici: feed y sugerencias | [~] BE hecho con tests (22/11), falta el FE |
 | 6 | Avisos (campanita + email) e invitaciones | [ ] |
 | 7 | Traguardi y @username | [ ] |
 
-**Siguiente paso:** fase 5 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
+**Siguiente paso:** fase 6 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
 va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
@@ -140,9 +140,15 @@ Menú ⋯ del perfil y cola en el admin.
 
 ### Fase 5 — Pestaña Amici
 Canvas 4d.
-- [ ] `GET /rest/users/me/feed`: «esce stasera», «ti segue», «va a X» (próximos 7 días). Sin silenciados ni bloqueados
-- [ ] `GET /rest/users/me/suggestions`: gente de tus próximas serate y amigos de amigos. Sin bloqueados ni menores
-- [ ] Tests de integración
+Decidido (22/11): sale la gente que sigues (no solo amigos); «stasera» = en curso o empieza antes de las próximas
+06:00 hora de Italia; el subtítulo «Stasera a…» de la lista de amigos lo saca el FE de `tonight`; «stessa scuola»
+como motivo de sugerencia queda para después. Sin SQL: alcanzan los índices que ya hay.
+Los seguidores privados salen (en «ti segue» y en `/me/followers`): `UserSummaryDto.profilePublic = false` y el FE
+los muestra sin enlace ni «Ricambia» («Profilo privato»), porque seguir a un privado sigue dando 404.
+- [x] `GET /rest/users/me/feed`: `tonight` («Stasera escono», por serata) y `news` de 7 días («ti segue», «va a X» a serate de los próximos 7 días). Sin silenciados; respeta `attendanceVisibility`
+- [x] `GET /rest/users/me/suggestions?limit=`: gente de tus próximas serate (`EVERYONE`) y amigos de amigos. Sin seguidos, bloqueados, menores ni privados. Orden: serata compartida, «Cerco qualcuno», amigos en común
+- [x] `FeedService` devuelve `FeedActivity` y `SuggestionsActivity` (entidades, como `ProfileActivity`) y `FeedMapper` arma los DTOs
+- [x] Tests de integración (`FeedIntegrationTest`) y del corte de «stasera» con horario de verano (`FeedServiceImplTest`)
 - [ ] FE canvas 4d
 
 ### Fase 6 — Avisos e invitaciones

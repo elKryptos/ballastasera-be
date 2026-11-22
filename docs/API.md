@@ -531,8 +531,12 @@ van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards so
 | `GET /users/me/blocks` | `List<UserSummaryDto>` | Personas que bloqueé, sin paginar |
 
 ```json
-{ "userId": "…", "displayName": "Luca", "avatarUrl": "https://…", "relation": "MUTUAL" }
+{ "userId": "…", "displayName": "Luca", "avatarUrl": "https://…", "relation": "MUTUAL", "profilePublic": true }
 ```
+
+- `profilePublic = false`: perfil privado (por ejemplo, alguien privado que me sigue). Sale en la lista, pero sin
+  enlace al perfil ni botón para seguirlo, porque los dos darían `404`: el FE muestra «Profilo privato». Dejar de
+  seguir (`/me/following`) y desbloquear (`/me/blocks`) funcionan igual.
 
 - Las tres listas paginadas: las más recientes primero, `limit` (default 20, máx. 50) y el cursor de la
   respuesta (`nextCursorStartAt` = fecha del follow, `nextCursorId` = id de la persona). `null` = no hay más.
@@ -550,6 +554,51 @@ van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards so
   obligatoria con `OTHER` (`400`).
 - `GET /users/{id}` suma `muted`: si quien mira lo silenció (menú ⋯). Solo puede ser `true` si lo sigue.
 - «Segnala e blocca»: el FE hace las dos llamadas (`/report` y `/block`).
+
+### Pestaña Amici — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /users/me/feed` | `FeedDto` | Attività: `tonight` («Stasera escono») y `news` («Novità»). Se calcula en cada request, sin cache |
+| `GET /users/me/suggestions?limit=` | `List<SuggestionDto>` | Scopri, ya ordenadas. `limit` 1–20 (default 10) |
+
+```json
+{
+  "tonight": [{ "eventId": "…", "eventSlug": "…", "eventTitle": "Serata salsa", "eventStartAt": "…",
+                "venueName": "Tropical", "meGoing": true, "people": [UserSummaryDto] }],
+  "news": [{ "type": "FOLLOWED_YOU", "at": "…", "user": UserSummaryDto, "eventId": null, "eventSlug": null,
+             "eventTitle": null, "eventStartAt": null, "meGoing": false },
+           { "type": "GOING_TO", "at": "…", "user": UserSummaryDto, "eventId": "…", "eventSlug": "…",
+             "eventTitle": "Bachata Sunday", "eventStartAt": "…", "meGoing": false }]
+}
+```
+
+- Las serate (`tonight` y `GOING_TO`): solo gente que sigo y no silencié, con perfil público, ni borrada ni
+  baneada, y respetando su `attendanceVisibility` como «Chi ci va»: `MUTUALS` solo si somos amigos, `NOBODY`
+  nunca.
+- `FOLLOWED_YOU`: cualquiera que me siga, ni borrado ni baneado, salvo quien silencié. También los privados, con
+  `profilePublic = false` (sin «Ricambia»).
+- `tonight`: serate en curso o que empiezan antes de las próximas 06:00 hora de Italia, por hora de inicio. En
+  cada una, la gente en el orden en que dijo «Ci vado» (`relation` `FOLLOWING` o `MUTUAL`). El subtítulo
+  «Stasera a…» de la lista de amigos sale de aquí. Para «Stasera escono · 4 amici», el FE cuenta los `userId`
+  distintos: quien va a dos serate esta noche sale en las dos.
+- `news`, de los últimos 7 días y las más recientes primero (hasta 50 de cada tipo):
+  - `FOLLOWED_YOU`: empezó a seguirme. `relation` `FOLLOWED_BY` («Ricambia», si `profilePublic`) o `MUTUAL`.
+  - `GOING_TO`: dijo «Ci vado» a una serata de los próximos 7 días que no es de esta noche.
+- `meGoing`: yo también voy («ci vai anche tu»).
+
+```json
+[{ "user": UserSummaryDto, "mutualFriendsCount": 3, "eventId": "…", "eventSlug": "…",
+   "eventTitle": "Noche Latina", "eventStartAt": "…", "lookingForPartner": true }]
+```
+
+- Salen de dos sitios: gente que va a mis serate en curso o futuras y muestra sus serate a todos (`EVERYONE`), y
+  amigos de mis amigos.
+- Nunca: yo, a quien ya sigo, bloqueos en cualquier sentido, perfiles privados, borrados, baneados ni menores de 18
+  (sin fecha de nacimiento cuenta como adulto).
+- Orden: comparte serata conmigo, marcó «Cerco qualcuno» en una de ellas, más amigos en común.
+- `user.relation` es `NONE` o `FOLLOWED_BY` («Ricambia»). `event*` es la serata más cercana que compartimos
+  (prefiere una con «Cerco qualcuno»); `null` si no compartimos ninguna. El FE arma el «por qué» con estos campos.
 
 ### Moderación — solo ADMIN (`/rest/admin`)
 

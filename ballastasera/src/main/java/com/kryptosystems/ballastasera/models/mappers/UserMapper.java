@@ -121,6 +121,7 @@ public interface UserMapper {
     }
 
     @Mapping(target = "userId", source = "user.id")
+    @Mapping(target = "profilePublic", source = "user.showProfilePublic")
     UserSummaryDto toSummaryDto(Users user, SocialRelation relation);
 
     /** Nombre de la escuela enlazada o, si no hay, el escrito a mano. */

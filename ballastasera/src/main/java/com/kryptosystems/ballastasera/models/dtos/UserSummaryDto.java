@@ -15,4 +15,8 @@ public class UserSummaryDto {
     private String avatarUrl;
     /** Relacion de quien pide la lista con esta persona (para el boton de cada fila). */
     private SocialRelation relation;
+    /** false = perfil privado: sale (ej. alguien privado que te sigue), pero sin enlace al perfil ni boton para
+     * seguirlo, porque los dos darian 404. Dejar de seguir y desbloquear funcionan igual. El FE muestra
+     * «Profilo privato». */
+    private boolean profilePublic;
 }

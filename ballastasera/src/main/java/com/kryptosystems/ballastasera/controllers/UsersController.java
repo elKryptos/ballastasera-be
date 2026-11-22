@@ -3,6 +3,8 @@ package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.FeedDto;
+import com.kryptosystems.ballastasera.models.dtos.SuggestionDto;
 import com.kryptosystems.ballastasera.models.dtos.UserAvatarUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
 import com.kryptosystems.ballastasera.models.dtos.UserMuteDto;
@@ -10,14 +12,18 @@ import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.dtos.UserReportCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.FeedMapper;
 import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.BlocksService;
+import com.kryptosystems.ballastasera.services.manager.FeedService;
 import com.kryptosystems.ballastasera.services.manager.FollowsService;
 import com.kryptosystems.ballastasera.services.manager.ModerationService;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.SliceImpl;
@@ -54,6 +60,8 @@ public class UsersController {
     private static final String MY_FOLLOWING = "/me/following";
     private static final String MY_FRIENDS = "/me/friends";
     private static final String MY_BLOCKS = "/me/blocks";
+    private static final String MY_FEED = "/me/feed";
+    private static final String MY_SUGGESTIONS = "/me/suggestions";
     private static final String MY_AVATAR = "/me/avatar";
     private static final String MY_AVATAR_SOURCE = "/me/avatar/source";
     private static final String USER_PROFILE = "/{id}";
@@ -67,8 +75,10 @@ public class UsersController {
     private final FollowsService followsService;
     private final BlocksService blocksService;
     private final ModerationService moderationService;
+    private final FeedService feedService;
     private final EventsMapper eventsMapper;
     private final UserMapper userMapper;
+    private final FeedMapper feedMapper;
 
     /** Requiere estar autenticado. Perfil de un usuario (ej. desde la lista de "parteciperò"):
      * 404 si es privado, borrado, baneado o hay un bloqueo, salvo que sea el propio.
@@ -192,6 +202,22 @@ public class UsersController {
                                                                       @RequestParam(required = false) UUID cursorId,
                                                                       @RequestParam(defaultValue = "20") int limit) {
         return ResponseEntity.ok(followsService.findFriends(principal.getId(), q, cursorStartAt, cursorId, limit));
+    }
+
+    /** Requiere estar autenticado. Pestaña Attività: «Stasera escono» (hasta las proximas 06:00 hora de Italia) y
+     * «Novità» de los ultimos 7 dias. Las serate, solo de gente que sigo sin silenciar; «ti segue», de cualquiera
+     * que me siga (tambien privado). Se calcula en cada request, sin cache. */
+    @GetMapping(MY_FEED)
+    public ResponseEntity<FeedDto> findMyFeed(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(feedMapper.toFeedDto(feedService.findFeed(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. Pestaña Scopri: gente de mis proximas serate y amigos de amigos, ya ordenada.
+     * Nunca a quien ya sigo, bloqueados ni menores. limit 1–20. */
+    @GetMapping(MY_SUGGESTIONS)
+    public ResponseEntity<List<SuggestionDto>> findMySuggestions(@AuthenticationPrincipal UserPrincipal principal,
+                                                                 @RequestParam(defaultValue = "10") @Min(1) @Max(20) int limit) {
+        return ResponseEntity.ok(feedMapper.toSuggestionDtos(feedService.findSuggestions(principal.getId(), limit)));
     }
 
     /** Requiere estar autenticado. Personas que bloquee, las mas recientes primero. Sin paginar: son pocas. */
