@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.controllers;
 
 
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.FeedDto;
@@ -182,7 +183,8 @@ public class UsersController {
                                                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
                                                                         @RequestParam(required = false) UUID cursorId,
                                                                         @RequestParam(defaultValue = "20") int limit) {
-        return ResponseEntity.ok(followsService.findFollowers(principal.getId(), cursorStartAt, cursorId, limit));
+        return ResponseEntity.ok(userMapper.toFollowersCursorPage(
+                followsService.findFollowers(principal.getId(), cursorStartAt, cursorId, limit)));
     }
 
     /** Requiere estar autenticado. A quienes sigo, los mas recientes primero. */
@@ -191,7 +193,8 @@ public class UsersController {
                                                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
                                                                         @RequestParam(required = false) UUID cursorId,
                                                                         @RequestParam(defaultValue = "20") int limit) {
-        return ResponseEntity.ok(followsService.findFollowing(principal.getId(), cursorStartAt, cursorId, limit));
+        return ResponseEntity.ok(userMapper.toFollowingCursorPage(
+                followsService.findFollowing(principal.getId(), cursorStartAt, cursorId, limit)));
     }
 
     /** Requiere estar autenticado. Mis amigos (nos seguimos los dos). q busca por nombre. */
@@ -201,7 +204,8 @@ public class UsersController {
                                                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
                                                                       @RequestParam(required = false) UUID cursorId,
                                                                       @RequestParam(defaultValue = "20") int limit) {
-        return ResponseEntity.ok(followsService.findFriends(principal.getId(), q, cursorStartAt, cursorId, limit));
+        return ResponseEntity.ok(userMapper.toFollowingCursorPage(
+                followsService.findFriends(principal.getId(), q, cursorStartAt, cursorId, limit)));
     }
 
     /** Requiere estar autenticado. Pestaña Attività: «Stasera escono» (hasta las proximas 06:00 hora de Italia) y
@@ -223,7 +227,7 @@ public class UsersController {
     /** Requiere estar autenticado. Personas que bloquee, las mas recientes primero. Sin paginar: son pocas. */
     @GetMapping(MY_BLOCKS)
     public ResponseEntity<List<UserSummaryDto>> findMyBlocks(@AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(blocksService.findBlocked(principal.getId()));
+        return ResponseEntity.ok(userMapper.toSummaryDtos(blocksService.findBlocked(principal.getId()), SocialRelation.NONE));
     }
 
     /** Requiere estar autenticado. Solo los ids de los eventos con like: lo usa

@@ -1,9 +1,12 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.cache.EventsCache;
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.mappers.AttendeeMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
@@ -54,6 +57,8 @@ public class EventsController {
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
     private final EventsMapper eventsMapper;
+    private final AttendeeMapper attendeeMapper;
+    private final UserMapper userMapper;
     private final EventsCache eventsCache;
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar en las
@@ -127,7 +132,8 @@ public class EventsController {
                                                           @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "20") int size) {
         UUID viewerId = principal != null ? principal.getId() : null;
-        return ResponseEntity.ok(eventAttendanceService.findPublicAttendees(id, viewerId, PageRequest.of(page, size)));
+        return ResponseEntity.ok(attendeeMapper.toDtoPage(
+                eventAttendanceService.findPublicAttendees(id, viewerId, PageRequest.of(page, size))));
     }
 
     /** Requiere estar autenticado. Marca "voy" al evento. Idempotente. +1 in Events dbtable */
@@ -143,7 +149,8 @@ public class EventsController {
     @GetMapping(MY_ATTENDANCE)
     public ResponseEntity<EventAttendanceStatusDto> getMyAttendance(@PathVariable UUID id,
                                                                     @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(eventAttendanceService.findMyAttendanceStatus(principal.getId(), id));
+        return ResponseEntity.ok(attendeeMapper.toStatusDto(
+                eventAttendanceService.findAttendance(principal.getId(), id).orElse(null)));
     }
 
     /** Requiere estar autenticado. Amigos que van a la serata («Sara e Luca ci vanno»). Fuera de la cache del
@@ -151,7 +158,8 @@ public class EventsController {
     @GetMapping(FRIENDS_GOING)
     public ResponseEntity<List<UserSummaryDto>> getFriendsGoing(@PathVariable UUID id,
                                                                 @AuthenticationPrincipal UserPrincipal principal) {
-        return ResponseEntity.ok(eventAttendanceService.findFriendsGoing(principal.getId(), id));
+        return ResponseEntity.ok(userMapper.toSummaryDtos(
+                eventAttendanceService.findFriendsGoing(principal.getId(), id), SocialRelation.MUTUAL));
     }
 
     /** Requiere estar autenticado. Quita la marca "voy". La lista de asistentes se actualiza con -1 */

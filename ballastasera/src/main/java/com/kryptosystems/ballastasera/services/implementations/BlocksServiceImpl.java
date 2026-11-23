@@ -1,12 +1,9 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
-import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.exceptions.SocialActionException;
-import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.entities.UserBlocks;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.keys.UserBlockId;
-import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.repositories.UserBlocksRepository;
 import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
@@ -26,7 +23,6 @@ public class BlocksServiceImpl implements BlocksService {
     private final UserBlocksRepository userBlocksRepository;
     private final UserFollowsRepository userFollowsRepository;
     private final UsersRepository usersRepository;
-    private final UserMapper userMapper;
 
     /** Se puede bloquear a un perfil privado o baneado (ej. alguien privado que te sigue). */
     @Override
@@ -58,9 +54,9 @@ public class BlocksServiceImpl implements BlocksService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserSummaryDto> findBlocked(UUID blockerId) {
+    public List<Users> findBlocked(UUID blockerId) {
         return userBlocksRepository.findByBlockerIdWithBlocked(blockerId).stream()
-                .map(block -> userMapper.toSummaryDto(block.getBlocked(), SocialRelation.NONE))
+                .map(UserBlocks::getBlocked)
                 .toList();
     }
 }

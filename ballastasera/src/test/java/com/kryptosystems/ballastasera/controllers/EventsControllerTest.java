@@ -7,7 +7,9 @@ import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.models.mappers.AttendeeMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
@@ -69,6 +71,12 @@ class EventsControllerTest {
 
     @MockitoBean
     private EventsMapper eventsMapper;
+
+    @MockitoBean
+    private AttendeeMapper attendeeMapper;
+
+    @MockitoBean
+    private UserMapper userMapper;
 
     @MockitoBean
     private EventsCache eventsCache;

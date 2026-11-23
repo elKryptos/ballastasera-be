@@ -1,6 +1,8 @@
 package com.kryptosystems.ballastasera.models.mappers;
 
 import com.kryptosystems.ballastasera.enums.SocialRelation;
+import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
+import com.kryptosystems.ballastasera.models.dtos.FollowsActivity;
 import com.kryptosystems.ballastasera.models.dtos.HomeCityDto;
 import com.kryptosystems.ballastasera.models.dtos.ProfileActivity;
 import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
@@ -11,14 +13,18 @@ import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.UserDanceStyles;
+import com.kryptosystems.ballastasera.models.entities.UserFollows;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.springframework.data.domain.Slice;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * Sin nullValuePropertyMappingStrategy = IGNORE (a diferencia de OrganizerMapper/EventsMapper):
@@ -106,9 +112,7 @@ public interface UserMapper {
             dto.setWhatsapp(user.getWhatsapp());
         }
         // Los amigos en comun son amigos de quien mira: MUTUAL
-        dto.setMutualFriends(activity.mutualFriends().stream()
-                .map(friend -> toSummaryDto(friend, SocialRelation.MUTUAL))
-                .toList());
+        dto.setMutualFriends(toSummaryDtos(activity.mutualFriends(), SocialRelation.MUTUAL));
         dto.setMutualFriendsCount(activity.mutualFriendsCount());
         dto.setEventsTogetherCount(activity.eventsTogetherCount());
         if (activity.lastEventTogether() != null) {
@@ -123,6 +127,42 @@ public interface UserMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "profilePublic", source = "user.showProfilePublic")
     UserSummaryDto toSummaryDto(Users user, SocialRelation relation);
+
+    /** Listas con la misma relacion para todos: bloqueados (NONE), amigos que van a una serata (MUTUAL). */
+    default List<UserSummaryDto> toSummaryDtos(List<Users> users, SocialRelation relation) {
+        return users.stream().map(user -> toSummaryDto(user, relation)).toList();
+    }
+
+    /** /me/followers: cada fila sigue a quien mira. MUTUAL si quien mira lo sigue tambien, si no FOLLOWED_BY. */
+    default CursorPageDto<UserSummaryDto> toFollowersCursorPage(FollowsActivity activity) {
+        return toFollowsCursorPage(activity, UserFollows::getFollower,
+                person -> SocialRelation.of(activity.friendIds().contains(person.getId()), true));
+    }
+
+    /** /me/following y /me/friends: quien mira sigue a cada fila. MUTUAL si lo sigue tambien, si no FOLLOWING. */
+    default CursorPageDto<UserSummaryDto> toFollowingCursorPage(FollowsActivity activity) {
+        return toFollowsCursorPage(activity, UserFollows::getFollowed,
+                person -> SocialRelation.of(true, activity.friendIds().contains(person.getId())));
+    }
+
+    /** person: el otro usuario de cada follow. El cursor es la fecha del follow y el id de esa persona. */
+    private CursorPageDto<UserSummaryDto> toFollowsCursorPage(FollowsActivity activity,
+                                                              Function<UserFollows, Users> person,
+                                                              Function<Users, SocialRelation> relation) {
+        Slice<UserFollows> follows = activity.follows();
+        CursorPageDto<UserSummaryDto> dto = new CursorPageDto<>();
+        dto.setItems(follows.getContent().stream()
+                .map(person)
+                .map(user -> toSummaryDto(user, relation.apply(user)))
+                .toList());
+        dto.setTotal(activity.total());
+        if (follows.hasNext() && !follows.isEmpty()) {
+            UserFollows last = follows.getContent().getLast();
+            dto.setNextCursorStartAt(last.getCreatedAt());
+            dto.setNextCursorId(person.apply(last).getId());
+        }
+        return dto;
+    }
 
     /** Nombre de la escuela enlazada o, si no hay, el escrito a mano. */
     default String toSchoolName(Users user) {

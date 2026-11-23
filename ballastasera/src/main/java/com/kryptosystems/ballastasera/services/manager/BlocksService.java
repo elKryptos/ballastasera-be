@@ -1,6 +1,6 @@
 package com.kryptosystems.ballastasera.services.manager;
 
-import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
+import com.kryptosystems.ballastasera.models.entities.Users;
 
 import java.util.List;
 import java.util.UUID;
@@ -14,5 +14,6 @@ public interface BlocksService {
     /** Idempotente. Los follows borrados al bloquear no vuelven. */
     void unblock(UUID blockerId, UUID blockedId);
 
-    List<UserSummaryDto> findBlocked(UUID blockerId);
+    /** Los mas recientes primero. */
+    List<Users> findBlocked(UUID blockerId);
 }

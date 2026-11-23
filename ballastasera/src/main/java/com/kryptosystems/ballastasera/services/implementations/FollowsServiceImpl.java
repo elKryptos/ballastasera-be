@@ -2,13 +2,11 @@ package com.kryptosystems.ballastasera.services.implementations;
 
 import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.exceptions.SocialActionException;
-import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
+import com.kryptosystems.ballastasera.models.dtos.FollowsActivity;
 import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
-import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.entities.UserFollows;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.entities.keys.UserFollowId;
-import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.UserBlocksRepository;
 import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
@@ -45,7 +43,6 @@ public class FollowsServiceImpl implements FollowsService {
     private final UserBlocksRepository userBlocksRepository;
     private final UsersRepository usersRepository;
     private final EventAttendanceRepository eventAttendanceRepository;
-    private final UserMapper userMapper;
 
     @Override
     @Transactional
@@ -112,71 +109,49 @@ public class FollowsServiceImpl implements FollowsService {
                 eventAttendanceRepository.countPastByUserId(userId));
     }
 
-    /** Todos siguen a userId: la relacion es MUTUAL si userId los sigue tambien, si no FOLLOWED_BY. */
+    /** Todos siguen a userId: son amigos los que userId sigue tambien. */
     @Override
     @Transactional(readOnly = true)
-    public CursorPageDto<UserSummaryDto> findFollowers(UUID userId, OffsetDateTime cursorAt, UUID cursorId, int limit) {
+    public FollowsActivity findFollowers(UUID userId, OffsetDateTime cursorAt, UUID cursorId, int limit) {
         boolean firstPage = cursorAt == null || cursorId == null;
         Slice<UserFollows> slice = userFollowsRepository.findFollowers(userId,
                 firstPage ? MAX_CREATED_AT : cursorAt, firstPage ? MAX_ID : cursorId, toPageable(limit));
 
-        Set<UUID> followedBack = followedByAmong(userId, slice, UserFollows::getFollower);
-        return toCursorPage(slice, UserFollows::getFollower,
-                person -> SocialRelation.of(followedBack.contains(person.getId()), true),
-                userFollowsRepository.countFollowers(userId));
+        // Una sola query para toda la pagina (sin N+1)
+        List<UUID> ids = idsOf(slice, UserFollows::getFollower);
+        Set<UUID> friendIds = ids.isEmpty() ? Set.of() : userFollowsRepository.findFollowedIdsAmong(userId, ids);
+        return new FollowsActivity(slice, friendIds, userFollowsRepository.countFollowers(userId));
     }
 
-    /** userId sigue a todos: la relacion es MUTUAL si lo siguen tambien, si no FOLLOWING. */
+    /** userId sigue a todos: son amigos los que lo siguen tambien. */
     @Override
     @Transactional(readOnly = true)
-    public CursorPageDto<UserSummaryDto> findFollowing(UUID userId, OffsetDateTime cursorAt, UUID cursorId, int limit) {
+    public FollowsActivity findFollowing(UUID userId, OffsetDateTime cursorAt, UUID cursorId, int limit) {
         boolean firstPage = cursorAt == null || cursorId == null;
         Slice<UserFollows> slice = userFollowsRepository.findFollowing(userId,
                 firstPage ? MAX_CREATED_AT : cursorAt, firstPage ? MAX_ID : cursorId, toPageable(limit));
 
-        List<UUID> ids = slice.getContent().stream().map(follow -> follow.getFollowed().getId()).toList();
-        Set<UUID> followBack = ids.isEmpty() ? Set.of() : userFollowsRepository.findFollowerIdsAmong(userId, ids);
-        return toCursorPage(slice, UserFollows::getFollowed,
-                person -> SocialRelation.of(true, followBack.contains(person.getId())),
-                userFollowsRepository.countFollowing(userId));
+        List<UUID> ids = idsOf(slice, UserFollows::getFollowed);
+        Set<UUID> friendIds = ids.isEmpty() ? Set.of() : userFollowsRepository.findFollowerIdsAmong(userId, ids);
+        return new FollowsActivity(slice, friendIds, userFollowsRepository.countFollowing(userId));
     }
 
+    /** Todos son amigos: friendIds son todos los de la pagina, sin query. */
     @Override
     @Transactional(readOnly = true)
-    public CursorPageDto<UserSummaryDto> findFriends(UUID userId, String q, OffsetDateTime cursorAt, UUID cursorId, int limit) {
+    public FollowsActivity findFriends(UUID userId, String q, OffsetDateTime cursorAt, UUID cursorId, int limit) {
         boolean firstPage = cursorAt == null || cursorId == null;
         String namePattern = toNamePattern(q);
         Slice<UserFollows> slice = userFollowsRepository.findFriends(userId, namePattern,
                 firstPage ? MAX_CREATED_AT : cursorAt, firstPage ? MAX_ID : cursorId, toPageable(limit));
 
-        return toCursorPage(slice, UserFollows::getFollowed, person -> SocialRelation.MUTUAL,
+        return new FollowsActivity(slice, Set.copyOf(idsOf(slice, UserFollows::getFollowed)),
                 userFollowsRepository.countFriends(userId, namePattern));
     }
 
-    /** De las personas de la pagina, a quienes sigue userId: una sola query para toda la pagina (sin N+1). */
-    private Set<UUID> followedByAmong(UUID userId, Slice<UserFollows> slice, Function<UserFollows, Users> person) {
-        List<UUID> ids = slice.getContent().stream().map(follow -> person.apply(follow).getId()).toList();
-        return ids.isEmpty() ? Set.of() : userFollowsRepository.findFollowedIdsAmong(userId, ids);
-    }
-
-    /** person: el otro usuario de cada follow. El cursor es la fecha del follow y el id de esa persona. */
-    private CursorPageDto<UserSummaryDto> toCursorPage(Slice<UserFollows> slice,
-                                                       Function<UserFollows, Users> person,
-                                                       Function<Users, SocialRelation> relation,
-                                                       long total) {
-        List<UserSummaryDto> items = slice.getContent().stream()
-                .map(person)
-                .map(user -> userMapper.toSummaryDto(user, relation.apply(user)))
-                .toList();
-        CursorPageDto<UserSummaryDto> dto = new CursorPageDto<>();
-        dto.setItems(items);
-        dto.setTotal(total);
-        if (slice.hasNext() && !slice.isEmpty()) {
-            UserFollows last = slice.getContent().getLast();
-            dto.setNextCursorStartAt(last.getCreatedAt());
-            dto.setNextCursorId(person.apply(last).getId());
-        }
-        return dto;
+    /** person: el otro usuario de cada follow. */
+    private static List<UUID> idsOf(Slice<UserFollows> slice, Function<UserFollows, Users> person) {
+        return slice.getContent().stream().map(follow -> person.apply(follow).getId()).toList();
     }
 
     /** «ana» → «%ana%». % y _ escapados con ! para que se busquen tal cual (ver ESCAPE '!' en la query). */
