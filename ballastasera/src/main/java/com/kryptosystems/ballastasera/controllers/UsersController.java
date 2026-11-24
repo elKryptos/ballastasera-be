@@ -16,6 +16,9 @@ import com.kryptosystems.ballastasera.models.dtos.UserMuteDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.dtos.UserReportCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
+import com.kryptosystems.ballastasera.models.dtos.UsernameAvailabilityDto;
+import com.kryptosystems.ballastasera.models.dtos.UsernameUpdateDto;
+import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.FeedMapper;
 import com.kryptosystems.ballastasera.models.mappers.NotificationMapper;
@@ -76,6 +79,9 @@ public class UsersController {
     private static final String MY_NOTIFICATIONS_UNREAD_COUNT = "/me/notifications/unread-count";
     private static final String MY_NOTIFICATIONS_READ = "/me/notifications/read";
     private static final String MY_EMAIL_NOTIFICATIONS = "/me/email-notifications";
+    private static final String MY_USERNAME = "/me/username";
+    private static final String USERNAME_AVAILABLE = "/username-available";
+    private static final String USER_PROFILE_BY_USERNAME = "/by-username/{username}";
     private static final String USER_PROFILE = "/{id}";
     private static final String USER_ATTENDANCE = "/{id}/attendance";
     private static final String FOLLOW = "/{id}/follow";
@@ -104,11 +110,33 @@ public class UsersController {
     public ResponseEntity<UserProfileDto> getUserProfile(@AuthenticationPrincipal UserPrincipal principal,
                                                          @PathVariable UUID id) {
         var user = usersService.findPublicProfile(principal.getId(), id);
-        var relation = followsService.findRelation(principal.getId(), id);
-        var muted = followsService.isMuted(principal.getId(), id);
-        var counts = followsService.countSocial(id);
-        var activity = userActivityService.findProfileActivity(principal.getId(), user, relation);
-        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId(), relation, muted, counts, activity));
+        return ResponseEntity.ok(toProfileDto(principal.getId(), user));
+    }
+
+    /** Requiere estar autenticado. El mismo perfil por /@username (sin importar mayusculas), con los mismos 404;
+     * tambien si nadie lo tiene. */
+    @GetMapping(USER_PROFILE_BY_USERNAME)
+    public ResponseEntity<UserProfileDto> getUserProfileByUsername(@AuthenticationPrincipal UserPrincipal principal,
+                                                                   @PathVariable String username) {
+        var user = usersService.findPublicProfileByUsername(principal.getId(), username);
+        return ResponseEntity.ok(toProfileDto(principal.getId(), user));
+    }
+
+    /** Requiere estar autenticado. Campo «Nome utente» mientras se escribe: si u se puede elegir y, si no, por que
+     * (INVALID, RESERVED, TAKEN). El propio cuenta como disponible. Va sin normalizar: el FE ya manda minusculas. */
+    @GetMapping(USERNAME_AVAILABLE)
+    public ResponseEntity<UsernameAvailabilityDto> checkUsername(@AuthenticationPrincipal UserPrincipal principal,
+                                                                 @RequestParam @Size(max = 50) String u) {
+        return ResponseEntity.ok(userMapper.toUsernameAvailabilityDto(usersService.checkUsername(principal.getId(), u)));
+    }
+
+    /** Requiere estar autenticado. Elige, cambia o quita (null o "") el username: el anterior queda libre en el
+     * momento y su link da 404. 400 si no tiene el formato; 409 con code USERNAME_TAKEN o USERNAME_RESERVED. */
+    @PatchMapping(MY_USERNAME)
+    public ResponseEntity<Void> changeMyUsername(@AuthenticationPrincipal UserPrincipal principal,
+                                                 @Valid @RequestBody UsernameUpdateDto body) {
+        usersService.changeUsername(principal.getId(), body.getUsername());
+        return ResponseEntity.noContent().build();
     }
 
     /** Requiere estar autenticado. «Le sue prossime serate» (past=true: las pasadas), mismo orden y cursor que
@@ -315,6 +343,16 @@ public class UsersController {
         var events = userActivityService.findMyAttendance(principal.getId(), past, cursorStartAt, cursorId, limit);
         var total = userActivityService.countMyAttendance(principal.getId(), past);
         return ResponseEntity.ok(eventsMapper.toEventCardCursorPage(events, total));
+    }
+
+    /** Perfil de user visto por viewerId, por id o por username: relacion, silenciado, contadores, traguardi,
+     * «Avete in comune» y el pallino. */
+    private UserProfileDto toProfileDto(UUID viewerId, Users user) {
+        var relation = followsService.findRelation(viewerId, user.getId());
+        var muted = followsService.isMuted(viewerId, user.getId());
+        var counts = followsService.countSocial(user.getId());
+        var activity = userActivityService.findProfileActivity(viewerId, user, relation);
+        return userMapper.toProfileDto(user, viewerId, relation, muted, counts, activity);
     }
 
 }

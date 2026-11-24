@@ -17,10 +17,11 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | 4 | Denuncias, ban, silenciar | [~] BE hecho con tests (22/11), falta el FE |
 | 5 | Pestaña Amici: feed y sugerencias | [~] BE hecho con tests (22/11), falta el FE |
 | 6 | Avisos (campanita + email) e invitaciones | [~] BE hecho con tests (24/11), falta el FE |
-| 7 | Traguardi y @username | [ ] |
+| 7 | Traguardi y @username | [~] BE hecho con tests (24/11), falta el FE |
 
-**Siguiente paso:** fase 7 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
-va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
+**Siguiente paso:** el BE de las fases 0–7 está hecho. Ahora el SQL de todas las fases en develop y probar el BE
+contra esa base; después todo el FE. El SQL de prod se va juntando en `social-prod-db.md` y se corre de una vez
+antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
 entera contra un Postgres y un Redis reales en Docker, con el esquema de `ballastasera_schema.sql`.
@@ -104,9 +105,30 @@ Piezas que se reutilizan:
 - «Cerco qualcuno con cui ballare» se marca por serata, al decir «Ci vado», no en el perfil.
 - Cada persona tiene su página `/persona/{id}`. El `@username` llega al final como alias para compartir.
 
-**Feed y traguardi**
+**Feed**
 - El feed se calcula en el momento a partir de los follows y los «Ci vado». No guardamos historial, así que no hay avisos tipo «ha cambiado de nivel».
-- Los traguardi cuentan los «Ci vado» de serate ya pasadas, y el texto lo dice así.
+
+**Traguardi** (24/11)
+- Cuentan los «Ci vado» de serate publicadas que ya terminaron (lo mismo que `eventsCount`), y el texto lo dice así.
+  Locales: los distintos de esas serate; las serate sin local no cuentan.
+- Sin ciudad: muchos locales están en la periferia o fuera de la ciudad, y si te mudas de región deja de tener
+  sentido. El FE pone «dove hai ballato».
+- «Prima serata» (y el «da marzo 2026» de las serate) solo en tu perfil: a los demás no se les dice la fecha.
+- Se ven aunque nadie vea tus serate: son contadores, como `eventsCount`.
+- La meta siguiente («50 serate, ne mancano 23») la calcula el FE con umbrales fijos (10, 25, 50, 100, 200).
+- «Su ballastasera da…» = fecha de registro, en los dos perfiles.
+
+**@username** (24/11)
+- Opcional y único. Minúsculas, `a-z0-9._`, 3–30, sin punto al principio ni al final ni dos seguidos. Reservados:
+  `admin`, `ballastasera`, `staff`, `support`, `help`, `info`.
+- Se cambia cuando quieras: el viejo queda libre en el momento y su link da 404 (sin historial).
+- El FE lo propone desde el Instagram si está libre. A los usuarios que ya existen no se les rellena: alguien pudo
+  escribir el Instagram de otra persona.
+- `/@username` pide login, como `/persona/{id}`: «Profilo pubblico» sigue siendo «visible a quien tiene cuenta».
+  Quien llega desde una story entra con Google y lo ve.
+- Borrar la cuenta lo deja en `null` (queda libre); el baneado lo conserva.
+- «Condividi» (canvas 4): tarjeta para stories y «Copia il link» con `ballastasera.it/@username`. La tarjeta lleva el
+  logo y la foto de perfil (sin foto, la inicial).
 
 **Datos por usuario y cache:** nada que dependa de quién mira (relación, amigos que van) entra en la cache
 `EVENT_DETAIL`. Va en endpoints aparte.
@@ -208,13 +230,25 @@ Campanita del Home e «Invita a ballare». Decisiones en §3 (Avisos e Invitacio
 - [ ] FE toggle «Ricevi email»: «Ti scriviamo solo quando diventi amico di qualcuno o ricevi un invito.»
 
 ### Fase 7 — Traguardi y @username
-- [ ] `stats` en el perfil: serate pasadas con «Ci vado», locales distintos, primera serata
-- [ ] `username` opcional y único (minúsculas, `a-z0-9._`, 3–30), propuesto desde el Instagram; `GET /rest/users/by-username/{username}`
-- [ ] FE: traguardi, ruta `/@username`, tarjeta para stories (como `social-posts/cards.ts`, con el logo)
+Canvas 4 (Traguardi y «Condividi»), 4b («Nome utente» en «Chi sei») y 4c. Decisiones en §3.
+- [x] SQL: `username VARCHAR(30) UNIQUE` en `users`, sin `CHECK`: el formato lo valida solo el BE (`UsernameUtils`), como
+  `instagram` y `whatsapp` (`social-prod-db.md`; dev ☐)
+- [x] `UserDto` y `UserProfileDto` suman `username`, `memberSince` y `venuesCount`; `firstEventAt` solo en `UserDto`
+  (`/auth/me`). `SocialCounts` suma `venues` y `firstEventAt`, y `UserMapper` decide dónde va cada uno
+- [x] `GET /rest/users/username-available?u=` → `{ available, reason }` (`INVALID` / `RESERVED` / `TAKEN`; el tuyo cuenta como libre)
+- [x] `PATCH /rest/users/me/username { username }`, aparte de `PATCH /auth/me` (un FE viejo lo borraría). `null` o vacío
+  lo quita; `409` con `USERNAME_TAKEN` (también si dos lo piden a la vez: índice único) o `USERNAME_RESERVED`
+- [x] `GET /rest/users/by-username/{username}` → el mismo `UserProfileDto` que `/users/{id}`, con los mismos 404
+  (privado, bloqueo, baneado, borrado)
+- [x] Tests de integración (`ProfileStatsIntegrationTest`, `UsernameIntegrationTest`), del mapper y de
+  `UsersServiceImplTest` (dos personas que piden el mismo username a la vez: el índice único da `USERNAME_TAKEN`)
+- [x] `user-account-deletion-plan.md`: `username` a `null` al borrar
+- [ ] FE: traguardi (4 y 4c), campo «Nome utente» (4b), ruta `/@username`, «Condividi» (tarjeta para stories como
+  `social-posts/cards.ts`, con el logo y la foto, cargada con CORS como los flyers; sin foto, la inicial) y «Copia il link»
 
 ### Docs al cerrar cada fase
 `API.md`, `ballastasera_schema.sql` (lo cargan los tests de integración), `user-account-deletion-plan.md`
-(bio, ciudad, foto propia, denuncias y avisos ya están; falta username). El SQL de prod va en
+(bio, ciudad, foto propia, denuncias, avisos y username ya están). El SQL de prod va en
 `social-prod-db.md`, por fase.
 
 ## 5. Fuera por ahora

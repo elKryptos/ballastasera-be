@@ -5,9 +5,11 @@ import com.kryptosystems.ballastasera.enums.AvatarSource;
 import com.kryptosystems.ballastasera.enums.DanceLevel;
 import com.kryptosystems.ballastasera.enums.OrganizerType;
 import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.enums.UsernameStatus;
 import com.kryptosystems.ballastasera.events.UserAvatarDeletedEvent;
 import com.kryptosystems.ballastasera.exceptions.FileTooLargeException;
 import com.kryptosystems.ballastasera.exceptions.MediaStorageException;
+import com.kryptosystems.ballastasera.exceptions.UsernameUnavailableException;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
@@ -21,11 +23,13 @@ import com.kryptosystems.ballastasera.services.manager.UsersService;
 import com.kryptosystems.ballastasera.services.manager.WebpConverterService;
 import com.kryptosystems.ballastasera.utilities.ImageTypeValidator;
 import com.kryptosystems.ballastasera.utilities.InstagramUtils;
+import com.kryptosystems.ballastasera.utilities.UsernameUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -33,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -44,6 +49,8 @@ public class UsersServiceImpl implements UsersService {
 
     private static final long AVATAR_MAX_BYTES = 5L * 1024 * 1024;
     private static final int AVATAR_MAX_LONG_EDGE = 512;
+    /** El UNIQUE de users.username (ballastasera_schema.sql): Postgres le da este nombre. */
+    private static final String USERNAME_UNIQUE_CONSTRAINT = "users_username_key";
 
     private final UsersRepository usersRepository;
     private final DanceStylesRepository danceStylesRepository;
@@ -191,16 +198,82 @@ public class UsersServiceImpl implements UsersService {
         return user;
     }
 
-    /** Con un bloqueo en cualquier sentido da el mismo 404 que un perfil privado: no se revela el bloqueo. */
     @Override
     public Users findPublicProfile(UUID viewerId, UUID userId) {
         Users user = findByIdWithDanceStyles(userId);
-        boolean isOwner = userId.equals(viewerId);
-        if (!isOwner && (!user.isShowProfilePublic() || user.isDeleted() || user.isBanned()
-                || userBlocksRepository.existsBetween(viewerId, userId))) {
+        if (!isVisibleTo(viewerId, user)) {
             throw new EntityNotFoundException("User not found with id " + userId);
         }
         return user;
+    }
+
+    /** Mismo 404 si nadie lo tiene o si no se puede ver. El mensaje no lleva el id: no se revela de quien es. */
+    @Override
+    public Users findPublicProfileByUsername(UUID viewerId, String username) {
+        return usersRepository.findByUsernameWithDanceStyles(username.toLowerCase(Locale.ROOT))
+                .filter(user -> isVisibleTo(viewerId, user))
+                .orElseThrow(() -> new EntityNotFoundException("User not found with username " + username));
+    }
+
+    @Override
+    public UsernameStatus checkUsername(UUID userId, String username) {
+        if (!UsernameUtils.isValid(username)) {
+            return UsernameStatus.INVALID;
+        }
+        if (UsernameUtils.isReserved(username)) {
+            return UsernameStatus.RESERVED;
+        }
+        if (usersRepository.existsByUsernameAndIdNot(username, userId)) {
+            return UsernameStatus.TAKEN;
+        }
+        return UsernameStatus.AVAILABLE;
+    }
+
+    /**
+     * El formato ya lo valido UsernameUpdateDto. Se comprueba antes para dar el 409 con su code, y el indice unico
+     * cubre a dos personas que piden el mismo a la vez: saveAndFlush hace salir el UPDATE aqui para traducir la
+     * violacion, como OrganizerRequestsServiceImpl.create.
+     */
+    @Override
+    @Transactional
+    public void changeUsername(UUID userId, String username) {
+        String wanted = StringUtils.hasText(username) ? username : null;
+        if (wanted != null) {
+            UsernameStatus status = checkUsername(userId, wanted);
+            if (status == UsernameStatus.RESERVED) {
+                throw new UsernameUnavailableException(UsernameUnavailableException.USERNAME_RESERVED,
+                        "Username " + wanted + " is reserved");
+            }
+            if (status == UsernameStatus.TAKEN) {
+                throw new UsernameUnavailableException(UsernameUnavailableException.USERNAME_TAKEN,
+                        "Username " + wanted + " is taken");
+            }
+        }
+        Users user = findById(userId);
+        user.setUsername(wanted);
+        try {
+            usersRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException ex) {
+            if (isUsernameTakenViolation(ex)) {
+                throw new UsernameUnavailableException(UsernameUnavailableException.USERNAME_TAKEN,
+                        "Username " + wanted + " is taken");
+            }
+            throw ex;
+        }
+    }
+
+    /** Con un bloqueo en cualquier sentido da el mismo 404 que un perfil privado: no se revela el bloqueo. */
+    private boolean isVisibleTo(UUID viewerId, Users user) {
+        if (user.getId().equals(viewerId)) {
+            return true;
+        }
+        return user.isShowProfilePublic() && !user.isDeleted() && !user.isBanned()
+                && !userBlocksRepository.existsBetween(viewerId, user.getId());
+    }
+
+    private boolean isUsernameTakenViolation(DataIntegrityViolationException ex) {
+        String cause = ex.getMostSpecificCause().getMessage();
+        return cause != null && cause.contains(USERNAME_UNIQUE_CONSTRAINT);
     }
 
     /**

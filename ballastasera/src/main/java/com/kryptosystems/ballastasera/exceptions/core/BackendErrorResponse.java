@@ -419,6 +419,21 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
 
+    /** Username ocupado o reservado. code para que el frontend traduzca el mensaje. */
+    @ExceptionHandler(UsernameUnavailableException.class)
+    public ResponseEntity<ErrorDetails> handleUsernameUnavailable(UsernameUnavailableException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Username not available",
+                HttpStatus.CONFLICT,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
     /** @Version (OrganizerRequests y UserReports): otra petición la modificó entre la lectura y el commit. Salta
      * en el commit, fuera del servicio, por eso se traduce aquí. Mismo formato que los otros 409 con code. */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)

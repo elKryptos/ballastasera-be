@@ -2,6 +2,7 @@ package com.kryptosystems.ballastasera.models.mappers;
 
 import com.kryptosystems.ballastasera.enums.InviteFriendStatus;
 import com.kryptosystems.ballastasera.enums.SocialRelation;
+import com.kryptosystems.ballastasera.enums.UsernameStatus;
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.FollowsActivity;
 import com.kryptosystems.ballastasera.models.dtos.HomeCityDto;
@@ -15,6 +16,7 @@ import com.kryptosystems.ballastasera.models.dtos.UserDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.UsernameAvailabilityDto;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import com.kryptosystems.ballastasera.models.entities.UserDanceStyles;
 import com.kryptosystems.ballastasera.models.entities.UserFollows;
@@ -45,17 +47,22 @@ public interface UserMapper {
     @Mapping(target = "schoolSlug", source = "schoolOrganizer.slug")
     @Mapping(target = "schoolName", expression = "java(toSchoolName(user))")
     @Mapping(target = "homeCity", expression = "java(toHomeCityDto(user))")
+    @Mapping(target = "memberSince", source = "createdAt")
     @Mapping(target = "followersCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "eventsCount", ignore = true)
+    @Mapping(target = "venuesCount", ignore = true)
+    @Mapping(target = "firstEventAt", ignore = true)
     UserDto toDto(Users user);
 
-    /** /auth/me: el dueño con sus contadores. */
+    /** /auth/me: el dueño con sus contadores y traguardi, la primera serata incluida. */
     default UserDto toDto(Users user, SocialCounts counts) {
         UserDto dto = toDto(user);
         dto.setFollowersCount(counts.followers());
         dto.setFollowingCount(counts.following());
         dto.setEventsCount(counts.events());
+        dto.setVenuesCount(counts.venues());
+        dto.setFirstEventAt(counts.firstEventAt());
         return dto;
     }
 
@@ -89,11 +96,13 @@ public interface UserMapper {
     @Mapping(target = "schoolSlug", source = "schoolOrganizer.slug")
     @Mapping(target = "schoolName", expression = "java(toSchoolName(user))")
     @Mapping(target = "homeCityName", expression = "java(user.isShowHomeCity() ? user.getHomeCity() : null)")
+    @Mapping(target = "memberSince", source = "createdAt")
     @Mapping(target = "relation", ignore = true)
     @Mapping(target = "muted", ignore = true)
     @Mapping(target = "followersCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "eventsCount", ignore = true)
+    @Mapping(target = "venuesCount", ignore = true)
     @Mapping(target = "mutualFriends", ignore = true)
     @Mapping(target = "mutualFriendsCount", ignore = true)
     @Mapping(target = "eventsTogetherCount", ignore = true)
@@ -112,6 +121,8 @@ public interface UserMapper {
         dto.setFollowersCount(counts.followers());
         dto.setFollowingCount(counts.following());
         dto.setEventsCount(counts.events());
+        // counts.firstEventAt() no: la fecha de la primera serata solo la ve el dueño
+        dto.setVenuesCount(counts.venues());
         if (canSeeWhatsapp(user, viewerId, relation)) {
             dto.setWhatsapp(user.getWhatsapp());
         }
@@ -189,6 +200,14 @@ public interface UserMapper {
             dto.setNextCursorStartAt(last.getCreatedAt());
             dto.setNextCursorId(person.apply(last).getId());
         }
+        return dto;
+    }
+
+    /** Campo «Nome utente»: disponible, o por que no. */
+    default UsernameAvailabilityDto toUsernameAvailabilityDto(UsernameStatus status) {
+        UsernameAvailabilityDto dto = new UsernameAvailabilityDto();
+        dto.setAvailable(status == UsernameStatus.AVAILABLE);
+        dto.setReason(status == UsernameStatus.AVAILABLE ? null : status);
         return dto;
     }
 

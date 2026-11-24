@@ -20,6 +20,8 @@ import java.util.UUID;
 public class UserProfileDto {
     private UUID userId;
     private String displayName;
+    /** Para el link «Copia il link del profilo» (ballastasera.it/@username). null si no eligio ninguno. */
+    private String username;
     private String avatarUrl;
     private String instagram;
     private Integer age;
@@ -41,6 +43,10 @@ public class UserProfileDto {
     private long followersCount;
     private long followingCount;
     private long eventsCount;
+    /** Traguardi: locales distintos de las serate de eventsCount y «Su ballastasera da…». La primera serata no: su
+     * fecha solo la ve el dueño (UserDto.firstEventAt). Se ven aunque sus serate esten ocultas, como eventsCount. */
+    private long venuesCount;
+    private OffsetDateTime memberSince;
     /** «Avete in comune»: hasta 3 amigos en comun (relation MUTUAL: son amigos de quien mira) y su total. */
     private List<UserSummaryDto> mutualFriends;
     private long mutualFriendsCount;

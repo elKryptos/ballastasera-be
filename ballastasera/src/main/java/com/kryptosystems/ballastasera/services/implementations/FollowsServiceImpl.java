@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.exceptions.SocialActionException;
 import com.kryptosystems.ballastasera.models.dtos.FollowsActivity;
@@ -13,6 +14,7 @@ import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.FollowsService;
 import com.kryptosystems.ballastasera.services.manager.NotificationsService;
+import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -110,12 +112,17 @@ public class FollowsServiceImpl implements FollowsService {
         return SocialRelation.of(viewerFollows, followsViewer);
     }
 
+    /** Con los traguardi: serate pasadas, locales distintos y cuando empezo la primera. */
     @Override
     public SocialCounts countSocial(UUID userId) {
+        OffsetDateTime now = OffsetDateTime.now();
         return new SocialCounts(
                 userFollowsRepository.countFollowers(userId),
                 userFollowsRepository.countFollowing(userId),
-                eventAttendanceRepository.countPastByUserId(userId));
+                eventAttendanceRepository.countPastByUserId(userId),
+                eventAttendanceRepository.countPastVenuesByUserId(userId),
+                eventAttendanceRepository.findFirstPastStartAt(userId, EventStatus.PUBLISHED, now,
+                        now.minus(EventTimingUtils.DEFAULT_DURATION)));
     }
 
     /** Todos siguen a userId: son amigos los que userId sigue tambien. */

@@ -655,6 +655,34 @@ van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards so
   no abre el diálogo y explica por qué), `EVENT_NOT_INVITABLE` y `NOT_GOING`. Así nunca muestra amigos
   `INVITABLE` a una serata a la que no se puede invitar.
 
+### Traguardi y @username — requieren login
+
+Traguardi, en `GET /auth/me` (y las demás respuestas con `UserDto`) y en `GET /users/{id}`:
+
+| Campo | `UserDto` | `UserProfileDto` | Notas |
+|---|---|---|---|
+| `eventsCount` | ✓ | ✓ | Ya existía: serate publicadas y terminadas a las que dijo «Ci vado» |
+| `venuesCount` | ✓ | ✓ | Locales distintos de esas serate; las serate sin local no cuentan. El FE pone «dove hai ballato», sin ciudad |
+| `firstEventAt` | ✓ | — | Cuándo empezó la primera de esas serate, `null` si no hay. A los demás no se les dice la fecha |
+| `memberSince` | ✓ | ✓ | Fecha de registro: «Su ballastasera da…» |
+| `username` | ✓ | ✓ | `null` si no eligió ninguno |
+
+- Terminada = `endAt` pasado o, sin `endAt`, 4 horas después de empezar (como en el resto de la API).
+- Se ven aunque `attendanceVisibility` sea `NOBODY`: son contadores, como `eventsCount`.
+- La meta siguiente («50 serate, ne mancano 23») la calcula el FE con `eventsCount` (10, 25, 50, 100, 200).
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /users/username-available?u=` | `{ "available": false, "reason": "TAKEN" }` | Campo «Nome utente» mientras se escribe. `reason`: `INVALID`, `RESERVED` o `TAKEN`; `null` si `available`. El propio cuenta como disponible. Sin normalizar: el FE manda minúsculas |
+| `PATCH /users/me/username` `{ "username": "ana.baila" }` | `204` | Elige, cambia o quita (`null` o `""`). El anterior queda libre en el momento y su link da `404`. Aparte de `PATCH /auth/me`, que no lo toca |
+| `GET /users/by-username/{username}` | `UserProfileDto` | `/@username`: el mismo perfil que `GET /users/{id}`, con los mismos `404` (privado, bloqueo, baneado, borrado) y también si nadie lo tiene. Sin importar mayúsculas |
+
+- Formato: minúsculas, números, `.` y `_`, de 3 a 30, sin punto al principio ni al final ni dos seguidos. Si no →
+  `400` con `errors.username`.
+- Reservados: `admin`, `ballastasera`, `staff`, `support`, `help`, `info` → `409` con `code: USERNAME_RESERVED`.
+- Lo tiene otra persona → `409` con `code: USERNAME_TAKEN`, también si dos lo piden a la vez (índice único).
+- `/@username` pide login, como `/users/{id}`: quien llega desde una story entra con Google y lo ve.
+
 ### Moderación — solo ADMIN (`/rest/admin`)
 
 | Endpoint | Respuesta | Notas |

@@ -5,6 +5,7 @@ import com.kryptosystems.ballastasera.enums.DanceLevel;
 import com.kryptosystems.ballastasera.enums.DanceRole;
 import com.kryptosystems.ballastasera.enums.Gender;
 import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.exceptions.UsernameUnavailableException;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
@@ -27,7 +28,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -288,6 +291,37 @@ class UsersServiceImplTest {
         when(usersRepository.findByIdWithDanceStyles(USER_ID)).thenReturn(Optional.of(user));
 
         assertThat(usersService.findPublicProfile(USER_ID, USER_ID)).isSameAs(user);
+    }
+
+    /** Dos personas piden el mismo a la vez: las dos pasan el exists y el indice unico frena a la segunda en el flush. */
+    @Test
+    void changeUsernameTurnsARaceOnTheUniqueIndexIntoTaken() {
+        Users user = user(UserRole.USER);
+        when(usersRepository.existsByUsernameAndIdNot("ana.baila", USER_ID)).thenReturn(false);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(usersRepository.saveAndFlush(user)).thenThrow(integrityViolation("users_username_key"));
+
+        assertThatThrownBy(() -> usersService.changeUsername(USER_ID, "ana.baila"))
+                .isInstanceOfSatisfying(UsernameUnavailableException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo(UsernameUnavailableException.USERNAME_TAKEN));
+    }
+
+    /** Otra violacion no es un nombre ocupado: sigue tal cual (500). */
+    @Test
+    void changeUsernameRethrowsOtherIntegrityViolations() {
+        Users user = user(UserRole.USER);
+        DataIntegrityViolationException other = integrityViolation("users_email_key");
+        when(usersRepository.existsByUsernameAndIdNot("ana.baila", USER_ID)).thenReturn(false);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(usersRepository.saveAndFlush(user)).thenThrow(other);
+
+        assertThatThrownBy(() -> usersService.changeUsername(USER_ID, "ana.baila")).isSameAs(other);
+    }
+
+    /** Como la traduce Spring: el SQLException de Postgres con el nombre del indice, como causa. */
+    private static DataIntegrityViolationException integrityViolation(String constraint) {
+        return new DataIntegrityViolationException("could not execute statement",
+                new SQLException("ERROR: duplicate key value violates unique constraint \"" + constraint + "\""));
     }
 
     private static Users user(UserRole role) {

@@ -97,6 +97,7 @@ CREATE TABLE users (
     home_longitude              DOUBLE PRECISION,
     show_home_city              BOOLEAN NOT NULL DEFAULT FALSE,
     email_notifications         BOOLEAN NOT NULL DEFAULT TRUE,   -- social fase 6: «Ricevi email» (nuovi amici e inviti)
+    username                    VARCHAR(30) UNIQUE,              -- social fase 7: alias de /@username, opcional; formato en el BE (UsernameUtils)
     role                        user_role   NOT NULL DEFAULT 'USER',
     is_banned                   BOOLEAN     NOT NULL DEFAULT FALSE,
     banned_at                   TIMESTAMPTZ,                     -- social fase 4: null si no está baneado

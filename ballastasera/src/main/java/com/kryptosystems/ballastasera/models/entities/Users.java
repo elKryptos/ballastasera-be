@@ -103,6 +103,10 @@ public class Users {
     @Column(name = "email_notifications", nullable = false)
     private boolean emailNotifications = true;
 
+    /** Alias de /@username: minúsculas y único, o null si no eligió ninguno. Se cambia con PATCH /users/me/username. */
+    @Column(name = "username", unique = true)
+    private String username;
+
     @Column(name = "instagram")
     private String instagram;
 

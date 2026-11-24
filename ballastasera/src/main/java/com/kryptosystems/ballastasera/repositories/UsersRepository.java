@@ -24,6 +24,19 @@ public interface UsersRepository extends JpaRepository<Users, UUID> {
             """)
     Optional<Users> findByIdWithDanceStyles(UUID id);
 
+    /** Lo mismo que findByIdWithDanceStyles, para /users/by-username/{username}. username ya en minúsculas. */
+    @Query("""
+            SELECT u FROM Users u
+            LEFT JOIN FETCH u.danceStyles uds
+            LEFT JOIN FETCH uds.danceStyle
+            LEFT JOIN FETCH u.schoolOrganizer
+            WHERE u.username = :username
+            """)
+    Optional<Users> findByUsernameWithDanceStyles(String username);
+
+    /** «Già in uso»: lo tiene otra persona. El propio no cuenta. */
+    boolean existsByUsernameAndIdNot(String username, UUID id);
+
     /** Admin «Utenti bannati»: los mas recientes primero; los baneados antes de la fase 4 (sin banned_at), al final. */
     @Query("""
             SELECT u FROM Users u

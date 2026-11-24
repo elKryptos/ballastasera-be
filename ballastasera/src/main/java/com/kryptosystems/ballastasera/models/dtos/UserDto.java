@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,7 +44,15 @@ public class UserDto {
     private boolean showHomeCity;
     /** «Ricevi email». No va en PATCH /auth/me: se cambia con PATCH /users/me/email-notifications. */
     private boolean emailNotifications;
+    /** Alias de /@username, null si no eligio ninguno. No va en PATCH /auth/me: se cambia con PATCH /users/me/username. */
+    private String username;
+    /** «Su ballastasera da…»: la fecha de registro. */
+    private OffsetDateTime memberSince;
     private long followersCount;
     private long followingCount;
     private long eventsCount;
+    /** Traguardo «8 locali»: locales distintos de las serate de eventsCount. */
+    private long venuesCount;
+    /** Traguardo «Prima serata»: cuando empezo la primera de eventsCount, null si no hay. Solo aqui, no en el perfil publico. */
+    private OffsetDateTime firstEventAt;
 }

@@ -1,6 +1,7 @@
 package com.kryptosystems.ballastasera.services.manager;
 
 import com.kryptosystems.ballastasera.enums.AvatarSource;
+import com.kryptosystems.ballastasera.enums.UsernameStatus;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Users;
 
@@ -32,6 +33,16 @@ public interface UsersService {
 
     /** Perfil de otro usuario: 404 si es privado, borrado o baneado, salvo que sea el propio. */
     Users findPublicProfile(UUID viewerId, UUID userId);
+
+    /** Lo mismo por /@username, sin importar mayusculas. 404 tambien si nadie lo tiene. */
+    Users findPublicProfileByUsername(UUID viewerId, String username);
+
+    /** Si userId puede elegir username. El suyo cuenta como AVAILABLE. */
+    UsernameStatus checkUsername(UUID userId, String username);
+
+    /** Elige, cambia o quita (null o vacio) el username. El anterior queda libre en el momento.
+     * 409 si esta reservado o lo tiene otra persona. */
+    void changeUsername(UUID userId, String username);
 
     /** Sube el rol a ORGANIZER si el usuario todavia es USER (no baja a un ADMIN). */
     Users promoteToOrganizer(UUID userId);

@@ -32,7 +32,9 @@ class UserMapperTest {
     private static final UUID OWNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID VIEWER_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final String WHATSAPP = "+393331234567";
-    private static final SocialCounts NO_COUNTS = new SocialCounts(0, 0, 0);
+    private static final SocialCounts NO_COUNTS = new SocialCounts(0, 0, 0, 0, null);
+    private static final OffsetDateTime FIRST_EVENT_AT = OffsetDateTime.parse("2026-03-14T22:00:00+01:00");
+    private static final OffsetDateTime CREATED_AT = OffsetDateTime.parse("2026-02-01T10:00:00+01:00");
     private static final ProfileActivity NO_ACTIVITY = new ProfileActivity(List.of(), 0, 0, null, false);
 
     private final UserMapper mapper = Mappers.getMapper(UserMapper.class);
@@ -94,15 +96,40 @@ class UserMapperTest {
         assertThat(mapper.toProfileDto(user, VIEWER_ID, SocialRelation.NONE, false, NO_COUNTS, NO_ACTIVITY).getWhatsapp()).isEqualTo(WHATSAPP);
     }
 
+    /** Con los traguardi que ven los demas: locales y «Su ballastasera da…». La primera serata no tiene campo aqui. */
     @Test
-    void profileDtoCarriesTheRelationAndTheCounters() {
-        UserProfileDto dto = mapper.toProfileDto(user(), VIEWER_ID, SocialRelation.MUTUAL, true, new SocialCounts(12, 7, 30), NO_ACTIVITY);
+    void profileDtoCarriesTheRelationTheCountersAndTheTraguardi() {
+        Users user = user();
+        user.setUsername("ana.baila");
+        user.setCreatedAt(CREATED_AT);
+
+        UserProfileDto dto = mapper.toProfileDto(user, VIEWER_ID, SocialRelation.MUTUAL, true,
+                new SocialCounts(12, 7, 30, 8, FIRST_EVENT_AT), NO_ACTIVITY);
 
         assertThat(dto.getRelation()).isEqualTo(SocialRelation.MUTUAL);
         assertThat(dto.isMuted()).isTrue();
         assertThat(dto.getFollowersCount()).isEqualTo(12);
         assertThat(dto.getFollowingCount()).isEqualTo(7);
         assertThat(dto.getEventsCount()).isEqualTo(30);
+        assertThat(dto.getVenuesCount()).isEqualTo(8);
+        assertThat(dto.getMemberSince()).isEqualTo(CREATED_AT);
+        assertThat(dto.getUsername()).isEqualTo("ana.baila");
+    }
+
+    /** /auth/me: el dueño tambien ve cuando fue su primera serata. */
+    @Test
+    void meDtoCarriesTheTraguardiWithTheFirstSerata() {
+        Users user = user();
+        user.setUsername("ana.baila");
+        user.setCreatedAt(CREATED_AT);
+
+        UserDto dto = mapper.toDto(user, new SocialCounts(12, 7, 30, 8, FIRST_EVENT_AT));
+
+        assertThat(dto.getEventsCount()).isEqualTo(30);
+        assertThat(dto.getVenuesCount()).isEqualTo(8);
+        assertThat(dto.getFirstEventAt()).isEqualTo(FIRST_EVENT_AT);
+        assertThat(dto.getMemberSince()).isEqualTo(CREATED_AT);
+        assertThat(dto.getUsername()).isEqualTo("ana.baila");
     }
 
     /** Los amigos en comun salen como amigos de quien mira (MUTUAL), y la ultima serata juntos en campos planos. */
@@ -194,10 +221,11 @@ class UserMapperTest {
     }
 
     /** Reemplazo completo: lo que no viene queda null, whatsappVisibility null queda MUTUALS,
-     * y no toca los campos que no son del formulario ni los estilos. */
+     * y no toca los campos que no son del formulario (el username tampoco) ni los estilos. */
     @Test
     void updateFromDtoReplacesTheFormFieldsOnly() {
         Users user = user();
+        user.setUsername("ana.baila");
         user.setWhatsappVisibility(ContactVisibility.NOBODY);
         user.setBirthDate(LocalDate.of(1995, 4, 12));
         user.getDanceStyles().add(userStyle(user, DanceLevel.BEGINNER));
@@ -215,6 +243,7 @@ class UserMapperTest {
         assertThat(user.getDanceRole()).isNull();
         assertThat(user.getEmail()).isEqualTo("ana@example.com");
         assertThat(user.getRole()).isEqualTo(UserRole.USER);
+        assertThat(user.getUsername()).isEqualTo("ana.baila");
         assertThat(user.getDanceStyles()).hasSize(1);
     }
 

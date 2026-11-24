@@ -16,6 +16,7 @@ suma su bloque aquí; en prod se corren todos juntos antes del deploy del BE con
 | 3 | `looking_for_partner` en `event_attendance` | ☐ | ☐ |
 | 4 | `user_reports`, `muted` en `user_follows`, `banned_at` en `users` | ☐ | ☐ |
 | 6 | `notifications`, `email_notifications` en `users` | ☐ | ☐ |
+| 7 | `username` en `users` | ☐ | ☐ |
 
 ---
 
@@ -307,4 +308,40 @@ DROP TYPE invite_phrase;
 DROP TYPE notification_type;
 ALTER TABLE users DROP COLUMN email_notifications;
 COMMIT;
+```
+
+---
+
+## Fase 7 — Traguardi y @username
+
+Solo `username`: los traguardi salen de tablas que ya existen y no necesitan índices nuevos (usan los mismos que
+`eventsCount`). Aditivo, en una sola transacción. Arranca en `null` para todos: a los usuarios que ya existen no se
+les rellena (decidido el 24/11).
+
+Sin `CHECK` del formato (decidido el 24/11): lo valida solo el BE (`UsernameUtils`), como `instagram` y `whatsapp`, y
+así cambiar la regla no pide un `ALTER` en prod. La base guarda lo que no puede hacer el BE: el `UNIQUE`, para que dos
+personas que piden el mismo a la vez no se queden con él. Permite muchos `null` y, como el BE solo guarda minúsculas,
+también es único sin importar mayúsculas. El BE reconoce el nombre del índice (`users_username_key`) para responder
+409 en ese caso.
+
+```sql
+-- Antes: no existe → 0 filas
+SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'username';
+
+BEGIN;
+ALTER TABLE users ADD COLUMN username VARCHAR(30) UNIQUE;
+COMMIT;
+
+-- Después: el índice único → users_username_key
+SELECT conname FROM pg_constraint WHERE conrelid = 'users'::regclass AND conname LIKE 'users_username%';
+
+-- Nadie tiene username todavía → 0
+SELECT count(*) FROM users WHERE username IS NOT NULL;
+```
+
+### Rollback
+
+```sql
+-- Borra también el índice único
+ALTER TABLE users DROP COLUMN username;
 ```

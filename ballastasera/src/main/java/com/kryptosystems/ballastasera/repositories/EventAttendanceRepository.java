@@ -114,6 +114,29 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
             """, nativeQuery = true)
     long countPastByUserId(@Param("userId") UUID userId);
 
+    /** Traguardo «8 locali»: locales distintos de esas serate. Las serate sin local no cuentan (COUNT DISTINCT ignora
+     * los null). Mismo filtro que countPastByUserId. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT e.venue_id) FROM event_attendance a JOIN events e ON e.id = a.event_id
+            WHERE a.user_id = :userId AND e.status = 'PUBLISHED'
+            AND COALESCE(e.end_at, e.start_at + INTERVAL '4 hours') <= now()
+            """, nativeQuery = true)
+    long countPastVenuesByUserId(@Param("userId") UUID userId);
+
+    /**
+     * Traguardo «Prima serata»: cuando empezo la primera de esas serate, o null si no hay ninguna. Mismo filtro que
+     * countPastByUserId, en JPQL para que devuelva OffsetDateTime: startedBefore = now - EventTimingUtils.DEFAULT_DURATION.
+     */
+    @Query("""
+            SELECT MIN(e.startAt) FROM EventAttendance a JOIN a.event e
+            WHERE a.id.userId = :userId AND e.status = :published
+            AND (e.endAt <= :now OR (e.endAt IS NULL AND e.startAt <= :startedBefore))
+            """)
+    OffsetDateTime findFirstPastStartAt(@Param("userId") UUID userId,
+                                        @Param("published") EventStatus published,
+                                        @Param("now") OffsetDateTime now,
+                                        @Param("startedBefore") OffsetDateTime startedBefore);
+
     /** «Avete in comune»: serate ya terminadas a las que dijeron «Ci vado» los dos. Mismo filtro que countPastByUserId. */
     @Query(value = """
             SELECT COUNT(*) FROM event_attendance a
