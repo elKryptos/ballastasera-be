@@ -15,6 +15,7 @@ suma su bloque aquí; en prod se corren todos juntos antes del deploy del BE con
 | 2 | Columnas del perfil en `users` (bio, serate, escuela, ciudad, país, foto) | ☐ | ☐ |
 | 3 | `looking_for_partner` en `event_attendance` | ☐ | ☐ |
 | 4 | `user_reports`, `muted` en `user_follows`, `banned_at` en `users` | ☐ | ☐ |
+| 6 | `notifications`, `email_notifications` en `users` | ☐ | ☐ |
 
 ---
 
@@ -247,5 +248,63 @@ DROP TYPE report_status;
 DROP TYPE report_reason;
 ALTER TABLE user_follows DROP COLUMN muted;
 ALTER TABLE users DROP COLUMN banned_at;
+COMMIT;
+```
+
+---
+
+## Fase 6 — Avisos e invitaciones
+
+Todo aditivo y sin `ALTER TYPE ... ADD VALUE` (los dos enums son nuevos), así que va en una sola transacción.
+`email_notifications` arranca en `true` para todos, también los usuarios que ya existen (decidido el 24/11: son
+avisos de su cuenta, no publicidad, y se pueden apagar).
+
+El único índice parcial es el único de las invitaciones (lo usa el `ON CONFLICT`, con el `'INVITE'` escrito en la
+query). Los demás son completos: las queries reciben el tipo como parámetro, y con un parámetro Postgres no siempre
+puede usar un índice `WHERE type = 'INVITE'`.
+
+```sql
+-- Antes: no existen → NULL | NULL | NULL
+SELECT to_regclass('public.notifications'), to_regtype('notification_type'), to_regtype('invite_phrase');
+
+BEGIN;
+CREATE TYPE notification_type AS ENUM ('NEW_FOLLOWER', 'NEW_FRIEND', 'INVITE');
+CREATE TYPE invite_phrase AS ENUM ('CI_VIENI', 'ANDIAMO_INSIEME', 'MI_ACCOMPAGNI', 'TI_VA_DI_BALLARE');
+
+CREATE TABLE notifications (
+    id            UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_id  UUID              NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+    actor_id      UUID              NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+    type          notification_type NOT NULL,
+    event_id      UUID              REFERENCES events(id) ON DELETE CASCADE,
+    invite_phrase invite_phrase,
+    read_at       TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ       NOT NULL DEFAULT now(),
+    CHECK (recipient_id <> actor_id),
+    CHECK ((type = 'INVITE') = (event_id IS NOT NULL AND invite_phrase IS NOT NULL))
+);
+CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, created_at DESC);
+CREATE UNIQUE INDEX uq_notifications_invite ON notifications(actor_id, recipient_id, event_id) WHERE type = 'INVITE';
+CREATE INDEX idx_notifications_actor ON notifications(actor_id, created_at);
+CREATE INDEX idx_notifications_created ON notifications(created_at);
+
+ALTER TABLE users ADD COLUMN email_notifications BOOLEAN NOT NULL DEFAULT TRUE;
+COMMIT;
+
+-- Después: la tabla vacía → 0
+SELECT count(*) FROM notifications;
+
+-- email_notifications en true para todos → una fila: true | <total>
+SELECT email_notifications, count(*) FROM users GROUP BY 1;
+```
+
+### Rollback
+
+```sql
+BEGIN;
+DROP TABLE notifications;
+DROP TYPE invite_phrase;
+DROP TYPE notification_type;
+ALTER TABLE users DROP COLUMN email_notifications;
 COMMIT;
 ```

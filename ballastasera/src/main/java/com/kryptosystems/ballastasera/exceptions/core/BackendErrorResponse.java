@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.exceptions.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -383,6 +384,24 @@ public class BackendErrorResponse {
                 Map.of("code", ex.getCode())
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    /** 10 invitaciones en 24 horas. Mismo formato que el 429 de RateLimitFilter, con su propio code para que el
+     * FE muestre «Hai finito gli inviti per oggi». */
+    @ExceptionHandler(InviteLimitException.class)
+    public ResponseEntity<ErrorDetails> handleInviteLimit(InviteLimitException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Invite limit reached",
+                HttpStatus.TOO_MANY_REQUESTS,
+                Map.of("code", InviteLimitException.INVITE_LIMIT)
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(errorDetails);
     }
 
     /** Denuncia ya revisada o ban a un ADMIN. code para que el frontend del admin traduzca el mensaje. */

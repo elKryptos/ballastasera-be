@@ -8,6 +8,7 @@ import com.kryptosystems.ballastasera.repositories.UserBlocksRepository;
 import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.BlocksService;
+import com.kryptosystems.ballastasera.services.manager.NotificationsService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,8 +24,10 @@ public class BlocksServiceImpl implements BlocksService {
     private final UserBlocksRepository userBlocksRepository;
     private final UserFollowsRepository userFollowsRepository;
     private final UsersRepository usersRepository;
+    private final NotificationsService notificationsService;
 
-    /** Se puede bloquear a un perfil privado o baneado (ej. alguien privado que te sigue). */
+    /** Se puede bloquear a un perfil privado o baneado (ej. alguien privado que te sigue). Borra los follows y los
+     * avisos entre los dos, en los dos sentidos. */
     @Override
     @Transactional
     public void block(UUID blockerId, UUID blockedId) {
@@ -44,6 +47,7 @@ public class BlocksServiceImpl implements BlocksService {
             userBlocksRepository.save(block);
         }
         userFollowsRepository.deleteBetween(blockerId, blockedId);
+        notificationsService.deleteBetween(blockerId, blockedId);
     }
 
     @Override

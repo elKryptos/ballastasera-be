@@ -99,6 +99,10 @@ public class Users {
     @Column(name = "show_home_city", nullable = false)
     private boolean showHomeCity = false;
 
+    /** «Ricevi email»: solo «ora siete amici» e invitaciones. Se cambia con PATCH /users/me/email-notifications. */
+    @Column(name = "email_notifications", nullable = false)
+    private boolean emailNotifications = true;
+
     @Column(name = "instagram")
     private String instagram;
 

@@ -1,9 +1,13 @@
 package com.kryptosystems.ballastasera.models.mappers;
 
+import com.kryptosystems.ballastasera.enums.InviteFriendStatus;
 import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
 import com.kryptosystems.ballastasera.models.dtos.FollowsActivity;
 import com.kryptosystems.ballastasera.models.dtos.HomeCityDto;
+import com.kryptosystems.ballastasera.models.dtos.InviteFriendDto;
+import com.kryptosystems.ballastasera.models.dtos.InviteFriendsActivity;
+import com.kryptosystems.ballastasera.models.dtos.InviteFriendsDto;
 import com.kryptosystems.ballastasera.models.dtos.ProfileActivity;
 import com.kryptosystems.ballastasera.models.dtos.SocialCounts;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleDto;
@@ -135,25 +139,49 @@ public interface UserMapper {
 
     /** /me/followers: cada fila sigue a quien mira. MUTUAL si quien mira lo sigue tambien, si no FOLLOWED_BY. */
     default CursorPageDto<UserSummaryDto> toFollowersCursorPage(FollowsActivity activity) {
-        return toFollowsCursorPage(activity, UserFollows::getFollower,
-                person -> SocialRelation.of(activity.friendIds().contains(person.getId()), true));
+        return toFollowsCursorPage(activity, UserFollows::getFollower, person -> toSummaryDto(person,
+                SocialRelation.of(activity.friendIds().contains(person.getId()), true)));
     }
 
     /** /me/following y /me/friends: quien mira sigue a cada fila. MUTUAL si lo sigue tambien, si no FOLLOWING. */
     default CursorPageDto<UserSummaryDto> toFollowingCursorPage(FollowsActivity activity) {
-        return toFollowsCursorPage(activity, UserFollows::getFollowed,
-                person -> SocialRelation.of(true, activity.friendIds().contains(person.getId())));
+        return toFollowsCursorPage(activity, UserFollows::getFollowed, person -> toSummaryDto(person,
+                SocialRelation.of(true, activity.friendIds().contains(person.getId()))));
     }
 
-    /** person: el otro usuario de cada follow. El cursor es la fecha del follow y el id de esa persona. */
-    private CursorPageDto<UserSummaryDto> toFollowsCursorPage(FollowsActivity activity,
-                                                              Function<UserFollows, Users> person,
-                                                              Function<Users, SocialRelation> relation) {
+    /**
+     * Dialogo «Invita a ballare»: los amigos (MUTUAL) con su estado. Si hay mas de uno, gana el que explica mejor por
+     * que no se lo puede invitar: privado, ya va, ya invitado.
+     */
+    default InviteFriendsDto toInviteFriendsDto(InviteFriendsActivity activity) {
+        InviteFriendsDto dto = new InviteFriendsDto();
+        dto.setInvitesLeft(activity.invitesLeft());
+        dto.setFriends(toFollowsCursorPage(activity.friends(), UserFollows::getFollowed, friend -> {
+            InviteFriendDto row = new InviteFriendDto();
+            row.setUser(toSummaryDto(friend, SocialRelation.MUTUAL));
+            if (!friend.isShowProfilePublic()) {
+                row.setStatus(InviteFriendStatus.PRIVATE);
+            } else if (activity.goingIds().contains(friend.getId())) {
+                row.setStatus(InviteFriendStatus.ALREADY_GOING);
+            } else if (activity.invitedIds().contains(friend.getId())) {
+                row.setStatus(InviteFriendStatus.ALREADY_INVITED);
+            } else {
+                row.setStatus(InviteFriendStatus.INVITABLE);
+            }
+            return row;
+        }));
+        return dto;
+    }
+
+    /** person: el otro usuario de cada follow; item: su fila. El cursor es la fecha del follow y el id de esa persona. */
+    private <T> CursorPageDto<T> toFollowsCursorPage(FollowsActivity activity,
+                                                     Function<UserFollows, Users> person,
+                                                     Function<Users, T> item) {
         Slice<UserFollows> follows = activity.follows();
-        CursorPageDto<UserSummaryDto> dto = new CursorPageDto<>();
+        CursorPageDto<T> dto = new CursorPageDto<>();
         dto.setItems(follows.getContent().stream()
                 .map(person)
-                .map(user -> toSummaryDto(user, relation.apply(user)))
+                .map(item)
                 .toList());
         dto.setTotal(activity.total());
         if (follows.hasNext() && !follows.isEmpty()) {

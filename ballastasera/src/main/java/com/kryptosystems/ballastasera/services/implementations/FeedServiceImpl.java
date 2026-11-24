@@ -32,6 +32,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.kryptosystems.ballastasera.utilities.EventTimingUtils.DEFAULT_DURATION;
+
 @Service
 @RequiredArgsConstructor
 public class FeedServiceImpl implements FeedService {
@@ -39,8 +41,6 @@ public class FeedServiceImpl implements FeedService {
     private static final ZoneId ITALY = ZoneId.of("Europe/Rome");
     /** «Stasera» acaba a esta hora de la mañana siguiente. */
     private static final LocalTime NIGHT_ENDS_AT = LocalTime.of(6, 0);
-    /** Sin end_at una serata dura 4 horas, como COALESCE(end_at, start_at + INTERVAL '4 hours') en las nativas. */
-    private static final Duration DEFAULT_EVENT_DURATION = Duration.ofHours(4);
     /** «Novità»: lo de los ultimos 7 dias, y «va a X» a serate de los proximos 7. */
     private static final Duration NEWS_WINDOW = Duration.ofDays(7);
     private static final int MAX_NEWS = 50;
@@ -59,7 +59,7 @@ public class FeedServiceImpl implements FeedService {
         OffsetDateTime since = now.minus(NEWS_WINDOW);
 
         List<EventAttendance> tonight = eventAttendanceRepository.findFollowedGoingTonight(viewerId, now,
-                now.minus(DEFAULT_EVENT_DURATION), tonightUntil, EventStatus.PUBLISHED,
+                now.minus(DEFAULT_DURATION), tonightUntil, EventStatus.PUBLISHED,
                 ContactVisibility.EVERYONE, ContactVisibility.MUTUALS);
         List<EventAttendance> goingSoon = eventAttendanceRepository.findFollowedGoingSoon(viewerId, since,
                 tonightUntil, now.plus(NEWS_WINDOW), EventStatus.PUBLISHED,
@@ -89,7 +89,7 @@ public class FeedServiceImpl implements FeedService {
         // Llegan de la mas cercana a la mas lejana: se queda la primera, salvo que una posterior tenga «Cerco qualcuno»
         OffsetDateTime now = OffsetDateTime.now();
         Map<UUID, EventAttendance> sharedEvents = new HashMap<>();
-        eventAttendanceRepository.findSharedUpcoming(viewerId, ids, now, now.minus(DEFAULT_EVENT_DURATION),
+        eventAttendanceRepository.findSharedUpcoming(viewerId, ids, now, now.minus(DEFAULT_DURATION),
                         EventStatus.PUBLISHED, ContactVisibility.EVERYONE)
                 .forEach(attendance -> sharedEvents.merge(attendance.getId().getUserId(), attendance,
                         (current, next) -> !current.isLookingForPartner() && next.isLookingForPartner() ? next : current));

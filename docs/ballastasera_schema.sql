@@ -42,6 +42,8 @@ CREATE TYPE contact_visibility AS ENUM ('NOBODY', 'EVERYONE', 'MUTUALS');   -- M
 CREATE TYPE avatar_source      AS ENUM ('GOOGLE', 'CUSTOM', 'NONE');        -- social fase 2
 CREATE TYPE report_reason      AS ENUM ('FAKE_PROFILE', 'HARASSMENT', 'INAPPROPRIATE_PHOTO', 'OTHER'); -- social fase 4
 CREATE TYPE report_status      AS ENUM ('OPEN', 'DISMISSED', 'BANNED');                                -- social fase 4
+CREATE TYPE notification_type  AS ENUM ('NEW_FOLLOWER', 'NEW_FRIEND', 'INVITE');                       -- social fase 6
+CREATE TYPE invite_phrase      AS ENUM ('CI_VIENI', 'ANDIAMO_INSIEME', 'MI_ACCOMPAGNI', 'TI_VA_DI_BALLARE'); -- social fase 6
 
 
 -- ============================================================================
@@ -94,6 +96,7 @@ CREATE TABLE users (
     home_latitude               DOUBLE PRECISION,
     home_longitude              DOUBLE PRECISION,
     show_home_city              BOOLEAN NOT NULL DEFAULT FALSE,
+    email_notifications         BOOLEAN NOT NULL DEFAULT TRUE,   -- social fase 6: «Ricevi email» (nuovi amici e inviti)
     role                        user_role   NOT NULL DEFAULT 'USER',
     is_banned                   BOOLEAN     NOT NULL DEFAULT FALSE,
     banned_at                   TIMESTAMPTZ,                     -- social fase 4: null si no está baneado
@@ -395,6 +398,30 @@ CREATE TABLE event_attendance (
     PRIMARY KEY (user_id, event_id)
 );
 CREATE INDEX idx_attendance_event ON event_attendance(event_id);
+
+-- ============================================================================
+--  NOTIFICATIONS — campanita (social fase 6): «ti segue», «ora siete amici» e
+--  inviti a ballare. Si cancellano dopo 60 giorni (NotificationsCleanupJob)
+-- ============================================================================
+CREATE TABLE notifications (
+    id            UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_id  UUID              NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+    actor_id      UUID              NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+    type          notification_type NOT NULL,
+    event_id      UUID              REFERENCES events(id) ON DELETE CASCADE,  -- solo INVITE
+    invite_phrase invite_phrase,                                             -- solo INVITE
+    read_at       TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ       NOT NULL DEFAULT now(),
+    CHECK (recipient_id <> actor_id),
+    CHECK ((type = 'INVITE') = (event_id IS NOT NULL AND invite_phrase IS NOT NULL))
+);
+CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, created_at DESC);           -- lista e contatore
+CREATE UNIQUE INDEX uq_notifications_invite ON notifications(actor_id, recipient_id, event_id)
+    WHERE type = 'INVITE';                                                                            -- 1 per persona e serata (ON CONFLICT)
+-- Non parziale: le query per actor ricevono il tipo come parametro e Postgres non può usare con sicurezza un
+-- indice WHERE type = 'INVITE' nel piano generico. Serve al limite di 10 in 24 ore, al dialogo e al blocco.
+CREATE INDEX idx_notifications_actor ON notifications(actor_id, created_at);
+CREATE INDEX idx_notifications_created ON notifications(created_at);                                  -- pulizia a 60 giorni
 
 
 -- ============================================================================

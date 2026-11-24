@@ -378,6 +378,7 @@ El perfil completo del usuario logueado (`UserDto`): `userId`, `email`, `display
 | `gender` | `MALE` \| `FEMALE` \| `OTHER` \| `UNDISCLOSED` \| null | |
 | `danceRole` | `LEADER` \| `FOLLOWER` \| `BOTH` \| null | |
 | `danceStyles` | `[{ danceStyleId, name, slug, level }]` | `level`: `BEGINNER` \| `INTERMEDIATE` \| `ADVANCED` \| `TEACHER` |
+| `emailNotifications` | boolean | «Ricevi email» (social fase 6). No va en `PATCH /auth/me`: se cambia con `PATCH /users/me/email-notifications` |
 
 ---
 
@@ -600,6 +601,59 @@ van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards so
 - Orden: comparte serata conmigo, marcó «Cerco qualcuno» en una de ellas, más amigos en común.
 - `user.relation` es `NONE` o `FOLLOWED_BY` («Ricambia»). `event*` es la serata más cercana que compartimos
   (prefiere una con «Cerco qualcuno»); `null` si no compartimos ninguna. El FE arma el «por qué» con estos campos.
+
+### Campanita e invitaciones — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /users/me/notifications?cursorStartAt=&cursorId=&limit=` | `CursorPage<NotificationDto>` | Los más recientes primero, mismo cursor que `/me/followers` (fecha e id del aviso) |
+| `GET /users/me/notifications/unread-count` | `{ "unread": 3 }` | El número sobre la campanita: los mismos avisos que la lista, sin leer |
+| `PATCH /users/me/notifications/read` | `204` | Al abrir la campanita: todos quedan leídos |
+| `PATCH /users/me/email-notifications` `{ "enabled": true \| false }` | `204` | Toggle «Ricevi email». Sin `enabled` → `400`. El valor sale en `GET /auth/me` (`emailNotifications`, default `true`) |
+| `POST /users/{id}/invites` `{ "eventId", "phrase" }` | `204` | «Invita a ballare». Idempotente por persona y serata (no crea otra ni cuenta para el límite) |
+| `GET /events/{id}/invites/friends?q=&cursorStartAt=&cursorId=&limit=` | `InviteFriendsDto` | Diálogo de la serata: mis amigos (como `/me/friends`) con su estado. `404` si la serata no existe |
+
+```json
+{ "id": "…", "type": "INVITE", "createdAt": "…", "read": false, "actor": UserSummaryDto,
+  "eventId": "…", "eventSlug": "…", "eventTitle": "Salsa al Tropical", "eventStartAt": "…", "phrase": "CI_VIENI" }
+```
+
+- `type`: `NEW_FOLLOWER` («ti segue»), `NEW_FRIEND` («ora siete amici») o `INVITE`. Los campos `event*` y
+  `phrase` solo en `INVITE`.
+- Cuando A sigue a B, B recibe `NEW_FOLLOWER`; si B ya seguía a A, en cambio recibe `NEW_FRIEND` (y un email, si
+  tiene `emailNotifications`, A no es privado —el botón del email lleva al perfil de A— y B no silenció a A). A no
+  recibe nada.
+- `actor.relation` es la de hoy (si ya lo sigo, no hay «Ricambia»). `actor.profilePublic = false`: alguien privado,
+  sin enlace y con «Profilo privato».
+- No salen: los de quien silencié (al reactivarlo vuelven), los de baneados o borrados, ni las invitaciones a
+  serate canceladas o terminadas. Bloquear borra los avisos entre los dos; dejar de seguir borra el «ti segue» sin
+  leer (el «ora siete amici» queda, con la `relation` de hoy), y la misma pareja no recibe el mismo aviso dos veces
+  en 7 días: seguir y dejar de seguir en loop no repite avisos ni emails. Se borran a los 60 días.
+- `phrase` (frase fija, el FE la muestra en italiano): `CI_VIENI` («Ci vieni?»), `ANDIAMO_INSIEME` («Andiamo
+  insieme?»), `MI_ACCOMPAGNI` («Mi accompagni?»), `TI_VA_DI_BALLARE` («Ti va di ballare?»).
+- Invitar: solo a amigos (nos seguimos los dos), a una serata publicada y no terminada a la que digo «Ci vado».
+  Errores `400` con `code`: `SELF_ACTION`, `NOT_FRIENDS`, `PROFILE_PRIVATE` (mi perfil es privado),
+  `FRIEND_PRIVATE`, `NOT_GOING`, `EVENT_NOT_INVITABLE`, `ALREADY_GOING` (salvo que mi amigo oculte sus serate a
+  todos: entonces se deja invitar, para no revelar que va). `404` si el invitado no existe, está baneado o borrado,
+  o si la serata no existe.
+- Límite: 10 invitaciones en las últimas 24 horas. La siguiente da `429` con `code: INVITE_LIMIT` y
+  `Retry-After` (cuándo se libera un hueco). Además cuenta para el grupo `SOCIAL` del rate limit.
+- El invitado recibe el aviso y un email (si tiene `emailNotifications` y no silenció a quien invita) con un botón a
+  la serata. No hay respuesta: desde la serata dice «Ci vado».
+
+```json
+{ "invitesLeft": 9,
+  "friends": { "items": [{ "user": UserSummaryDto, "status": "INVITABLE" }], "nextCursorStartAt": null,
+               "nextCursorId": null, "total": 5 } }
+```
+
+- `status`: `INVITABLE`, `ALREADY_GOING` («Ci va già»), `ALREADY_INVITED` («Già invitato») o `PRIVATE`
+  («Profilo privato: non può essere invitato»). Si hay más de uno, gana en ese orden: `PRIVATE`, `ALREADY_GOING`,
+  `ALREADY_INVITED`.
+- `invitesLeft`: las que me quedan en las últimas 24 horas («Ti restano N inviti oggi»).
+- Da los mismos `400` que invitar para lo que no depende del amigo: `PROFILE_PRIVATE` (mi perfil es privado: el FE
+  no abre el diálogo y explica por qué), `EVENT_NOT_INVITABLE` y `NOT_GOING`. Así nunca muestra amigos
+  `INVITABLE` a una serata a la que no se puede invitar.
 
 ### Moderación — solo ADMIN (`/rest/admin`)
 

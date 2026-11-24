@@ -41,6 +41,8 @@ public class UserDto {
     private String originCountry;
     private HomeCityDto homeCity;
     private boolean showHomeCity;
+    /** «Ricevi email». No va en PATCH /auth/me: se cambia con PATCH /users/me/email-notifications. */
+    private boolean emailNotifications;
     private long followersCount;
     private long followingCount;
     private long eventsCount;

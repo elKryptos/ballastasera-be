@@ -235,6 +235,18 @@ public interface EventAttendanceRepository extends JpaRepository<EventAttendance
     Set<UUID> findEventIdsAmong(UUID userId, Collection<UUID> eventIds);
 
     /**
+     * Dialogo «Invita a ballare» («Ci va già»): de userIds, quienes dijeron «Ci vado» a la serata. Sin quien eligio
+     * que nadie vea sus serate (nobody): a esos se los deja invitar, para no revelar que van.
+     */
+    @Query("""
+            SELECT a.id.userId FROM EventAttendance a
+            WHERE a.id.eventId = :eventId AND a.id.userId IN :userIds AND a.user.attendanceVisibility <> :nobody
+            """)
+    Set<UUID> findVisibleGoingIdsAmong(@Param("eventId") UUID eventId,
+                                       @Param("userIds") Collection<UUID> userIds,
+                                       @Param("nobody") ContactVisibility nobody);
+
+    /**
      * Sugerencias: «Ci vado» de userIds a serate en curso o futuras a las que tambien va viewerId, las mas cercanas
      * primero. Solo de quien muestra sus serate a todos (everyone): son desconocidos para viewerId.
      */

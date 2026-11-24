@@ -169,6 +169,15 @@ public class UsersServiceImpl implements UsersService {
         return user;
     }
 
+    /** Sin save(), como updateProfile: el dirty checking hace el UPDATE en el commit. */
+    @Override
+    @Transactional
+    public void setEmailNotifications(UUID userId, boolean enabled) {
+        usersRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id " + userId))
+                .setEmailNotifications(enabled);
+    }
+
     /** Sin save(), como updateProfile. La foto propia no se guarda para despues: se borra del bucket. */
     @Override
     @Transactional

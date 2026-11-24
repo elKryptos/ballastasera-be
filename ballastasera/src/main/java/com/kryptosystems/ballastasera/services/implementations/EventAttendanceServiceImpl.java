@@ -87,9 +87,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         Optional<EventAttendance> existing = eventAttendanceRepository.findById(id);
         if (existing.isPresent()) {
             if (lookingForPartner != null) {
@@ -107,9 +105,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
 
     @Override
     public Optional<EventAttendance> findAttendance(UUID userId, UUID eventId) {
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         return eventAttendanceRepository.findById(id);
     }
 
@@ -125,9 +121,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
     @Transactional
     @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void removeAttendance(UUID userId, UUID eventId) {
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         if (eventAttendanceRepository.existsById(id)) {
             eventAttendanceRepository.deleteById(id);
             eventsRepository.decrementGoingCount(eventId);
@@ -136,9 +130,7 @@ public class EventAttendanceServiceImpl implements EventAttendanceService {
 
     @Override
     public boolean isGoing(UUID userId, UUID eventId) {
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         return eventAttendanceRepository.existsById(id);
     }
 

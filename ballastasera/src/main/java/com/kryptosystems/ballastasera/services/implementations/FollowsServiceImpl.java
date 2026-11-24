@@ -12,6 +12,7 @@ import com.kryptosystems.ballastasera.repositories.UserBlocksRepository;
 import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.services.manager.FollowsService;
+import com.kryptosystems.ballastasera.services.manager.NotificationsService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +44,7 @@ public class FollowsServiceImpl implements FollowsService {
     private final UserBlocksRepository userBlocksRepository;
     private final UsersRepository usersRepository;
     private final EventAttendanceRepository eventAttendanceRepository;
+    private final NotificationsService notificationsService;
 
     @Override
     @Transactional
@@ -62,17 +64,24 @@ public class FollowsServiceImpl implements FollowsService {
         if (userFollowsRepository.existsById(id)) {
             return;
         }
+        Users follower = usersRepository.getReferenceById(followerId);
         UserFollows follow = new UserFollows();
         follow.setId(id);
-        follow.setFollower(usersRepository.getReferenceById(followerId));
+        follow.setFollower(follower);
         follow.setFollowed(followed);
         userFollowsRepository.save(follow);
+
+        // Si followed ya lo seguia, ahora son amigos: «ora siete amici» en vez de «ti segue»
+        boolean friendship = userFollowsRepository.existsById(UserFollowId.of(followedId, followerId));
+        notificationsService.notifyFollow(follower, followed, friendship);
     }
 
+    /** Se borra tambien el «ti segue» sin leer: seguir y dejar de seguir no llena la campanita. */
     @Override
     @Transactional
     public void unfollow(UUID followerId, UUID followedId) {
         userFollowsRepository.deleteById(UserFollowId.of(followerId, followedId));
+        notificationsService.deleteUnreadNewFollower(followerId, followedId);
     }
 
     /** Sin save(): la entidad esta gestionada y el dirty checking hace el UPDATE en el commit. */

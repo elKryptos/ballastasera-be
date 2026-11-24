@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.support;
 import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import com.kryptosystems.ballastasera.security.JwtService;
+import com.kryptosystems.ballastasera.services.manager.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,6 +12,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.containers.GenericContainer;
@@ -78,6 +80,11 @@ public abstract class IntegrationTest {
 
     @Autowired
     protected JdbcTemplate jdbcTemplate;
+
+    /** Ningun test manda emails de verdad (Resend). Los que los esperan lo comprueban con verify. Mockito lo resetea
+     * despues de cada test. */
+    @MockitoBean
+    protected EmailService emailService;
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;

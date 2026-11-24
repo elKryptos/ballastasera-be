@@ -11,8 +11,11 @@ import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.FavoritesService;
+import com.kryptosystems.ballastasera.services.manager.InvitesService;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
+import org.springframework.format.annotation.DateTimeFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -47,6 +50,7 @@ public class EventsController {
     private static final String IS_GOING = "/{id}/going";
     private static final String MY_ATTENDANCE = "/{id}/attendance/me";
     private static final String FRIENDS_GOING = "/{id}/friends-going";
+    private static final String INVITE_FRIENDS = "/{id}/invites/friends";
     private static final String ADD_FAVORITE = "/{id}/favorite";
     private static final String REMOVE_FAVORITE = "/{id}/favorite";
     private static final String IS_FAVORITE = "/{id}/favorite";
@@ -56,6 +60,7 @@ public class EventsController {
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
+    private final InvitesService invitesService;
     private final EventsMapper eventsMapper;
     private final AttendeeMapper attendeeMapper;
     private final UserMapper userMapper;
@@ -160,6 +165,21 @@ public class EventsController {
                                                                 @AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(userMapper.toSummaryDtos(
                 eventAttendanceService.findFriendsGoing(principal.getId(), id), SocialRelation.MUTUAL));
+    }
+
+    /** Requiere estar autenticado. Dialogo «Invita a ballare»: mis amigos (como /users/me/friends, q busca por
+     * nombre) con su estado para esta serata y cuantas invitaciones me quedan en 24 horas. Los mismos 400 que
+     * invitar si mi perfil es privado, la serata no se puede invitar o no voy (PROFILE_PRIVATE, EVENT_NOT_INVITABLE,
+     * NOT_GOING); 404 si no existe. Fuera de la cache del detalle: depende de quien mira. */
+    @GetMapping(INVITE_FRIENDS)
+    public ResponseEntity<InviteFriendsDto> getInviteFriends(@PathVariable UUID id,
+                                                             @AuthenticationPrincipal UserPrincipal principal,
+                                                             @RequestParam(required = false) @Size(max = 50) String q,
+                                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                             @RequestParam(required = false) UUID cursorId,
+                                                             @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(userMapper.toInviteFriendsDto(
+                invitesService.findInviteFriends(principal.getId(), id, q, cursorStartAt, cursorId, limit)));
     }
 
     /** Requiere estar autenticado. Quita la marca "voy". La lista de asistentes se actualiza con -1 */

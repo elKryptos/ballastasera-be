@@ -27,6 +27,9 @@ public interface UsersService {
     /** Vuelve a la foto de Google (GOOGLE) o se queda sin foto (NONE). Borra la propia si habia. */
     Users changeAvatarSource(UUID userId, AvatarSource source);
 
+    /** «Ricevi email»: emails de «ora siete amici» e invitaciones. La campanita sigue igual. */
+    void setEmailNotifications(UUID userId, boolean enabled);
+
     /** Perfil de otro usuario: 404 si es privado, borrado o baneado, salvo que sea el propio. */
     Users findPublicProfile(UUID viewerId, UUID userId);
 

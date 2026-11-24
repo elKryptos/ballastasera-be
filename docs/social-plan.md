@@ -1,6 +1,6 @@
 # Social: seguirse, amigos, bloquear, avisos — plan
 
-Actualizado: 22/11/2026 · Rama: `feature/social` (BE y FE, desde `main`).
+Actualizado: 24/11/2026 · Rama: `feature/social` (BE y FE, desde `main`).
 Diseño: canvas https://claude.ai/artifact/JqQ8CdmVDhnZENtcaNfWfK, artboards 4 (tu perfil), 4b (modifica
 perfil), 4c (perfil de otra persona) y 4d (Amici).
 
@@ -16,10 +16,10 @@ Estados: `[ ]` no empezado · `[~]` en progreso (con nota de qué falta) · `[x]
 | 3 | Serate de otra persona y «Avete in comune» | [~] BE hecho con tests (22/11), falta el FE |
 | 4 | Denuncias, ban, silenciar | [~] BE hecho con tests (22/11), falta el FE |
 | 5 | Pestaña Amici: feed y sugerencias | [~] BE hecho con tests (22/11), falta el FE |
-| 6 | Avisos (campanita + email) e invitaciones | [ ] |
+| 6 | Avisos (campanita + email) e invitaciones | [~] BE hecho con tests (24/11), falta el FE |
 | 7 | Traguardi y @username | [ ] |
 
-**Siguiente paso:** fase 6 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
+**Siguiente paso:** fase 7 del BE. Se hace todo el BE (fases 0–7) y después todo el FE. El SQL de prod se
 va juntando en `social-prod-db.md` y se corre de una vez antes del deploy.
 
 **Tests:** desde la fase 0 hay tests de integración con Testcontainers (`support/IntegrationTest`): la app
@@ -57,17 +57,40 @@ Piezas que se reutilizan:
   en las sugerencias; sí sale, sin enlace ni botón para seguirlo (`profilePublic = false`), en las listas, en «ti
   segue» de quien él siga y en «Avete in comune». Quien lo deje de seguir no puede volver a seguirlo hasta que
   vuelva a público.
+- Privado = **aislado de todo** (24/11): tampoco invita ni lo invitan. Es a propósito: no queremos que se use como
+  opción cómoda, y el FE lo explica claramente en cada sitio donde se nota (ver fase 6). Sus follows sí avisan a la
+  otra persona, como en el feed: el aviso sale sin enlace y con «Profilo privato».
 - WhatsApp: se suma la opción «solo amigos». Los usuarios nuevos arrancan ahí; a los que ya existen no se les toca.
 - Las serate a las que vas las ven todos, solo tus amigos o nadie (por defecto, todos). Con «nadie» no sales en «Chi ci va» ni en tu perfil, pero sí cuentas en el número de los que van.
 - Ciudad donde vives: se elige con Photon limitado a ciudades (comuni, nunca direcciones). En el perfil solo se ve si activas «Mostra la città nel profilo», y solo el nombre («Milano»).
 
 **Menores de 18**
-- WhatsApp siempre oculto, solo los invitan sus amigos y no salen en las sugerencias. Pueden seguir y ser seguidos.
+- WhatsApp siempre oculto y no salen en las sugerencias. Pueden seguir y ser seguidos. Solo los invitan sus amigos,
+  como a todos (las invitaciones son solo entre amigos).
 
 **Avisos**
 - Todo sale en una campanita en la web. Los avisos se borran a los 60 días.
 - Por email (Resend), solo «ora siete amici» y las invitaciones. «Ti segue» queda solo en la campanita.
 - Toggle «Ricevi email» en Il tuo account. Sin push: no hay app.
+- Cuando A sigue a B: B recibe «ti segue». Si B ya seguía a A, en cambio, B recibe «ora siete amici» (con email,
+  salvo que A sea privado: el botón llevaría a un perfil que da 404); A no recibe nada, porque fue quien cerró la
+  amistad.
+- Sin avisos repetidos: dejar de seguir borra el «ti segue» sin leer, y la misma pareja no recibe el mismo aviso dos
+  veces en 7 días. El «ora siete amici» no se borra: si se borrara, seguir y dejar de seguir en loop mandaría un email
+  nuevo cada vez (corregido en el check del 24/11).
+- Silenciados: sus avisos se filtran al leer (al reactivar, vuelven). Bloquear borra los avisos entre los dos, en los
+  dos sentidos. Los de baneados no se muestran; las invitaciones a serate canceladas o terminadas, tampoco.
+- Se marcan todos como leídos de una vez, al abrir la campanita.
+- `email_notifications` arranca en true para todos (también los que ya existen): son avisos de su cuenta, no
+  publicidad. El email lleva un link a «Il tuo account» para apagarlo (el link de baja de un clic, más adelante).
+
+**Invitaciones** (24/11)
+- Solo a amigos (se siguen los dos), para que no se preste a spam. Ni el que invita ni el invitado pueden ser privados.
+- Frase fija a elegir entre 3–4 (enum, el FE las muestra en italiano), sin texto libre.
+- Sin respuesta: el aviso lleva a la página de la serata y desde ahí se dice «Ci vado».
+- Si el invitado ya dijo «Ci vado» se rechaza (`ALREADY_GOING`), salvo que haya elegido que nadie vea sus serate:
+  entonces se deja invitar, para no revelar que va.
+- Límite de 10 en las últimas 24 horas (móviles, contadas en la base), 1 por persona y serata.
 
 **Seguridad**
 - Bloquear sale en la misma entrega que seguir. Bloquear borra los follows en los dos sentidos, y ninguno ve el perfil del otro.
@@ -124,7 +147,8 @@ Canvas 4b: bio, quién ve tus serate, escuela, ciudad y país de origen, foto pr
 - [x] Tests de integración (perfil, escuela, «Chi ci va», foto con S3 mockeado) y del login
 - [ ] FE canvas 4b. En el toggle «Profilo pubblico», explicar bien qué pasa al apagarlo: «Nessuno, nemmeno i tuoi
   amici, potrà vedere il tuo profilo e le tue serate. Non comparirai in "Chi ci va" e le tue serate non usciranno
-  nel feed degli amici. Nessuno potrà iniziare a seguirti; le persone che ti seguono restano.»
+  nel feed degli amici. Non potrai invitare né essere invitato a ballare. Nessuno potrà iniziare a seguirti; le
+  persone che ti seguono restano.»
 
 ### Fase 3 — En común
 Canvas 4c: «Le sue prossime serate», «Avete in comune», «Sara e Luca ci vanno».
@@ -161,13 +185,27 @@ los muestra sin enlace ni «Ricambia» («Profilo privato»), porque seguir a un
 - [ ] FE canvas 4d
 
 ### Fase 6 — Avisos e invitaciones
-Campanita del Home e «Invita a ballare».
-- [ ] Tabla `notifications`; `GET /me/notifications`, `/me/notifications/unread-count`, `PATCH /me/notifications/read`
-- [ ] Tipos: nuevo seguidor, nuevo amigo, invitación. Limpieza a los 60 días con `@Scheduled`
-- [ ] Emails de nuevo amigo e invitación (listener como `OrganizerEmailListener`) + columna `email_notifications`
-- [ ] `POST /rest/users/{id}/invites { eventId, message }`: frase fija, no texto libre; 10 al día, 1 por persona y serata, solo serate futuras a las que vas; 429 si te pasas
-- [ ] Tests de integración
-- [ ] FE campanita y diálogo
+Campanita del Home e «Invita a ballare». Decisiones en §3 (Avisos e Invitaciones).
+- [x] Tabla `notifications` (`social-prod-db.md`; dev ☐); `GET /me/notifications`, `/me/notifications/unread-count`, `PATCH /me/notifications/read`
+- [x] Tipos: nuevo seguidor, nuevo amigo, invitación. Limpieza a los 60 días con `@Scheduled` (`NotificationsCleanupJob`, 4:30 hora de Italia)
+- [x] Sin repetidos (dejar de seguir borra el «ti segue» sin leer, 7 días por pareja), silenciados filtrados al leer (y sin email), bloquear borra los avisos entre los dos
+- [x] Emails de nuevo amigo e invitación (`SocialEmailListener`, como `OrganizerEmailListener`) + columna `email_notifications` (default true) con `PATCH /me/email-notifications`, aparte de `PATCH /auth/me` para que un FE viejo no los apague
+- [x] `POST /rest/users/{id}/invites { eventId, phrase }`: solo amigos, ninguno privado, frase fija (enum); 10 en 24 horas, 1 por persona y serata (`ON CONFLICT DO NOTHING`), solo serate no terminadas a las que vas; `ALREADY_GOING` salvo serate ocultas; 429 `INVITE_LIMIT` con `Retry-After` si te pasas
+- [x] `GET /rest/events/{id}/invites/friends?q=`: el diálogo, con el estado de cada amigo e `invitesLeft`
+- [x] Tests de integración (`NotificationsIntegrationTest`, `InvitesIntegrationTest`). `EmailService` mockeado en `IntegrationTest`: ningún test manda emails reales
+- [ ] FE campanita y diálogo «Invita a ballare». El botón solo sale en serate no terminadas a las que dijiste «Ci vado»:
+  si no, el diálogo da `400` (`EVENT_NOT_INVITABLE`, `NOT_GOING`)
+- [ ] FE, consecuencias del perfil privado explicadas claramente donde se notan:
+  - Toggle «Profilo pubblico»: el texto de la fase 2 (ya dice que no podrá invitar ni ser invitado).
+  - Con el perfil privado, «Invita a ballare» se ve deshabilitado con «Il tuo profilo è privato: rendilo pubblico per
+    invitare i tuoi amici», y un enlace a la configuración.
+  - En el diálogo, el amigo privado sale deshabilitado con «Profilo privato: non può essere invitato».
+  - En la campanita, el aviso de alguien privado sale sin enlace y con «Profilo privato».
+- [ ] FE, resto del diálogo: «Ci va già», «Già invitato», «Ti restano N inviti oggi» y, a 0, «Hai finito gli inviti per oggi»
+- [ ] FE, serate ocultas: si quien invita eligió «Chi vede le tue serate: nessuno» (`attendanceVisibility = NOBODY`, perfil
+  público), el diálogo avisa antes de mandar «Il tuo amico vedrà che ci vai», porque la invitación (aviso y email) dice
+  a qué serata va. No es el caso del perfil privado: ese no puede invitar (`PROFILE_PRIVATE`)
+- [ ] FE toggle «Ricevi email»: «Ti scriviamo solo quando diventi amico di qualcuno o ricevi un invito.»
 
 ### Fase 7 — Traguardi y @username
 - [ ] `stats` en el perfil: serate pasadas con «Ci vado», locales distintos, primera serata
@@ -176,7 +214,7 @@ Campanita del Home e «Invita a ballare».
 
 ### Docs al cerrar cada fase
 `API.md`, `ballastasera_schema.sql` (lo cargan los tests de integración), `user-account-deletion-plan.md`
-(bio, ciudad, foto propia y denuncias ya están; falta username). El SQL de prod va en
+(bio, ciudad, foto propia, denuncias y avisos ya están; falta username). El SQL de prod va en
 `social-prod-db.md`, por fase.
 
 ## 5. Fuera por ahora

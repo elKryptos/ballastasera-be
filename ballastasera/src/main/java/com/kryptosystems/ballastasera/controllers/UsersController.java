@@ -3,8 +3,12 @@ package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
+import com.kryptosystems.ballastasera.models.dtos.EmailNotificationsUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
 import com.kryptosystems.ballastasera.models.dtos.FeedDto;
+import com.kryptosystems.ballastasera.models.dtos.InviteCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.NotificationDto;
+import com.kryptosystems.ballastasera.models.dtos.NotificationsUnreadDto;
 import com.kryptosystems.ballastasera.models.dtos.SuggestionDto;
 import com.kryptosystems.ballastasera.models.dtos.UserAvatarUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserDto;
@@ -14,12 +18,15 @@ import com.kryptosystems.ballastasera.models.dtos.UserReportCreateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
 import com.kryptosystems.ballastasera.models.mappers.FeedMapper;
+import com.kryptosystems.ballastasera.models.mappers.NotificationMapper;
 import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.BlocksService;
 import com.kryptosystems.ballastasera.services.manager.FeedService;
 import com.kryptosystems.ballastasera.services.manager.FollowsService;
+import com.kryptosystems.ballastasera.services.manager.InvitesService;
 import com.kryptosystems.ballastasera.services.manager.ModerationService;
+import com.kryptosystems.ballastasera.services.manager.NotificationsService;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import jakarta.validation.Valid;
@@ -65,11 +72,16 @@ public class UsersController {
     private static final String MY_SUGGESTIONS = "/me/suggestions";
     private static final String MY_AVATAR = "/me/avatar";
     private static final String MY_AVATAR_SOURCE = "/me/avatar/source";
+    private static final String MY_NOTIFICATIONS = "/me/notifications";
+    private static final String MY_NOTIFICATIONS_UNREAD_COUNT = "/me/notifications/unread-count";
+    private static final String MY_NOTIFICATIONS_READ = "/me/notifications/read";
+    private static final String MY_EMAIL_NOTIFICATIONS = "/me/email-notifications";
     private static final String USER_PROFILE = "/{id}";
     private static final String USER_ATTENDANCE = "/{id}/attendance";
     private static final String FOLLOW = "/{id}/follow";
     private static final String BLOCK = "/{id}/block";
     private static final String REPORT = "/{id}/report";
+    private static final String INVITES = "/{id}/invites";
 
     private final UserActivityService userActivityService;
     private final UsersService usersService;
@@ -77,9 +89,12 @@ public class UsersController {
     private final BlocksService blocksService;
     private final ModerationService moderationService;
     private final FeedService feedService;
+    private final NotificationsService notificationsService;
+    private final InvitesService invitesService;
     private final EventsMapper eventsMapper;
     private final UserMapper userMapper;
     private final FeedMapper feedMapper;
+    private final NotificationMapper notificationMapper;
 
     /** Requiere estar autenticado. Perfil de un usuario (ej. desde la lista de "parteciperò"):
      * 404 si es privado, borrado, baneado o hay un bloqueo, salvo que sea el propio.
@@ -142,6 +157,17 @@ public class UsersController {
     public ResponseEntity<Void> report(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
                                        @Valid @RequestBody UserReportCreateDto body) {
         moderationService.report(principal.getId(), id, body);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Invita a ballare»: solo a amigos, ninguno con el perfil privado, a una serata no
+     * terminada a la que voy. Idempotente por persona y serata. 400 con code si no se puede (NOT_FRIENDS,
+     * PROFILE_PRIVATE, FRIEND_PRIVATE, NOT_GOING, EVENT_NOT_INVITABLE, ALREADY_GOING, SELF_ACTION); 429 con
+     * Retry-After y code INVITE_LIMIT despues de 10 en 24 horas. */
+    @PostMapping(INVITES)
+    public ResponseEntity<Void> invite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
+                                       @Valid @RequestBody InviteCreateDto body) {
+        invitesService.invite(principal.getId(), id, body.getEventId(), body.getPhrase());
         return ResponseEntity.noContent().build();
     }
 
@@ -222,6 +248,38 @@ public class UsersController {
     public ResponseEntity<List<SuggestionDto>> findMySuggestions(@AuthenticationPrincipal UserPrincipal principal,
                                                                  @RequestParam(defaultValue = "10") @Min(1) @Max(20) int limit) {
         return ResponseEntity.ok(feedMapper.toSuggestionDtos(feedService.findSuggestions(principal.getId(), limit)));
+    }
+
+    /** Requiere estar autenticado. Campanita: los avisos mas recientes primero, sin los de quien silencie ni de
+     * baneados, y sin invitaciones a serate canceladas o terminadas. Mismo cursor que /me/followers. */
+    @GetMapping(MY_NOTIFICATIONS)
+    public ResponseEntity<CursorPageDto<NotificationDto>> findMyNotifications(@AuthenticationPrincipal UserPrincipal principal,
+                                                                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                              @RequestParam(required = false) UUID cursorId,
+                                                                              @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(notificationMapper.toCursorPage(
+                notificationsService.findNotifications(principal.getId(), cursorStartAt, cursorId, limit)));
+    }
+
+    /** Requiere estar autenticado. El numero sobre la campanita: los mismos avisos que la lista, sin leer. */
+    @GetMapping(MY_NOTIFICATIONS_UNREAD_COUNT)
+    public ResponseEntity<NotificationsUnreadDto> countMyUnreadNotifications(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(notificationMapper.toUnreadDto(notificationsService.countUnread(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. Al abrir la campanita: todos los avisos quedan leidos. */
+    @PatchMapping(MY_NOTIFICATIONS_READ)
+    public ResponseEntity<Void> markMyNotificationsRead(@AuthenticationPrincipal UserPrincipal principal) {
+        notificationsService.markAllRead(principal.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Toggle «Ricevi email» (nuevos amigos e invitaciones). El valor sale en /auth/me. */
+    @PatchMapping(MY_EMAIL_NOTIFICATIONS)
+    public ResponseEntity<Void> setMyEmailNotifications(@AuthenticationPrincipal UserPrincipal principal,
+                                                        @Valid @RequestBody EmailNotificationsUpdateDto body) {
+        usersService.setEmailNotifications(principal.getId(), body.getEnabled());
+        return ResponseEntity.noContent().build();
     }
 
     /** Requiere estar autenticado. Personas que bloquee, las mas recientes primero. Sin paginar: son pocas. */

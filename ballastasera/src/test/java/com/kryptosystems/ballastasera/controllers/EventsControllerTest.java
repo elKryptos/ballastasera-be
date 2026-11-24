@@ -15,6 +15,7 @@ import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.FavoritesService;
+import com.kryptosystems.ballastasera.services.manager.InvitesService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +69,9 @@ class EventsControllerTest {
 
     @MockitoBean
     private FavoritesService favoritesService;
+
+    @MockitoBean
+    private InvitesService invitesService;
 
     @MockitoBean
     private EventsMapper eventsMapper;

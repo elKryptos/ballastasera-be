@@ -31,6 +31,7 @@ cuidado y el orden que tiene que seguir el servicio. Revisar contra el código a
 | `user_blocks.blocker_id` / `blocked_id` | `ON DELETE CASCADE` | Se borran sus bloqueos | No (social fase 1). Con soft delete, borrarlos a mano |
 | `user_reports.reporter_id` / `reported_id` | `ON DELETE CASCADE` | Se borran las denuncias que hizo y las que recibió | Social fase 4. Se pierde el historial de un denunciado que borra la cuenta; decidir si se quiere. Con soft delete, la `note` (texto libre, puede tener datos personales) se borra a mano |
 | `user_reports.reviewed_by` | `ON DELETE SET NULL` | Si se borra un admin, sus revisiones quedan sin revisor | No |
+| `notifications.recipient_id` / `actor_id` | `ON DELETE CASCADE` | Se borran los avisos que recibió y los que generó (follows e invitaciones) | No (social fase 6, 24/11/2026). Con soft delete la campanita ya los esconde (filtra `is_deleted`), pero las filas se borran a mano para el RGPD |
 
 `events`, `event_series` y `revoked_tokens` no tienen FK a `users`.
 
