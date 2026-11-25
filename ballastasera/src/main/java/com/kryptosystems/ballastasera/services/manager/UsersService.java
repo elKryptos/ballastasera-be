@@ -1,7 +1,11 @@
 package com.kryptosystems.ballastasera.services.manager;
 
+import com.kryptosystems.ballastasera.enums.AvatarSource;
+import com.kryptosystems.ballastasera.enums.UsernameStatus;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Users;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,8 +22,27 @@ public interface UsersService {
     /** Reemplaza el perfil completo (datos personales + estilos con nivel) del usuario. */
     Users updateProfile(UUID userId, UserUpdateDto dto);
 
+    /** Sube una foto propia (max. 5 MB, JPG/PNG/WebP) y la pone como foto de perfil. */
+    Users uploadAvatar(UUID userId, MultipartFile file);
+
+    /** Vuelve a la foto de Google (GOOGLE) o se queda sin foto (NONE). Borra la propia si habia. */
+    Users changeAvatarSource(UUID userId, AvatarSource source);
+
+    /** «Ricevi email»: emails de «ora siete amici» e invitaciones. La campanita sigue igual. */
+    void setEmailNotifications(UUID userId, boolean enabled);
+
     /** Perfil de otro usuario: 404 si es privado, borrado o baneado, salvo que sea el propio. */
     Users findPublicProfile(UUID viewerId, UUID userId);
+
+    /** Lo mismo por /@username, sin importar mayusculas. 404 tambien si nadie lo tiene. */
+    Users findPublicProfileByUsername(UUID viewerId, String username);
+
+    /** Si userId puede elegir username. El suyo cuenta como AVAILABLE. */
+    UsernameStatus checkUsername(UUID userId, String username);
+
+    /** Elige, cambia o quita (null o vacio) el username. El anterior queda libre en el momento.
+     * 409 si esta reservado o lo tiene otra persona. */
+    void changeUsername(UUID userId, String username);
 
     /** Sube el rol a ORGANIZER si el usuario todavia es USER (no baja a un ADMIN). */
     Users promoteToOrganizer(UUID userId);

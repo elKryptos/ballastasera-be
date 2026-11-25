@@ -26,6 +26,10 @@ public class EventAttendance {
     @JoinColumn(name = "event_id")
     private Events event;
 
+    /** «Cerco qualcuno con cui ballare» para esta serata: sale en «Chi ci va» y, si es hoy, en el perfil. */
+    @Column(name = "looking_for_partner", nullable = false)
+    private boolean lookingForPartner = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

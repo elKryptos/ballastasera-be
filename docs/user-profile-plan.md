@@ -15,9 +15,10 @@ Convención de estado (la misma que `ROADMAP.md`):
 - `[~]` en progreso (dejar nota de qué falta)
 - `[x]` hecho y probado (tests + Postman)
 
-## ▶ Dónde retomar (actualizado 16/11/2026)
+## ▶ Dónde retomar (actualizado 22/11/2026)
 
-**Estado: backend terminado, se pasa al frontend.**
+**Estado: en prod (BE, FE y SQL). Prod = develop al 22/11.** La fase 2 (social) sigue en `social-plan.md`.
+La tabla de abajo es el historial del 16–17/11.
 
 | Parte | Estado |
 |---|---|
@@ -131,7 +132,7 @@ CREATE INDEX idx_user_dance_styles_style ON user_dance_styles(dance_style_id);
 ### Base de datos
 - [x] SQL en dev (`user-profile-prod-db.md`), con default `EVERYONE` en `whatsapp_visibility`
 - [x] `ballastasera_schema.sql` actualizado (lo hizo el usuario)
-- [ ] SQL en prod, **antes** del deploy del backend (y el paso opcional 2b)
+- [x] SQL en prod, **antes** del deploy del backend (y el paso opcional 2b)
 
 ### Código
 `[~]` = escrito y con tests unitarios en verde; pasa a `[x]` cuando se pruebe con Postman.

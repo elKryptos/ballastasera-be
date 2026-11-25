@@ -41,9 +41,7 @@ public class FavoritesServiceImpl implements FavoritesService {
         if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event not found with id " + eventId);
         }
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         if (favoritesRepository.existsById(id)) {
             return;
         }
@@ -58,9 +56,7 @@ public class FavoritesServiceImpl implements FavoritesService {
     @Transactional
     @CacheEvict(cacheNames = RedisCacheConfig.EVENT_DETAIL, key = "#eventId")
     public void removeFavorite(UUID userId, UUID eventId) {
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         if (favoritesRepository.existsById(id)) {
             favoritesRepository.deleteById(id);
             eventsRepository.decrementLikesCount(eventId);
@@ -69,9 +65,7 @@ public class FavoritesServiceImpl implements FavoritesService {
 
     @Override
     public boolean existsByUserIdAndEventId(UUID userId, UUID eventId) {
-        UserEventId id = new UserEventId();
-        id.setUserId(userId);
-        id.setEventId(eventId);
+        UserEventId id = UserEventId.of(userId, eventId);
         return favoritesRepository.existsById(id);
     }
 }

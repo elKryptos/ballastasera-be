@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.repositories;
 
+import com.kryptosystems.ballastasera.enums.OrganizerType;
 import com.kryptosystems.ballastasera.models.entities.Organizers;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
@@ -28,6 +29,11 @@ public interface OrganizersRepository extends JpaRepository<Organizers, UUID> {
      * verificado sigue con claimed=false. Containing escapa % y _ del texto del usuario. */
     List<Organizers> findByIsVerifiedTrueAndClaimedFalseAndUserIsNullAndNameContainingIgnoreCaseOrderByNameAsc(String name,
                                                                                                              Limit limit);
+
+    /** Buscador de «Scuola o crew» del perfil. Containing escapa % y _ del texto del usuario. */
+    List<Organizers> findByIsVerifiedTrueAndTypeAndNameContainingIgnoreCaseOrderByNameAsc(OrganizerType type,
+                                                                                          String name,
+                                                                                          Limit limit);
 
     /** Lista del admin (D15): con el dueño cargado para OrganizerAdminDto. */
     @Query(value = "SELECT o FROM Organizers o LEFT JOIN FETCH o.user WHERE o.isVerified = true",

@@ -27,6 +27,11 @@ cuidado y el orden que tiene que seguir el servicio. Revisar contra el código a
 | `favorites.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` en `Users`) | Se borran | No, si antes se restan los contadores (ya lo hace `deleteById`) |
 | `event_attendance.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` en `Users`) | Se borran | Igual que favoritos |
 | `user_dance_styles.user_id` | `ON DELETE CASCADE` (y `CascadeType.ALL` + `orphanRemoval` en `Users`) | Se borran sus estilos | No (añadida el 16/11/2026) |
+| `user_follows.follower_id` / `followed_id` | `ON DELETE CASCADE` | Se borran sus follows en los dos sentidos | No (social fase 1, 22/11/2026). Con soft delete las listas y contadores ya lo esconden (filtran `is_deleted`), pero las filas se borran a mano para el RGPD |
+| `user_blocks.blocker_id` / `blocked_id` | `ON DELETE CASCADE` | Se borran sus bloqueos | No (social fase 1). Con soft delete, borrarlos a mano |
+| `user_reports.reporter_id` / `reported_id` | `ON DELETE CASCADE` | Se borran las denuncias que hizo y las que recibió | Social fase 4. Se pierde el historial de un denunciado que borra la cuenta; decidir si se quiere. Con soft delete, la `note` (texto libre, puede tener datos personales) se borra a mano |
+| `user_reports.reviewed_by` | `ON DELETE SET NULL` | Si se borra un admin, sus revisiones quedan sin revisor | No |
+| `notifications.recipient_id` / `actor_id` | `ON DELETE CASCADE` | Se borran los avisos que recibió y los que generó (follows e invitaciones) | No (social fase 6, 24/11/2026). Con soft delete la campanita ya los esconde (filtra `is_deleted`), pero las filas se borran a mano para el RGPD |
 
 `events`, `event_series` y `revoked_tokens` no tienen FK a `users`.
 
@@ -44,7 +49,11 @@ seguridad.
   olvido (RGPD) hay que anonimizar los datos personales: `email`, `displayName`, `avatarUrl`, `instagram` y
   `googleId`, y los del perfil ampliado (16/11/2026, `user-profile-plan.md`): `whatsapp`, `birthDate`,
   `gender` y `danceRole` a `null`, y borrar sus filas de `user_dance_styles` (con soft delete no se borran
-  solas).
+  solas). Desde la social fase 2 (22/11/2026) también: `bio`, `schoolName`, `schoolOrganizer`, `originCountry`,
+  los `home_*`, `googleAvatarUrl` y `customAvatarUrl` a `null`, y borrar del bucket la foto subida (evento
+  `UserAvatarDeletedEvent`; el borrado real `deleteById` ya lo hace). Desde la social fase 7 (24/11/2026):
+  `username` a `null`, para que quede libre (con soft delete seguiría ocupado para siempre; el link `/@username`
+  ya da 404 a una cuenta borrada). Un baneado lo conserva: si se le quita el ban, vuelve igual.
 - **Borrado real:** más simple con los datos personales, pero dispara las FK de la sección 2.
 - En los dos casos: con soft delete y el `email`/`googleId` intactos, `CustomOidcUserService` encuentra la
   cuenta y devuelve `account_deleted` para siempre, así que el usuario no puede volver con la misma cuenta

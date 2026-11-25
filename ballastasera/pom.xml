@@ -32,6 +32,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <aws.sdk.version>2.54.1</aws.sdk.version>
         <springdoc.openapi.version>3.1.0</springdoc.openapi.version>
+        <bucket4j.version>8.23.0</bucket4j.version>
     </properties>
     <dependencies>
         <dependency>
@@ -128,6 +129,23 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.openapi.version}</version>
+        </dependency>
+        <!-- Rate limit: buckets guardados en el mismo Redis de la cache -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-core</artifactId>
+            <version>${bucket4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-lettuce</artifactId>
+            <version>${bucket4j.version}</version>
+        </dependency>
+        <!-- Tests de integracion: Postgres y Redis reales en Docker (version gestionada por Spring Boot) -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

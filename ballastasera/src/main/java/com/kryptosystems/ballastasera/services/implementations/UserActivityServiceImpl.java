@@ -1,11 +1,18 @@
 package com.kryptosystems.ballastasera.services.implementations;
+import com.kryptosystems.ballastasera.enums.SocialRelation;
+import com.kryptosystems.ballastasera.models.dtos.ProfileActivity;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
+import com.kryptosystems.ballastasera.repositories.UserFollowsRepository;
+import com.kryptosystems.ballastasera.services.manager.FollowsService;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
+import com.kryptosystems.ballastasera.services.manager.UsersService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -34,9 +41,15 @@ public class UserActivityServiceImpl implements UserActivityService {
     private static final UUID MIN_ID = new UUID(0L, 0L);
     private static final UUID MAX_ID = new UUID(-1L, -1L);
 
+    /** «Avete in comune» muestra hasta 3 caras; el total va aparte. */
+    private static final int MUTUAL_FRIENDS_SHOWN = 3;
+
     private final FavoritesRepository favoritesRepository;
     private final EventAttendanceRepository eventAttendanceRepository;
     private final EventsRepository eventsRepository;
+    private final UserFollowsRepository userFollowsRepository;
+    private final UsersService usersService;
+    private final FollowsService followsService;
 
     @Override
     public List<UUID> findMyFavoritesEventsIds(UUID userId) {
@@ -79,6 +92,43 @@ public class UserActivityServiceImpl implements UserActivityService {
         return past
                 ? eventAttendanceRepository.countPastByUserId(userId)
                 : eventAttendanceRepository.countUpcomingByUserId(userId);
+    }
+
+    @Override
+    public boolean canSeeAttendanceOf(UUID viewerId, UUID userId) {
+        Users user = usersService.findPublicProfile(viewerId, userId);
+        return canSeeAttendance(viewerId, user, followsService.findRelation(viewerId, userId));
+    }
+
+    /** Las serate juntos y el pallino dicen a que serate va el dueño: solo si quien mira puede verlas. */
+    @Override
+    public ProfileActivity findProfileActivity(UUID viewerId, Users user, SocialRelation relation) {
+        UUID userId = user.getId();
+        boolean canSeeAttendance = canSeeAttendance(viewerId, user, relation);
+        boolean lookingForPartnerToday = canSeeAttendance && eventAttendanceRepository.existsLookingForPartnerSoon(userId);
+        if (userId.equals(viewerId)) {
+            return new ProfileActivity(List.of(), 0, 0, null, lookingForPartnerToday);
+        }
+
+        List<Users> mutualFriends = userFollowsRepository.findMutualFriends(viewerId, userId, Limit.of(MUTUAL_FRIENDS_SHOWN));
+        long mutualFriendsCount = mutualFriends.size() < MUTUAL_FRIENDS_SHOWN
+                ? mutualFriends.size()
+                : userFollowsRepository.countMutualFriends(viewerId, userId);
+        if (!canSeeAttendance) {
+            return new ProfileActivity(mutualFriends, mutualFriendsCount, 0, null, false);
+        }
+        long eventsTogether = eventAttendanceRepository.countPastTogether(viewerId, userId);
+        Events lastEventTogether = eventsTogether == 0 ? null
+                : eventAttendanceRepository.findLastPastEventIdTogether(viewerId, userId)
+                        .flatMap(eventsRepository::findById)
+                        .orElse(null);
+        return new ProfileActivity(mutualFriends, mutualFriendsCount, eventsTogether, lastEventTogether,
+                lookingForPartnerToday);
+    }
+
+    /** El dueño siempre ve sus serate; los demas segun attendanceVisibility y la relacion. */
+    private static boolean canSeeAttendance(UUID viewerId, Users user, SocialRelation relation) {
+        return user.getId().equals(viewerId) || user.getAttendanceVisibility().allows(relation);
     }
 
     /** Siempre pagina 0: con keyset el desplazamiento lo da el cursor, no el offset. */

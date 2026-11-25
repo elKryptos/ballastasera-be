@@ -24,6 +24,35 @@ asistencia o editar el perfil sí.
 `BackendErrorResponse` traduce `EntityNotFoundException` → `404` y `AccessDeniedException` → `403`
 con un `ErrorDetails` JSON en vez del `500` por defecto de Spring.
 
+### Rate limit
+
+`RateLimitFilter` (en la cadena de Security, después del JWT) limita las requests con Bucket4j sobre el
+mismo Redis de la cache. Cuenta por usuario si hay login y por IP si no. Pasado el límite responde:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 12
+Content-Type: application/json
+
+{ "timestamp": "...", "message": "Too many requests", "path": "/rest/events",
+  "details": "Rate limit exceeded, retry in 12 seconds", "status": "TOO_MANY_REQUESTS",
+  "errors": { "code": "RATE_LIMITED" } }
+```
+
+| Grupo | Qué cuenta | Límite (default) |
+|---|---|---|
+| `READ` | `GET` y `HEAD` | 120/min |
+| `WRITE` | el resto de `POST`/`PATCH`/`PUT`/`DELETE` | 60/min |
+| `AUTH` | `/oauth2/**`, `/login/**` (siempre por IP) | 20/min |
+| `SOCIAL` | escribir en `/rest/users/{id}/follow`, `/block`, `/report`, `/invites` | 30/min y 300/día |
+| `UPLOAD` | requests multipart (flyer, logo, avatar) | 10/hora |
+
+- No cuentan los `OPTIONS` (preflight de CORS) ni `/rest/health`.
+- Los límites se cambian con variables de entorno (`RATE_LIMIT_READ_PER_MINUTE`, etc., en
+  `application.properties`), y `RATE_LIMIT_ENABLED=false` lo apaga.
+- Si Redis no responde, la request pasa: un Redis caído no tumba la API.
+- `Retry-After` no está en los headers expuestos por CORS: el FE ve el `429` y el `code`, no los segundos.
+
 ---
 
 ## 2. Modelo de datos (resumen relevante para la API)
@@ -237,7 +266,9 @@ card del mapa ni el detalle con datos de usuarios.
 
 **Query params**: `page` (default `0`), `size` (default `20`).
 
-**Respuesta** — `Page<AttendeeDto>`, cada item con `userId`, `displayName`, `avatarUrl`, `instagram`.
+**Respuesta** — `Page<AttendeeDto>`, cada item con `userId`, `displayName`, `avatarUrl`, `instagram`,
+`lookingForPartner` («Cerco qualcuno con cui ballare» en esta serata) y `relation` (con login, la relación
+de quien mira con esa persona; `null` sin login).
 
 `404` si el evento no existe.
 
@@ -245,16 +276,29 @@ card del mapa ni el detalle con datos de usuarios.
 
 ### `POST /api/events/{id}/attendance` — requiere login
 
-Marca "voy" o "me interesa". Es un **upsert**: si el usuario ya tenía un registro para ese evento, se
-actualiza el `status`; si no, se crea.
+Marca «Ci vado». Idempotente: si ya iba, no suma otra vez a `goingCount`.
 
-**Body**:
+**Body** opcional:
 
 ```json
-{ "status": "GOING" }
+{ "lookingForPartner": true }
 ```
 
-`status` ∈ `GOING | INTERESTED`. `204 No Content` en éxito. `404` si el evento no existe.
+- Sin body o con `lookingForPartner: null`: la marca no cambia (`false` al crear, la que tenía si ya iba).
+- Con `true`/`false`: la pone o la quita, vaya ya o no.
+
+`204 No Content` en éxito. `404` si el evento no existe.
+
+### `GET /api/events/{id}/attendance/me` — requiere login
+
+`{ "going": true, "lookingForPartner": false }`: si el usuario dijo «Ci vado» y si marcó «Cerco qualcuno».
+`GET /events/{id}/going` sigue devolviendo solo `true`/`false`.
+
+### `GET /api/events/{id}/friends-going` — requiere login
+
+`List<UserSummaryDto>` con los amigos de quien mira que van (`relation = MUTUAL`), para «Sara e Luca ci
+vanno». Mismo filtro que «Chi ci va»; no salen los que eligieron que nadie vea sus serate. Fuera de la cache
+del detalle porque depende de quien mira. `404` si el evento no existe.
 
 ---
 
@@ -334,6 +378,7 @@ El perfil completo del usuario logueado (`UserDto`): `userId`, `email`, `display
 | `gender` | `MALE` \| `FEMALE` \| `OTHER` \| `UNDISCLOSED` \| null | |
 | `danceRole` | `LEADER` \| `FOLLOWER` \| `BOTH` \| null | |
 | `danceStyles` | `[{ danceStyleId, name, slug, level }]` | `level`: `BEGINNER` \| `INTERMEDIATE` \| `ADVANCED` \| `TEACHER` |
+| `emailNotifications` | boolean | «Ricevi email» (social fase 6). No va en `PATCH /auth/me`: se cambia con `PATCH /users/me/email-notifications` |
 
 ---
 
@@ -357,14 +402,30 @@ campo, se manda el formulario entero con los valores actuales (los de `GET /auth
   "danceStyles": [
     { "danceStyleId": 1, "level": "ADVANCED" },
     { "danceStyleId": 2, "level": "BEGINNER" }
-  ]
+  ],
+  "bio": "Bachata e salsa, sempre in pista",
+  "attendanceVisibility": "EVERYONE",
+  "schoolOrganizerId": "…",
+  "schoolName": null,
+  "originCountry": "CO",
+  "homeCity": { "name": "Milano", "region": "Lombardia", "country": "IT", "latitude": 45.46, "longitude": 9.19 },
+  "showHomeCity": false
 }
 ```
 
 - `showProfilePublic` es obligatorio.
 - `instagram` acepta con o sin `@` inicial (se normaliza); `""` o `null` lo vacía.
 - `whatsapp` en formato E.164 (`+` y prefijo de país, sin espacios); `""` o `null` lo vacía.
-- `whatsappVisibility` `null` se guarda como `EVERYONE`.
+- `whatsappVisibility` `null` se guarda como `MUTUALS`.
+- `bio`: máx. 150 caracteres; se recortan los espacios, `""` o `null` la vacía.
+- `attendanceVisibility` (quién ve las serate a las que vas): `EVERYONE`, `MUTUALS` (solo amigos) o
+  `NOBODY`. `null` se guarda como `EVERYONE`.
+- Escuela: `schoolOrganizerId` tiene que ser un organizer **SCHOOL verificado** (si no → `404`); si viene,
+  `schoolName` se ignora. Si la escuela no está en la app, `schoolName` (máx. 80) con texto libre.
+- `originCountry`: ISO 3166-1 alpha-2 en mayúsculas (`CO`, `VE`, `IT`).
+- `homeCity`: el objeto que devuelve Photon en el FE, ya normalizado; `null` = sin ciudad. `name` y
+  `country` (alpha-2) obligatorios, lat/lng en rango.
+- `showHomeCity` («Mostra la città nel profilo»): `null` se guarda como `false`.
 - `birthDate`: edad entre 16 y 100 años.
 - `danceStyles`: máximo 10, `level` obligatorio en cada uno. `null` o `[]` borra todos. Si un estilo se
   repite, gana el último. Un `danceStyleId` que no existe → `404`.
@@ -391,15 +452,263 @@ Perfil de otro usuario (`UserProfileDto`), por ejemplo al tocarlo en la lista de
   "gender": "FEMALE",
   "danceRole": "FOLLOWER",
   "whatsapp": "+393331234567",
-  "danceStyles": [{ "danceStyleId": 1, "name": "Salsa", "slug": "salsa", "level": "ADVANCED" }]
+  "danceStyles": [{ "danceStyleId": 1, "name": "Salsa", "slug": "salsa", "level": "ADVANCED" }],
+  "relation": "MUTUAL",
+  "muted": false,
+  "followersCount": 12,
+  "followingCount": 7,
+  "eventsCount": 30
 }
 ```
 
 - `age` en vez de la fecha de nacimiento.
-- `whatsapp` es `null` si el dueño eligió `NOBODY`. El dueño siempre ve el suyo.
-- `404` si el perfil es privado (`showProfilePublic = false`), está borrado o baneado, salvo que lo pida el
-  propio usuario.
+- `whatsapp`: el dueño siempre ve el suyo. Los demás, según `whatsappVisibility`: `EVERYONE` todos, `MUTUALS`
+  solo los amigos (`relation = MUTUAL`), `NOBODY` nadie. Con menos de 18 años no lo ve nadie más.
+- `relation` de quien mira con este usuario: `NONE` «Segui», `FOLLOWING` «Segui già», `FOLLOWED_BY`
+  «Ricambia», `MUTUAL` «Amici». `NONE` si es el propio perfil.
+- `eventsCount` = serate pasadas a las que dijo «Ci vado».
+- `404` si el perfil es privado (`showProfilePublic = false`, también para sus amigos), está borrado, baneado o
+  hay un bloqueo en cualquier sentido, salvo que lo pida el propio usuario. Mismo `404` en todos los casos: no se
+  revela el bloqueo.
 - Sin token → `401`.
+
+Desde la fase 3 trae «Avete in comune» y el pallino, en campos planos:
+- `mutualFriends` (hasta 3 `UserSummaryDto`, en orden alfabético, `relation = MUTUAL`) y `mutualFriendsCount`.
+- `eventsTogetherCount` (serate ya pasadas a las que fueron los dos), `lastEventTogetherId`,
+  `lastEventTogetherTitle`, `lastEventTogetherStartAt`. `0`/`null` si quien mira no puede ver sus serate.
+- `lookingForPartnerToday`: marcó «Cerco qualcuno» en una serata en curso o de las próximas 24 horas. Solo si
+  quien mira puede ver sus serate.
+- En el propio perfil, los amigos en común y las serate juntos vienen vacíos.
+
+### `GET /users/{id}/attendance?past=&cursorStartAt=&cursorId=&limit=` — requiere login
+
+«Le sue prossime serate» (`past=true`: las pasadas). Mismo orden, cursor y `CursorPage<EventCardDto>` que
+`/users/me/attendance`. `404` si el perfil no se puede ver. Si eligió que quien mira no vea sus serate
+(`attendanceVisibility`), lista vacía con `total = 0`.
+
+Desde la fase 2 también trae `bio`, `schoolOrganizerId`/`schoolName`/`schoolSlug` (enlazada: id, nombre y
+slug del organizer; escrita a mano: solo `schoolName`), `originCountry` y `homeCityName` (solo el nombre, y
+solo si el dueño activó `showHomeCity`; nunca región ni coordenadas).
+
+`GET /auth/me` y la respuesta de `PATCH /auth/me` suman `followersCount`, `followingCount` y `eventsCount`,
+y los campos de la fase 2 tal cual: `bio`, `attendanceVisibility`, la escuela, `originCountry`, `homeCity`
+(el objeto completo), `showHomeCity`, `avatarSource` (`GOOGLE`/`CUSTOM`/`NONE`) y `googleAvatarUrl` (la de
+Google aunque se muestre otra, para la opción «Usa la foto di Google»).
+`whatsappVisibility` admite `MUTUALS`, que es el valor por defecto de los usuarios nuevos y de un `null`.
+
+### Foto de perfil — requiere login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `PATCH /users/me/avatar` (multipart, parte `avatar`) | `UserDto` | Sube o cambia la foto propia: máx. 5 MB (`413`), JPG/PNG/WebP (`415`). Se guarda en webp (lado largo 512 px) y pasa a `avatarSource = CUSTOM` |
+| `PATCH /users/me/avatar/source` `{ "source": "GOOGLE" \| "NONE" }` | `UserDto` | «Usa la foto di Google» o «Nessuna foto». `CUSTOM` → `400` (se sube con el multipart). La foto propia se borra del bucket |
+
+- `avatarUrl` (en todos los DTOs) es siempre la foto que se muestra: la de Google, la propia o `null`.
+- El login con Google ya no pisa una foto propia: guarda la de Google en `googleAvatarUrl` y solo la
+  muestra si `avatarSource = GOOGLE`.
+
+### `GET /organizers/schools?name=&limit=` — público
+
+Autocompletado de «Scuola o crew»: organizers `SCHOOL` verificados cuyo nombre contiene `name` (mín. 2
+caracteres), en orden alfabético. `limit` 1–10 (default 5). Devuelve `List<OrganizerSummaryDto>`.
+
+### Quién ve tus serate
+
+`GET /events/{id}/attendees` («Chi ci va») respeta `attendanceVisibility`: `EVERYONE` sale para todos,
+`MUTUALS` solo para sus amigos, `NOBODY` para nadie. Cada uno se ve siempre a sí mismo. El número de los que
+van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards solo muestran a quien tiene
+`EVERYONE`.
+
+### Seguir y bloquear — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `POST /users/{id}/follow` | `204` | Idempotente. `400` con `code: SELF_ACTION` si es uno mismo. `404` si el perfil es privado, borrado, baneado o hay un bloqueo |
+| `DELETE /users/{id}/follow` | `204` | Idempotente. Sin chequeos: se puede dejar de seguir a quien se volvió privado |
+| `POST /users/{id}/block` | `204` | Idempotente. Borra los follows en los dos sentidos. `400 SELF_ACTION` si es uno mismo; `404` si no existe o está borrado. Se puede bloquear un perfil privado |
+| `DELETE /users/{id}/block` | `204` | Idempotente. Los follows borrados no vuelven |
+| `GET /users/me/followers` | `CursorPage<UserSummaryDto>` | Quienes me siguen |
+| `GET /users/me/following` | `CursorPage<UserSummaryDto>` | A quienes sigo |
+| `GET /users/me/friends?q=` | `CursorPage<UserSummaryDto>` | Amigos (nos seguimos los dos). `q` busca en el nombre, sin distinguir mayúsculas, máx. 50 caracteres |
+| `GET /users/me/blocks` | `List<UserSummaryDto>` | Personas que bloqueé, sin paginar |
+
+```json
+{ "userId": "…", "displayName": "Luca", "avatarUrl": "https://…", "relation": "MUTUAL", "profilePublic": true }
+```
+
+- `profilePublic = false`: perfil privado (por ejemplo, alguien privado que me sigue). Sale en la lista, pero sin
+  enlace al perfil ni botón para seguirlo, porque los dos darían `404`: el FE muestra «Profilo privato». Dejar de
+  seguir (`/me/following`) y desbloquear (`/me/blocks`) funcionan igual.
+
+- Las tres listas paginadas: las más recientes primero, `limit` (default 20, máx. 50) y el cursor de la
+  respuesta (`nextCursorStartAt` = fecha del follow, `nextCursorId` = id de la persona). `null` = no hay más.
+- `total` = el total con el mismo filtro. No salen usuarios borrados ni baneados.
+- `GET /events/{id}/attendees` («Chi ci va») con login no muestra a quien tenga un bloqueo con quien mira.
+
+### Silenciar y denunciar — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `PATCH /users/{id}/follow` `{ "muted": true \| false }` | `204` | «Silenzia» / «Riattiva» a quien sigo: sale de mi feed y de mi campanita (fases 5 y 6), y no se entera. `404` si no lo sigo; sin `muted` → `400`. Dejar de seguir pierde el silencio |
+| `POST /users/{id}/report` `{ "reason", "note" }` | `204` | «Segnala». Va a la cola del admin y no oculta nada por sí sola. Idempotente mientras siga abierta (no crea otra). `400 SELF_ACTION` si es uno mismo; `404` si no existe o está borrado. Se puede denunciar un perfil privado o bloqueado |
+
+- `reason`: `FAKE_PROFILE`, `HARASSMENT`, `INAPPROPRIATE_PHOTO` u `OTHER`. `note` máx. 500 caracteres,
+  obligatoria con `OTHER` (`400`).
+- `GET /users/{id}` suma `muted`: si quien mira lo silenció (menú ⋯). Solo puede ser `true` si lo sigue.
+- «Segnala e blocca»: el FE hace las dos llamadas (`/report` y `/block`).
+
+### Pestaña Amici — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /users/me/feed` | `FeedDto` | Attività: `tonight` («Stasera escono») y `news` («Novità»). Se calcula en cada request, sin cache |
+| `GET /users/me/suggestions?limit=` | `List<SuggestionDto>` | Scopri, ya ordenadas. `limit` 1–20 (default 10) |
+
+```json
+{
+  "tonight": [{ "eventId": "…", "eventSlug": "…", "eventTitle": "Serata salsa", "eventStartAt": "…",
+                "venueName": "Tropical", "meGoing": true, "people": [UserSummaryDto] }],
+  "news": [{ "type": "FOLLOWED_YOU", "at": "…", "user": UserSummaryDto, "eventId": null, "eventSlug": null,
+             "eventTitle": null, "eventStartAt": null, "meGoing": false },
+           { "type": "GOING_TO", "at": "…", "user": UserSummaryDto, "eventId": "…", "eventSlug": "…",
+             "eventTitle": "Bachata Sunday", "eventStartAt": "…", "meGoing": false }]
+}
+```
+
+- Las serate (`tonight` y `GOING_TO`): solo gente que sigo y no silencié, con perfil público, ni borrada ni
+  baneada, y respetando su `attendanceVisibility` como «Chi ci va»: `MUTUALS` solo si somos amigos, `NOBODY`
+  nunca.
+- `FOLLOWED_YOU`: cualquiera que me siga, ni borrado ni baneado, salvo quien silencié. También los privados, con
+  `profilePublic = false` (sin «Ricambia»).
+- `tonight`: serate en curso o que empiezan antes de las próximas 06:00 hora de Italia, por hora de inicio. En
+  cada una, la gente en el orden en que dijo «Ci vado» (`relation` `FOLLOWING` o `MUTUAL`). El subtítulo
+  «Stasera a…» de la lista de amigos sale de aquí. Para «Stasera escono · 4 amici», el FE cuenta los `userId`
+  distintos: quien va a dos serate esta noche sale en las dos.
+- `news`, de los últimos 7 días y las más recientes primero (hasta 50 de cada tipo):
+  - `FOLLOWED_YOU`: empezó a seguirme. `relation` `FOLLOWED_BY` («Ricambia», si `profilePublic`) o `MUTUAL`.
+  - `GOING_TO`: dijo «Ci vado» a una serata de los próximos 7 días que no es de esta noche.
+- `meGoing`: yo también voy («ci vai anche tu»).
+
+```json
+[{ "user": UserSummaryDto, "mutualFriendsCount": 3, "eventId": "…", "eventSlug": "…",
+   "eventTitle": "Noche Latina", "eventStartAt": "…", "lookingForPartner": true }]
+```
+
+- Salen de dos sitios: gente que va a mis serate en curso o futuras y muestra sus serate a todos (`EVERYONE`), y
+  amigos de mis amigos.
+- Nunca: yo, a quien ya sigo, bloqueos en cualquier sentido, perfiles privados, borrados, baneados ni menores de 18
+  (sin fecha de nacimiento cuenta como adulto).
+- Orden: comparte serata conmigo, marcó «Cerco qualcuno» en una de ellas, más amigos en común.
+- `user.relation` es `NONE` o `FOLLOWED_BY` («Ricambia»). `event*` es la serata más cercana que compartimos
+  (prefiere una con «Cerco qualcuno»); `null` si no compartimos ninguna. El FE arma el «por qué» con estos campos.
+
+### Campanita e invitaciones — requieren login
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /users/me/notifications?cursorStartAt=&cursorId=&limit=` | `CursorPage<NotificationDto>` | Los más recientes primero, mismo cursor que `/me/followers` (fecha e id del aviso) |
+| `GET /users/me/notifications/unread-count` | `{ "unread": 3 }` | El número sobre la campanita: los mismos avisos que la lista, sin leer |
+| `PATCH /users/me/notifications/read` | `204` | Al abrir la campanita: todos quedan leídos |
+| `PATCH /users/me/email-notifications` `{ "enabled": true \| false }` | `204` | Toggle «Ricevi email». Sin `enabled` → `400`. El valor sale en `GET /auth/me` (`emailNotifications`, default `true`) |
+| `POST /users/{id}/invites` `{ "eventId", "phrase" }` | `204` | «Invita a ballare». Idempotente por persona y serata (no crea otra ni cuenta para el límite) |
+| `GET /events/{id}/invites/friends?q=&cursorStartAt=&cursorId=&limit=` | `InviteFriendsDto` | Diálogo de la serata: mis amigos (como `/me/friends`) con su estado. `404` si la serata no existe |
+
+```json
+{ "id": "…", "type": "INVITE", "createdAt": "…", "read": false, "actor": UserSummaryDto,
+  "eventId": "…", "eventSlug": "…", "eventTitle": "Salsa al Tropical", "eventStartAt": "…", "phrase": "CI_VIENI" }
+```
+
+- `type`: `NEW_FOLLOWER` («ti segue»), `NEW_FRIEND` («ora siete amici») o `INVITE`. Los campos `event*` y
+  `phrase` solo en `INVITE`.
+- Cuando A sigue a B, B recibe `NEW_FOLLOWER`; si B ya seguía a A, en cambio recibe `NEW_FRIEND`. Los dos con un
+  email, si B tiene `emailNotifications` y A no es privado (el botón del email lleva al perfil de A); el de
+  `NEW_FRIEND`, además, si B no silenció a A. A no recibe nada.
+- `actor.relation` es la de hoy (si ya lo sigo, no hay «Ricambia»). `actor.profilePublic = false`: alguien privado,
+  sin enlace y con «Profilo privato».
+- No salen: los de quien silencié (al reactivarlo vuelven), los de baneados o borrados, ni las invitaciones a
+  serate canceladas o terminadas. Bloquear borra los avisos entre los dos. El «ti segue» de quien dejó de seguirte no
+  sale (vuelve, el mismo, si te sigue de nuevo); el «ora siete amici» queda, con la `relation` de hoy. La misma pareja
+  no recibe el mismo aviso dos veces en 7 días: seguir y dejar de seguir en loop no repite avisos ni emails. Se borran a los 60 días.
+- `phrase` (frase fija, el FE la muestra en italiano): `CI_VIENI` («Ci vieni?»), `ANDIAMO_INSIEME` («Andiamo
+  insieme?»), `MI_ACCOMPAGNI` («Mi accompagni?»), `TI_VA_DI_BALLARE` («Ti va di ballare?»).
+- Invitar: solo a amigos (nos seguimos los dos), a una serata publicada y no terminada a la que digo «Ci vado».
+  Errores `400` con `code`: `SELF_ACTION`, `NOT_FRIENDS`, `PROFILE_PRIVATE` (mi perfil es privado),
+  `FRIEND_PRIVATE`, `NOT_GOING`, `EVENT_NOT_INVITABLE`, `ALREADY_GOING` (salvo que mi amigo oculte sus serate a
+  todos: entonces se deja invitar, para no revelar que va). `404` si el invitado no existe, está baneado o borrado,
+  o si la serata no existe.
+- Límite: 10 invitaciones en las últimas 24 horas. La siguiente da `429` con `code: INVITE_LIMIT` y
+  `Retry-After` (cuándo se libera un hueco). Además cuenta para el grupo `SOCIAL` del rate limit.
+- El invitado recibe el aviso y un email (si tiene `emailNotifications` y no silenció a quien invita) con un botón a
+  la serata. No hay respuesta: desde la serata dice «Ci vado».
+
+```json
+{ "invitesLeft": 9,
+  "friends": { "items": [{ "user": UserSummaryDto, "status": "INVITABLE" }], "nextCursorStartAt": null,
+               "nextCursorId": null, "total": 5 } }
+```
+
+- `status`: `INVITABLE`, `ALREADY_GOING` («Ci va già»), `ALREADY_INVITED` («Già invitato») o `PRIVATE`
+  («Profilo privato: non può essere invitato»). Si hay más de uno, gana en ese orden: `PRIVATE`, `ALREADY_GOING`,
+  `ALREADY_INVITED`.
+- `invitesLeft`: las que me quedan en las últimas 24 horas («Ti restano N inviti oggi»).
+- Da los mismos `400` que invitar para lo que no depende del amigo: `PROFILE_PRIVATE` (mi perfil es privado: el FE
+  no abre el diálogo y explica por qué), `EVENT_NOT_INVITABLE` y `NOT_GOING`. Así nunca muestra amigos
+  `INVITABLE` a una serata a la que no se puede invitar.
+
+### Traguardi y @username — requieren login
+
+Traguardi, en `GET /auth/me` (y las demás respuestas con `UserDto`) y en `GET /users/{id}`:
+
+| Campo | `UserDto` | `UserProfileDto` | Notas |
+|---|---|---|---|
+| `eventsCount` | ✓ | ✓ | Ya existía: serate publicadas y terminadas a las que dijo «Ci vado» |
+| `venuesCount` | ✓ | ✓ | Locales distintos de esas serate; las serate sin local no cuentan. El FE pone «dove hai ballato», sin ciudad |
+| `firstEventAt` | ✓ | — | Cuándo empezó la primera de esas serate, `null` si no hay. A los demás no se les dice la fecha |
+| `memberSince` | ✓ | ✓ | Fecha de registro: «Su ballastasera da…» |
+| `username` | ✓ | ✓ | `null` si no eligió ninguno |
+
+- Terminada = `endAt` pasado o, sin `endAt`, 4 horas después de empezar (como en el resto de la API).
+- Se ven aunque `attendanceVisibility` sea `NOBODY`: son contadores, como `eventsCount`.
+- La meta siguiente («50 serate, ne mancano 23») la calcula el FE con `eventsCount` (10, 25, 50, 100, 200).
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /users/username-available?u=` | `{ "available": false, "reason": "TAKEN" }` | Campo «Nome utente» mientras se escribe. `reason`: `INVALID`, `RESERVED` o `TAKEN`; `null` si `available`. El propio cuenta como disponible. Sin normalizar: el FE manda minúsculas |
+| `PATCH /users/me/username` `{ "username": "ana.baila" }` | `204` | Elige, cambia o quita (`null` o `""`). El anterior queda libre en el momento y su link da `404`. Aparte de `PATCH /auth/me`, que no lo toca |
+| `GET /users/by-username/{username}` | `UserProfileDto` | `/@username`: el mismo perfil que `GET /users/{id}`, con los mismos `404` (privado, bloqueo, baneado, borrado) y también si nadie lo tiene. Sin importar mayúsculas |
+
+- Formato: minúsculas, números, `.` y `_`, de 3 a 30, sin punto al principio ni al final ni dos seguidos. Si no →
+  `400` con `errors.username`.
+- Reservados: `admin`, `ballastasera`, `staff`, `support`, `help`, `info` → `409` con `code: USERNAME_RESERVED`.
+- Lo tiene otra persona → `409` con `code: USERNAME_TAKEN`, también si dos lo piden a la vez (índice único).
+- `/@username` pide login, como `/users/{id}`: quien llega desde una story entra con Google y lo ve.
+
+### Moderación — solo ADMIN (`/rest/admin`)
+
+| Endpoint | Respuesta | Notas |
+|---|---|---|
+| `GET /admin/reports?status=&page=&size=` | `Page<UserReportAdminDto>` | Cola por estado: `OPEN` (las más viejas primero), `DISMISSED` y `BANNED` (las últimas revisadas primero). `size` 1–50 |
+| `PATCH /admin/reports/{id}` `{ "status": "DISMISSED" \| "BANNED" }` | `UserReportAdminDto` | «Ignora» cierra solo esta. «Banna» banea al denunciado y cierra como `BANNED` todas sus abiertas. `OPEN` → `400` |
+| `PATCH /admin/users/{id}/ban` | `204` | Ban directo, sin denuncia. Idempotente. Cierra sus denuncias abiertas |
+| `PATCH /admin/users/{id}/unban` | `204` | Idempotente. No reabre denuncias |
+| `GET /admin/users/banned?page=&size=` | `Page<BannedUserAdminDto>` | «Utenti bannati», los últimos baneados primero (los anteriores a la fase 4, sin `bannedAt`, al final) |
+
+```json
+{
+  "id": "…", "reason": "OTHER", "note": "Mi scrive di continuo", "status": "OPEN", "createdAt": "…",
+  "reporterId": "…", "reporterName": "Ana", "reporterAvatarUrl": "https://…",
+  "reportedId": "…", "reportedName": "Luca", "reportedAvatarUrl": "https://…", "reportedEmail": "luca@…",
+  "reportedBanned": false, "openReportsAgainst": 2,
+  "reviewedByName": null, "reviewedAt": null
+}
+```
+
+- `409` con `code`: `REPORT_NOT_OPEN` (ya revisada), `CANNOT_BAN_ADMIN` (no se banea a un admin, ni a uno
+  mismo), `CONCURRENT_UPDATE` (otro admin revisó la misma denuncia a la vez).
+- Qué hace el ban: el login con Google lo rechaza y su JWT deja de valer en la siguiente request (`401` en las
+  rutas que piden login; en las públicas entra como anónimo). Sale de todas partes (perfil, listas, «Chi ci
+  va», contadores), pero sus follows no se borran: con el unban todo vuelve como estaba. Sigue contando en
+  `goingCount`.
 
 ---
 

@@ -4,6 +4,8 @@ import com.kryptosystems.ballastasera.security.CustomOidcUserService;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.OAuth2LoginFailureHandler;
 import com.kryptosystems.ballastasera.security.OAuth2LoginSuccessHandler;
+import com.kryptosystems.ballastasera.security.RateLimitFilter;
+import com.kryptosystems.ballastasera.security.RateLimitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
@@ -17,6 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import tools.jackson.databind.json.JsonMapper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -30,6 +33,8 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitService rateLimitService;
+    private final JsonMapper jsonMapper;
 
     /** Comma-separated origins allowed to call the API (e.g. staging FE + localhost:4200). Defaults to frontend.url. */
     @Value("${app.cors.allowed-origins:${frontend.url}}")
@@ -81,7 +86,9 @@ public class SecurityConfig {
                         .successHandler(oAuth2LoginSuccessHandler)
                         .failureHandler(oAuth2LoginFailureHandler)
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // Despues del JWT: con login el limite va por usuario, sin login por IP.
+                .addFilterAfter(new RateLimitFilter(rateLimitService, jsonMapper), JwtAuthenticationFilter.class);
 
         return http.build();
     }

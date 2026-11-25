@@ -20,4 +20,10 @@ public interface ObjectStorageService {
     String uploadOrganizerLogo(UUID ownerId, byte[] webpContent);
 
     void deleteOrganizerLogo(String logoUrl);
+
+    /** Foto de perfil subida por el usuario: en el bucket de logos, con prefijo avatars/. */
+    String uploadUserAvatar(UUID userId, byte[] webpContent);
+
+    /** Solo borra fotos subidas con uploadUserAvatar: la URL de Google se ignora. */
+    void deleteUserAvatar(String avatarUrl);
 }

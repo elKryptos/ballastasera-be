@@ -8,6 +8,7 @@ import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.JwtService;
 import com.kryptosystems.ballastasera.security.OAuth2LoginFailureHandler;
 import com.kryptosystems.ballastasera.security.OAuth2LoginSuccessHandler;
+import com.kryptosystems.ballastasera.security.RateLimitService;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,10 @@ class SecurityConfigTest {
 
     @MockitoBean
     private RevokedTokensRepository revokedTokensRepository;
+
+    /** El mock devuelve isEnabled() = false: RateLimitFilter no actua y aqui solo se prueban los permisos. */
+    @MockitoBean
+    private RateLimitService rateLimitService;
 
     @Test
     void anonymousCannotGetOwnOrganizers() throws Exception {

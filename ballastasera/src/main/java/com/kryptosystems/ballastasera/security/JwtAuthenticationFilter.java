@@ -58,6 +58,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 UUID userId = jwtService.extractUserId(claims);
                 Users user = usersService.findById(userId);
+                // El login ya rechaza a los baneados (CustomOidcUserService); esto corta el token que tenian abierto
+                if (user.isBanned()) {
+                    throw new JwtException("User is banned");
+                }
 
                 UserPrincipal principal = new UserPrincipal(user);
                 UsernamePasswordAuthenticationToken authentication =

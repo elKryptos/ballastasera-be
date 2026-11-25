@@ -1,5 +1,6 @@
 package com.kryptosystems.ballastasera.services.implementations;
 
+import com.kryptosystems.ballastasera.enums.InvitePhrase;
 import com.kryptosystems.ballastasera.enums.OrganizerRejectReason;
 import com.kryptosystems.ballastasera.services.manager.EmailService;
 import com.resend.core.exception.ResendException;
@@ -12,6 +13,12 @@ import com.resend.Resend;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Los textos que no escribe el backend (nombre del organizador, mensaje del admin) pasan por
@@ -39,6 +46,12 @@ public class EmailServiceImpl implements EmailService {
     private static final String LINE = "#e4e6ec";         // --color-line (claro) sin transparencia, por Outlook
     private static final String FONT_DISPLAY = "'Bricolage Grotesque','Arial Black',Arial,sans-serif";
     private static final String FONT_BODY = "'Instrument Sans',Helvetica,Arial,sans-serif";
+
+    /** «sabato 29 novembre alle 22:00», en hora de Italia. */
+    private static final DateTimeFormatter EVENT_DATE = DateTimeFormatter.ofPattern("EEEE d MMMM 'alle' HH:mm", Locale.ITALIAN)
+            .withZone(ZoneId.of("Europe/Rome"));
+    /** Pie de los emails de la campanita: se pueden apagar en «Il tuo account». */
+    private static final String ACCOUNT_PATH = "/il-tuo-account";
 
     private final Resend resend;
     private final String fromEmail;
@@ -137,6 +150,111 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    @Async
+    public void sendNewFollowerEmail(String toEmail, UUID followerId, String followerName) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject(followerName + " ha iniziato a seguirti.")
+                .html(buildNewFollowerEmail(followerId, followerName))
+                .build();
+        try {
+            resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di nuovo follower a {}", toEmail, e);
+        }
+    }
+
+    @Override
+    @Async
+    public void sendNewFriendEmail(String toEmail, UUID friendId, String friendName) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject("Tu e " + friendName + " ora siete amici.")
+                .html(buildNewFriendEmail(friendId, friendName))
+                .build();
+        try {
+            resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di nuovo amico a {}", toEmail, e);
+        }
+    }
+
+    @Override
+    @Async
+    public void sendInviteEmail(String toEmail, String inviterName, UUID eventId, String eventTitle,
+                                OffsetDateTime eventStartAt, InvitePhrase phrase) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject(inviterName + " ti invita a ballare.")
+                .html(buildInviteEmail(inviterName, eventId, eventTitle, eventStartAt, phrase))
+                .build();
+        try {
+            resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di invito a {}", toEmail, e);
+        }
+    }
+
+    /** Package-private para EmailServiceImplTest: el envio corre en @Async y un error aca solo quedaria en el log. */
+    String buildNewFollowerEmail(UUID followerId, String followerName) {
+        return layout(
+                HtmlUtils.htmlEscape(followerName) + " ora ti segue su ballastasera.",
+                "Hai un nuovo follower",
+                paragraph(strong(followerName) + " ha iniziato a seguirti.") +
+                        paragraph("Ricambia il follow e diventate amici: vedrete le serate a cui andate e potrete "
+                                + "invitarvi a ballare."),
+                "Vedi il profilo",
+                frontendUrl + "/persona/" + followerId,
+                socialFooterNote());
+    }
+
+    /** Package-private para EmailServiceImplTest, como buildNewFollowerEmail. */
+    String buildNewFriendEmail(UUID friendId, String friendName) {
+        return layout(
+                "Tu e " + HtmlUtils.htmlEscape(friendName) + " vi seguite a vicenda: ora siete amici.",
+                "Ora siete amici",
+                paragraph(strong(friendName) + " ha ricambiato il tuo follow: ora siete amici.") +
+                        paragraph("Potete vedere le serate a cui andate e invitarvi a ballare."),
+                "Vedi il profilo",
+                frontendUrl + "/persona/" + friendId,
+                socialFooterNote());
+    }
+
+    /** Package-private para EmailServiceImplTest, como buildNewFriendEmail. */
+    String buildInviteEmail(String inviterName, UUID eventId, String eventTitle,
+                            OffsetDateTime eventStartAt, InvitePhrase phrase) {
+        return layout(
+                HtmlUtils.htmlEscape(inviterName) + " ti invita a " + HtmlUtils.htmlEscape(eventTitle) + ".",
+                "Ti invita a ballare",
+                paragraph(strong(inviterName) + " va a " + strong(eventTitle) + " e ti invita:") +
+                        callout("<p style=\"margin:0;font-size:18px;font-weight:700;color:" + INK + ";\">«"
+                                + invitePhraseLabel(phrase) + "»</p>"
+                                + "<p style=\"margin:8px 0 0;\">" + EVENT_DATE.format(eventStartAt) + "</p>") +
+                        paragraph("Se ti va, apri la serata e dì «Ci vado»."),
+                "Vedi la serata",
+                frontendUrl + "/evento/" + eventId,
+                socialFooterNote());
+    }
+
+    /** Las mismas frases que muestra el FE en el dialogo «Invita a ballare». */
+    private String invitePhraseLabel(InvitePhrase phrase) {
+        return switch (phrase) {
+            case CI_VIENI -> "Ci vieni?";
+            case ANDIAMO_INSIEME -> "Andiamo insieme?";
+            case MI_ACCOMPAGNI -> "Mi accompagni?";
+            case TI_VA_DI_BALLARE -> "Ti va di ballare?";
+        };
+    }
+
+    private String socialFooterNote() {
+        return "Non vuoi ricevere queste email? Disattivale in "
+                + "<a href=\"" + frontendUrl + ACCOUNT_PATH + "\" style=\"color:" + LINK + ";\">Il tuo account</a>.";
+    }
+
     private String buildEmailContent(String organizerName) {
         return layout(
                 "Il tuo profilo organizzatore è stato verificato: ora puoi pubblicare eventi.",
@@ -194,6 +312,14 @@ public class EmailServiceImpl implements EmailService {
      * logo; Outlook, que no pinta gradientes, la deja en rosa liso.
      */
     private String layout(String preheader, String title, String body, String ctaLabel) {
+        return layout(preheader, title, body, ctaLabel, frontendUrl, null);
+    }
+
+    /** ctaHref: adonde lleva el boton. footerNote: linea extra del pie (HTML ya armado), null si no hay. */
+    private String layout(String preheader, String title, String body, String ctaLabel, String ctaHref,
+                          String footerNote) {
+        String footerNoteBlock = footerNote == null ? ""
+                : "<p style=\"margin:8px 0 0;font-size:12px;\">" + footerNote + "</p>";
         return "<!DOCTYPE html>" +
                 "<html lang=\"it\"><head>" +
                 "<meta charset=\"UTF-8\">" +
@@ -230,7 +356,7 @@ public class EmailServiceImpl implements EmailService {
                 "<tr><td bgcolor=\"#ffffff\" style=\"background-color:#ffffff;padding:36px 32px 32px;font-family:" + FONT_BODY + ";font-size:16px;line-height:1.6;color:" + TEXT + ";\">" +
                 "<h1 style=\"margin:0 0 20px;font-family:" + FONT_DISPLAY + ";font-size:26px;line-height:1.25;font-weight:800;color:" + INK + ";\">" + title + "</h1>" +
                 body +
-                button(ctaLabel) +
+                button(ctaLabel, ctaHref) +
                 "<p style=\"margin:28px 0 0;\">A presto sulla pista!</p>" +
                 "</td></tr>" +
 
@@ -239,6 +365,7 @@ public class EmailServiceImpl implements EmailService {
                 "<a href=\"" + frontendUrl + "\" style=\"color:" + LINK + ";font-weight:700;text-decoration:none;\">ballastasera</a>" +
                 " &middot; Dove andare a ballare stasera" +
                 "<p style=\"margin:8px 0 0;font-size:12px;\">Questa è un'email automatica, ti preghiamo di non rispondere.</p>" +
+                footerNoteBlock +
                 "</td></tr>" +
 
                 "</table>" +
@@ -247,10 +374,10 @@ public class EmailServiceImpl implements EmailService {
     }
 
     /** Botón "a prueba de Outlook": el color va en la celda, no solo en el enlace. Texto ink sobre rosa, como en el FE. */
-    private String button(String label) {
+    private String button(String label, String href) {
         return "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:28px 0 0;\"><tr>" +
                 "<td bgcolor=\"" + ROSE + "\" style=\"background-color:" + ROSE + ";border-radius:999px;\">" +
-                "<a href=\"" + frontendUrl + "\" style=\"display:inline-block;padding:14px 28px;font-family:" + FONT_BODY + ";font-size:16px;font-weight:700;color:" + INK + ";text-decoration:none;border-radius:999px;\">" +
+                "<a href=\"" + href + "\" style=\"display:inline-block;padding:14px 28px;font-family:" + FONT_BODY + ";font-size:16px;font-weight:700;color:" + INK + ";text-decoration:none;border-radius:999px;\">" +
                 label +
                 "</a>" +
                 "</td></tr></table>";

@@ -7,12 +7,15 @@ import com.kryptosystems.ballastasera.models.dtos.EventDetailDto;
 import com.kryptosystems.ballastasera.models.dtos.EventUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.Events;
 import com.kryptosystems.ballastasera.models.entities.Users;
+import com.kryptosystems.ballastasera.models.mappers.AttendeeMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.JwtAuthenticationFilter;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.FavoritesService;
+import com.kryptosystems.ballastasera.services.manager.InvitesService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,7 +71,16 @@ class EventsControllerTest {
     private FavoritesService favoritesService;
 
     @MockitoBean
+    private InvitesService invitesService;
+
+    @MockitoBean
     private EventsMapper eventsMapper;
+
+    @MockitoBean
+    private AttendeeMapper attendeeMapper;
+
+    @MockitoBean
+    private UserMapper userMapper;
 
     @MockitoBean
     private EventsCache eventsCache;

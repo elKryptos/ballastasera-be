@@ -4,6 +4,7 @@ import com.kryptosystems.ballastasera.exceptions.*;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import tools.jackson.databind.exc.MismatchedInputException;
@@ -342,7 +344,97 @@ public class BackendErrorResponse {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
     }
 
-    /** @Version (hoy solo OrganizerRequests): otra petición la modificó entre la lectura y el commit. Salta
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<ErrorDetails> handleFileTooLarge(FileTooLargeException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "File too large",
+                HttpStatus.CONTENT_TOO_LARGE
+        );
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(errorDetails);
+    }
+
+    /** Pasa spring.servlet.multipart.max-file-size (10 MB): sin este handler caia en el generico como 500. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorDetails> handleMaxUploadSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                "File too large",
+                request.getRequestURI(),
+                "The uploaded file is larger than the server limit",
+                HttpStatus.CONTENT_TOO_LARGE
+        );
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(errorDetails);
+    }
+
+    /** Seguirse, bloquearse o denunciarse a uno mismo. code para que el frontend traduzca el mensaje. */
+    @ExceptionHandler(SocialActionException.class)
+    public ResponseEntity<ErrorDetails> handleSocialAction(SocialActionException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Social action not allowed",
+                HttpStatus.BAD_REQUEST,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDetails);
+    }
+
+    /** 10 invitaciones en 24 horas. Mismo formato que el 429 de RateLimitFilter, con su propio code para que el
+     * FE muestre «Hai finito gli inviti per oggi». */
+    @ExceptionHandler(InviteLimitException.class)
+    public ResponseEntity<ErrorDetails> handleInviteLimit(InviteLimitException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Invite limit reached",
+                HttpStatus.TOO_MANY_REQUESTS,
+                Map.of("code", InviteLimitException.INVITE_LIMIT)
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(errorDetails);
+    }
+
+    /** Denuncia ya revisada o ban a un ADMIN. code para que el frontend del admin traduzca el mensaje. */
+    @ExceptionHandler(ModerationConflictException.class)
+    public ResponseEntity<ErrorDetails> handleModerationConflict(ModerationConflictException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Moderation conflict",
+                HttpStatus.CONFLICT,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+    /** Username ocupado o reservado. code para que el frontend traduzca el mensaje. */
+    @ExceptionHandler(UsernameUnavailableException.class)
+    public ResponseEntity<ErrorDetails> handleUsernameUnavailable(UsernameUnavailableException ex, HttpServletRequest request) {
+        log.warn(ex.getMessage());
+        ErrorDetails errorDetails = new ErrorDetails(
+                LocalDateTime.now(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                "Username not available",
+                HttpStatus.CONFLICT,
+                Map.of("code", ex.getCode())
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDetails);
+    }
+
+    /** @Version (OrganizerRequests y UserReports): otra petición la modificó entre la lectura y el commit. Salta
      * en el commit, fuera del servicio, por eso se traduce aquí. Mismo formato que los otros 409 con code. */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorDetails> handleOptimisticLock(ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {

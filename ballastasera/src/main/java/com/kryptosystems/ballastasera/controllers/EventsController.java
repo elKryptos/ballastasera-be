@@ -1,15 +1,21 @@
 package com.kryptosystems.ballastasera.controllers;
 
 import com.kryptosystems.ballastasera.cache.EventsCache;
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.*;
 import com.kryptosystems.ballastasera.models.entities.Events;
+import com.kryptosystems.ballastasera.models.mappers.AttendeeMapper;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
 import com.kryptosystems.ballastasera.services.manager.EventAttendanceService;
 import com.kryptosystems.ballastasera.services.manager.EventsService;
 import com.kryptosystems.ballastasera.services.manager.FavoritesService;
+import com.kryptosystems.ballastasera.services.manager.InvitesService;
 import com.kryptosystems.ballastasera.utilities.EventTimingUtils;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
+import org.springframework.format.annotation.DateTimeFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +48,9 @@ public class EventsController {
     private static final String ADD_ATTENDANCE = "/{id}/attendance";
     private static final String REMOVE_ATTENDANCE = "/{id}/attendance";
     private static final String IS_GOING = "/{id}/going";
+    private static final String MY_ATTENDANCE = "/{id}/attendance/me";
+    private static final String FRIENDS_GOING = "/{id}/friends-going";
+    private static final String INVITE_FRIENDS = "/{id}/invites/friends";
     private static final String ADD_FAVORITE = "/{id}/favorite";
     private static final String REMOVE_FAVORITE = "/{id}/favorite";
     private static final String IS_FAVORITE = "/{id}/favorite";
@@ -51,7 +60,10 @@ public class EventsController {
     private final EventsService eventsService;
     private final EventAttendanceService eventAttendanceService;
     private final FavoritesService favoritesService;
+    private final InvitesService invitesService;
     private final EventsMapper eventsMapper;
+    private final AttendeeMapper attendeeMapper;
+    private final UserMapper userMapper;
     private final EventsCache eventsCache;
 
     /** Marcadores del mapa: solo eventos publicados, en vivo o por empezar en las
@@ -117,19 +129,57 @@ public class EventsController {
 
     /** Público. Solo quienes marcaron "voy" Y activaron mostrar su perfil publicamente.
      * El conteo total de "van" (EventDetailDto.goingCount) es independiente
-     * de esta lista y siempre incluye a todos, con o sin opt-in. */
+     * de esta lista y siempre incluye a todos, con o sin opt-in.
+     * Con login no salen las personas con las que hay un bloqueo (principal es null sin login). */
     @GetMapping(GET_ATTENDEES)
     public ResponseEntity<Page<AttendeeDto>> getAttendees(@PathVariable UUID id,
+                                                          @AuthenticationPrincipal UserPrincipal principal,
                                                           @RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(eventAttendanceService.findPublicAttendees(id, PageRequest.of(page, size)));
+        UUID viewerId = principal != null ? principal.getId() : null;
+        return ResponseEntity.ok(attendeeMapper.toDtoPage(
+                eventAttendanceService.findPublicAttendees(id, viewerId, PageRequest.of(page, size))));
     }
 
     /** Requiere estar autenticado. Marca "voy" al evento. Idempotente. +1 in Events dbtable */
     @PostMapping(ADD_ATTENDANCE)
-    public ResponseEntity<Void> setAttendance(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal) {
-        eventAttendanceService.addAttendance(principal.getId(), id);
+    public ResponseEntity<Void> setAttendance(@PathVariable UUID id, @AuthenticationPrincipal UserPrincipal principal,
+                                              @RequestBody(required = false) EventAttendanceUpdateDto body) {
+        Boolean lookingForPartner = body != null ? body.getLookingForPartner() : null;
+        eventAttendanceService.addAttendance(principal.getId(), id, lookingForPartner);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Si el usuario logueado dijo «Ci vado» y si marco «Cerco qualcuno». */
+    @GetMapping(MY_ATTENDANCE)
+    public ResponseEntity<EventAttendanceStatusDto> getMyAttendance(@PathVariable UUID id,
+                                                                    @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(attendeeMapper.toStatusDto(
+                eventAttendanceService.findAttendance(principal.getId(), id).orElse(null)));
+    }
+
+    /** Requiere estar autenticado. Amigos que van a la serata («Sara e Luca ci vanno»). Fuera de la cache del
+     * detalle: depende de quien mira. */
+    @GetMapping(FRIENDS_GOING)
+    public ResponseEntity<List<UserSummaryDto>> getFriendsGoing(@PathVariable UUID id,
+                                                                @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(userMapper.toSummaryDtos(
+                eventAttendanceService.findFriendsGoing(principal.getId(), id), SocialRelation.MUTUAL));
+    }
+
+    /** Requiere estar autenticado. Dialogo «Invita a ballare»: mis amigos (como /users/me/friends, q busca por
+     * nombre) con su estado para esta serata y cuantas invitaciones me quedan en 24 horas. Los mismos 400 que
+     * invitar si mi perfil es privado, la serata no se puede invitar o no voy (PROFILE_PRIVATE, EVENT_NOT_INVITABLE,
+     * NOT_GOING); 404 si no existe. Fuera de la cache del detalle: depende de quien mira. */
+    @GetMapping(INVITE_FRIENDS)
+    public ResponseEntity<InviteFriendsDto> getInviteFriends(@PathVariable UUID id,
+                                                             @AuthenticationPrincipal UserPrincipal principal,
+                                                             @RequestParam(required = false) @Size(max = 50) String q,
+                                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                             @RequestParam(required = false) UUID cursorId,
+                                                             @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(userMapper.toInviteFriendsDto(
+                invitesService.findInviteFriends(principal.getId(), id, q, cursorStartAt, cursorId, limit)));
     }
 
     /** Requiere estar autenticado. Quita la marca "voy". La lista de asistentes se actualiza con -1 */

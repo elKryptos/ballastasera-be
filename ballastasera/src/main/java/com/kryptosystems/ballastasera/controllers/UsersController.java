@@ -1,23 +1,57 @@
 package com.kryptosystems.ballastasera.controllers;
 
 
+import com.kryptosystems.ballastasera.enums.SocialRelation;
 import com.kryptosystems.ballastasera.models.dtos.CursorPageDto;
+import com.kryptosystems.ballastasera.models.dtos.EmailNotificationsUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.EventCardDto;
+import com.kryptosystems.ballastasera.models.dtos.FeedDto;
+import com.kryptosystems.ballastasera.models.dtos.InviteCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.NotificationDto;
+import com.kryptosystems.ballastasera.models.dtos.NotificationsUnreadDto;
+import com.kryptosystems.ballastasera.models.dtos.SuggestionDto;
+import com.kryptosystems.ballastasera.models.dtos.UserAvatarUpdateDto;
+import com.kryptosystems.ballastasera.models.dtos.UserDto;
+import com.kryptosystems.ballastasera.models.dtos.UserMuteDto;
 import com.kryptosystems.ballastasera.models.dtos.UserProfileDto;
+import com.kryptosystems.ballastasera.models.dtos.UserReportCreateDto;
+import com.kryptosystems.ballastasera.models.dtos.UserSummaryDto;
+import com.kryptosystems.ballastasera.models.dtos.UsernameAvailabilityDto;
+import com.kryptosystems.ballastasera.models.dtos.UsernameUpdateDto;
+import com.kryptosystems.ballastasera.models.entities.Users;
 import com.kryptosystems.ballastasera.models.mappers.EventsMapper;
+import com.kryptosystems.ballastasera.models.mappers.FeedMapper;
+import com.kryptosystems.ballastasera.models.mappers.NotificationMapper;
 import com.kryptosystems.ballastasera.models.mappers.UserMapper;
 import com.kryptosystems.ballastasera.security.UserPrincipal;
+import com.kryptosystems.ballastasera.services.manager.BlocksService;
+import com.kryptosystems.ballastasera.services.manager.FeedService;
+import com.kryptosystems.ballastasera.services.manager.FollowsService;
+import com.kryptosystems.ballastasera.services.manager.InvitesService;
+import com.kryptosystems.ballastasera.services.manager.ModerationService;
+import com.kryptosystems.ballastasera.services.manager.NotificationsService;
 import com.kryptosystems.ballastasera.services.manager.UserActivityService;
 import com.kryptosystems.ballastasera.services.manager.UsersService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -33,20 +67,253 @@ public class UsersController {
     private static final String MY_FAVORITES_IDS = "/me/favorites/ids";
     private static final String MY_FAVORITES = "/me/favorites";
     private static final String MY_ATTENDANCE = "/me/attendance";
+    private static final String MY_FOLLOWERS = "/me/followers";
+    private static final String MY_FOLLOWING = "/me/following";
+    private static final String MY_FRIENDS = "/me/friends";
+    private static final String MY_BLOCKS = "/me/blocks";
+    private static final String MY_FEED = "/me/feed";
+    private static final String MY_SUGGESTIONS = "/me/suggestions";
+    private static final String MY_AVATAR = "/me/avatar";
+    private static final String MY_AVATAR_SOURCE = "/me/avatar/source";
+    private static final String MY_NOTIFICATIONS = "/me/notifications";
+    private static final String MY_NOTIFICATIONS_UNREAD_COUNT = "/me/notifications/unread-count";
+    private static final String MY_NOTIFICATIONS_READ = "/me/notifications/read";
+    private static final String MY_EMAIL_NOTIFICATIONS = "/me/email-notifications";
+    private static final String MY_USERNAME = "/me/username";
+    private static final String USERNAME_AVAILABLE = "/username-available";
+    private static final String USER_PROFILE_BY_USERNAME = "/by-username/{username}";
     private static final String USER_PROFILE = "/{id}";
+    private static final String USER_ATTENDANCE = "/{id}/attendance";
+    private static final String FOLLOW = "/{id}/follow";
+    private static final String BLOCK = "/{id}/block";
+    private static final String REPORT = "/{id}/report";
+    private static final String INVITES = "/{id}/invites";
 
     private final UserActivityService userActivityService;
     private final UsersService usersService;
+    private final FollowsService followsService;
+    private final BlocksService blocksService;
+    private final ModerationService moderationService;
+    private final FeedService feedService;
+    private final NotificationsService notificationsService;
+    private final InvitesService invitesService;
     private final EventsMapper eventsMapper;
     private final UserMapper userMapper;
+    private final FeedMapper feedMapper;
+    private final NotificationMapper notificationMapper;
 
     /** Requiere estar autenticado. Perfil de un usuario (ej. desde la lista de "parteciperò"):
-     * 404 si es privado, borrado o baneado, salvo que sea el propio. */
+     * 404 si es privado, borrado, baneado o hay un bloqueo, salvo que sea el propio.
+     * Suma la relacion con quien mira (boton Segui / Ricambia / Amici), los contadores, «Avete in comune»
+     * y el pallino «Cerco qualcuno». */
     @GetMapping(USER_PROFILE)
     public ResponseEntity<UserProfileDto> getUserProfile(@AuthenticationPrincipal UserPrincipal principal,
                                                          @PathVariable UUID id) {
         var user = usersService.findPublicProfile(principal.getId(), id);
-        return ResponseEntity.ok(userMapper.toProfileDto(user, principal.getId()));
+        return ResponseEntity.ok(toProfileDto(principal.getId(), user));
+    }
+
+    /** Requiere estar autenticado. El mismo perfil por /@username (sin importar mayusculas), con los mismos 404;
+     * tambien si nadie lo tiene. */
+    @GetMapping(USER_PROFILE_BY_USERNAME)
+    public ResponseEntity<UserProfileDto> getUserProfileByUsername(@AuthenticationPrincipal UserPrincipal principal,
+                                                                   @PathVariable String username) {
+        var user = usersService.findPublicProfileByUsername(principal.getId(), username);
+        return ResponseEntity.ok(toProfileDto(principal.getId(), user));
+    }
+
+    /** Requiere estar autenticado. Campo «Nome utente» mientras se escribe: si u se puede elegir y, si no, por que
+     * (INVALID, RESERVED, TAKEN). El propio cuenta como disponible. Va sin normalizar: el FE ya manda minusculas. */
+    @GetMapping(USERNAME_AVAILABLE)
+    public ResponseEntity<UsernameAvailabilityDto> checkUsername(@AuthenticationPrincipal UserPrincipal principal,
+                                                                 @RequestParam @Size(max = 50) String u) {
+        return ResponseEntity.ok(userMapper.toUsernameAvailabilityDto(usersService.checkUsername(principal.getId(), u)));
+    }
+
+    /** Requiere estar autenticado. Elige, cambia o quita (null o "") el username: el anterior queda libre en el
+     * momento y su link da 404. 400 si no tiene el formato; 409 con code USERNAME_TAKEN o USERNAME_RESERVED. */
+    @PatchMapping(MY_USERNAME)
+    public ResponseEntity<Void> changeMyUsername(@AuthenticationPrincipal UserPrincipal principal,
+                                                 @Valid @RequestBody UsernameUpdateDto body) {
+        usersService.changeUsername(principal.getId(), body.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Le sue prossime serate» (past=true: las pasadas), mismo orden y cursor que
+     * /me/attendance. 404 si el perfil no se puede ver. Si eligio que quien mira no vea sus serate: lista vacia. */
+    @GetMapping(USER_ATTENDANCE)
+    public ResponseEntity<CursorPageDto<EventCardDto>> findUserAttendance(@AuthenticationPrincipal UserPrincipal principal,
+                                                                         @PathVariable UUID id,
+                                                                         @RequestParam(defaultValue = "false") boolean past,
+                                                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                         @RequestParam(required = false) UUID cursorId,
+                                                                         @RequestParam(defaultValue = "20") int limit) {
+        if (!userActivityService.canSeeAttendanceOf(principal.getId(), id)) {
+            return ResponseEntity.ok(eventsMapper.toEventCardCursorPage(new SliceImpl<>(List.of()), 0));
+        }
+        var events = userActivityService.findMyAttendance(id, past, cursorStartAt, cursorId, limit);
+        var total = userActivityService.countMyAttendance(id, past);
+        return ResponseEntity.ok(eventsMapper.toEventCardCursorPage(events, total));
+    }
+
+    /** Requiere estar autenticado. Seguir. Idempotente. 400 si es uno mismo; 404 si el perfil no se puede ver. */
+    @PostMapping(FOLLOW)
+    public ResponseEntity<Void> follow(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        followsService.follow(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Dejar de seguir. Idempotente. */
+    @DeleteMapping(FOLLOW)
+    public ResponseEntity<Void> unfollow(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        followsService.unfollow(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Silenzia» / «Riattiva» a quien sigo: sale de mi feed y de mi campanita,
+     * y no se entera. 404 si no lo sigo. */
+    @PatchMapping(FOLLOW)
+    public ResponseEntity<Void> setMuted(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
+                                         @Valid @RequestBody UserMuteDto body) {
+        followsService.setMuted(principal.getId(), id, body.getMuted());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Segnala»: va a la cola del admin, no oculta nada. Idempotente mientras
+     * siga abierta. 400 si es uno mismo; 404 si no existe o esta borrado. */
+    @PostMapping(REPORT)
+    public ResponseEntity<Void> report(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
+                                       @Valid @RequestBody UserReportCreateDto body) {
+        moderationService.report(principal.getId(), id, body);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. «Invita a ballare»: solo a amigos, ninguno con el perfil privado, a una serata no
+     * terminada a la que voy. Idempotente por persona y serata. 400 con code si no se puede (NOT_FRIENDS,
+     * PROFILE_PRIVATE, FRIEND_PRIVATE, NOT_GOING, EVENT_NOT_INVITABLE, ALREADY_GOING, SELF_ACTION); 429 con
+     * Retry-After y code INVITE_LIMIT despues de 10 en 24 horas. */
+    @PostMapping(INVITES)
+    public ResponseEntity<Void> invite(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id,
+                                       @Valid @RequestBody InviteCreateDto body) {
+        invitesService.invite(principal.getId(), id, body.getEventId(), body.getPhrase());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Bloquear: borra los follows en los dos sentidos. Idempotente. */
+    @PostMapping(BLOCK)
+    public ResponseEntity<Void> block(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        blocksService.block(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Desbloquear. Idempotente. */
+    @DeleteMapping(BLOCK)
+    public ResponseEntity<Void> unblock(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
+        blocksService.unblock(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Sube o cambia la foto propia (parte multipart "avatar", max. 5 MB,
+     * JPG/PNG/WebP): se guarda en webp y pasa a ser la foto de perfil. 413 si pesa mas, 415 si no es una imagen. */
+    @PatchMapping(value = MY_AVATAR, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserDto> uploadMyAvatar(@AuthenticationPrincipal UserPrincipal principal,
+                                                  @RequestParam("avatar") MultipartFile file) {
+        var user = usersService.uploadAvatar(principal.getId(), file);
+        return ResponseEntity.ok(userMapper.toDto(user, followsService.countSocial(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. «Usa la foto di Google» (GOOGLE) o «Nessuna foto» (NONE). */
+    @PatchMapping(MY_AVATAR_SOURCE)
+    public ResponseEntity<UserDto> changeMyAvatarSource(@AuthenticationPrincipal UserPrincipal principal,
+                                                        @Valid @RequestBody UserAvatarUpdateDto body) {
+        var user = usersService.changeAvatarSource(principal.getId(), body.getSource());
+        return ResponseEntity.ok(userMapper.toDto(user, followsService.countSocial(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. Quienes me siguen, los mas recientes primero.
+     * cursorStartAt/cursorId: fecha del follow e id de la ultima persona de la pagina anterior. */
+    @GetMapping(MY_FOLLOWERS)
+    public ResponseEntity<CursorPageDto<UserSummaryDto>> findMyFollowers(@AuthenticationPrincipal UserPrincipal principal,
+                                                                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                        @RequestParam(required = false) UUID cursorId,
+                                                                        @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(userMapper.toFollowersCursorPage(
+                followsService.findFollowers(principal.getId(), cursorStartAt, cursorId, limit)));
+    }
+
+    /** Requiere estar autenticado. A quienes sigo, los mas recientes primero. */
+    @GetMapping(MY_FOLLOWING)
+    public ResponseEntity<CursorPageDto<UserSummaryDto>> findMyFollowing(@AuthenticationPrincipal UserPrincipal principal,
+                                                                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                        @RequestParam(required = false) UUID cursorId,
+                                                                        @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(userMapper.toFollowingCursorPage(
+                followsService.findFollowing(principal.getId(), cursorStartAt, cursorId, limit)));
+    }
+
+    /** Requiere estar autenticado. Mis amigos (nos seguimos los dos). q busca por nombre. */
+    @GetMapping(MY_FRIENDS)
+    public ResponseEntity<CursorPageDto<UserSummaryDto>> findMyFriends(@AuthenticationPrincipal UserPrincipal principal,
+                                                                      @RequestParam(required = false) @Size(max = 50) String q,
+                                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                      @RequestParam(required = false) UUID cursorId,
+                                                                      @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(userMapper.toFollowingCursorPage(
+                followsService.findFriends(principal.getId(), q, cursorStartAt, cursorId, limit)));
+    }
+
+    /** Requiere estar autenticado. Pestaña Attività: «Stasera escono» (hasta las proximas 06:00 hora de Italia) y
+     * «Novità» de los ultimos 7 dias. Las serate, solo de gente que sigo sin silenciar; «ti segue», de cualquiera
+     * que me siga (tambien privado). Se calcula en cada request, sin cache. */
+    @GetMapping(MY_FEED)
+    public ResponseEntity<FeedDto> findMyFeed(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(feedMapper.toFeedDto(feedService.findFeed(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. Pestaña Scopri: gente de mis proximas serate y amigos de amigos, ya ordenada.
+     * Nunca a quien ya sigo, bloqueados ni menores. limit 1–20. */
+    @GetMapping(MY_SUGGESTIONS)
+    public ResponseEntity<List<SuggestionDto>> findMySuggestions(@AuthenticationPrincipal UserPrincipal principal,
+                                                                 @RequestParam(defaultValue = "10") @Min(1) @Max(20) int limit) {
+        return ResponseEntity.ok(feedMapper.toSuggestionDtos(feedService.findSuggestions(principal.getId(), limit)));
+    }
+
+    /** Requiere estar autenticado. Campanita: los avisos mas recientes primero, sin los de quien silencie ni de
+     * baneados, y sin invitaciones a serate canceladas o terminadas. Mismo cursor que /me/followers. */
+    @GetMapping(MY_NOTIFICATIONS)
+    public ResponseEntity<CursorPageDto<NotificationDto>> findMyNotifications(@AuthenticationPrincipal UserPrincipal principal,
+                                                                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime cursorStartAt,
+                                                                              @RequestParam(required = false) UUID cursorId,
+                                                                              @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(notificationMapper.toCursorPage(
+                notificationsService.findNotifications(principal.getId(), cursorStartAt, cursorId, limit)));
+    }
+
+    /** Requiere estar autenticado. El numero sobre la campanita: los mismos avisos que la lista, sin leer. */
+    @GetMapping(MY_NOTIFICATIONS_UNREAD_COUNT)
+    public ResponseEntity<NotificationsUnreadDto> countMyUnreadNotifications(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(notificationMapper.toUnreadDto(notificationsService.countUnread(principal.getId())));
+    }
+
+    /** Requiere estar autenticado. Al abrir la campanita: todos los avisos quedan leidos. */
+    @PatchMapping(MY_NOTIFICATIONS_READ)
+    public ResponseEntity<Void> markMyNotificationsRead(@AuthenticationPrincipal UserPrincipal principal) {
+        notificationsService.markAllRead(principal.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Toggle «Ricevi email» (nuevos amigos e invitaciones). El valor sale en /auth/me. */
+    @PatchMapping(MY_EMAIL_NOTIFICATIONS)
+    public ResponseEntity<Void> setMyEmailNotifications(@AuthenticationPrincipal UserPrincipal principal,
+                                                        @Valid @RequestBody EmailNotificationsUpdateDto body) {
+        usersService.setEmailNotifications(principal.getId(), body.getEnabled());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Requiere estar autenticado. Personas que bloquee, las mas recientes primero. Sin paginar: son pocas. */
+    @GetMapping(MY_BLOCKS)
+    public ResponseEntity<List<UserSummaryDto>> findMyBlocks(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(userMapper.toSummaryDtos(blocksService.findBlocked(principal.getId()), SocialRelation.NONE));
     }
 
     /** Requiere estar autenticado. Solo los ids de los eventos con like: lo usa
@@ -76,6 +343,16 @@ public class UsersController {
         var events = userActivityService.findMyAttendance(principal.getId(), past, cursorStartAt, cursorId, limit);
         var total = userActivityService.countMyAttendance(principal.getId(), past);
         return ResponseEntity.ok(eventsMapper.toEventCardCursorPage(events, total));
+    }
+
+    /** Perfil de user visto por viewerId, por id o por username: relacion, silenciado, contadores, traguardi,
+     * «Avete in comune» y el pallino. */
+    private UserProfileDto toProfileDto(UUID viewerId, Users user) {
+        var relation = followsService.findRelation(viewerId, user.getId());
+        var muted = followsService.isMuted(viewerId, user.getId());
+        var counts = followsService.countSocial(user.getId());
+        var activity = userActivityService.findProfileActivity(viewerId, user, relation);
+        return userMapper.toProfileDto(user, viewerId, relation, muted, counts, activity);
     }
 
 }

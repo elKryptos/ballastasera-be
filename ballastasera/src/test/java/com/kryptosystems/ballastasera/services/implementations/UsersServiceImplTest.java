@@ -5,6 +5,7 @@ import com.kryptosystems.ballastasera.enums.DanceLevel;
 import com.kryptosystems.ballastasera.enums.DanceRole;
 import com.kryptosystems.ballastasera.enums.Gender;
 import com.kryptosystems.ballastasera.enums.UserRole;
+import com.kryptosystems.ballastasera.exceptions.UsernameUnavailableException;
 import com.kryptosystems.ballastasera.models.dtos.UserDanceStyleUpdateDto;
 import com.kryptosystems.ballastasera.models.dtos.UserUpdateDto;
 import com.kryptosystems.ballastasera.models.entities.DanceStyles;
@@ -16,6 +17,7 @@ import com.kryptosystems.ballastasera.repositories.EventAttendanceRepository;
 import com.kryptosystems.ballastasera.repositories.EventsRepository;
 import com.kryptosystems.ballastasera.repositories.FavoritesRepository;
 import com.kryptosystems.ballastasera.repositories.OrganizersRepository;
+import com.kryptosystems.ballastasera.repositories.UserBlocksRepository;
 import com.kryptosystems.ballastasera.repositories.UsersRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -26,7 +28,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -70,6 +74,9 @@ class UsersServiceImplTest {
 
     @Mock
     private OrganizersRepository organizersRepository;
+
+    @Mock
+    private UserBlocksRepository userBlocksRepository;
 
     @InjectMocks
     private UsersServiceImpl usersService;
@@ -133,7 +140,7 @@ class UsersServiceImplTest {
         verify(organizersRepository, never()).countByUserId(any());
     }
 
-    /** Reemplazo completo del formulario: "" pasa a null y whatsappVisibility null queda EVERYONE. */
+    /** Reemplazo completo del formulario: "" pasa a null y whatsappVisibility null queda MUTUALS. */
     @Test
     void updateProfileCopiesTheFormAndNormalizesEmptyInputs() {
         Users user = user(UserRole.USER);
@@ -152,7 +159,7 @@ class UsersServiceImplTest {
 
         assertThat(updated.getInstagram()).isEqualTo("juan.baila");
         assertThat(updated.getWhatsapp()).isNull();
-        assertThat(updated.getWhatsappVisibility()).isEqualTo(ContactVisibility.EVERYONE);
+        assertThat(updated.getWhatsappVisibility()).isEqualTo(ContactVisibility.MUTUALS);
         assertThat(updated.getBirthDate()).isEqualTo(LocalDate.of(1995, 4, 12));
         assertThat(updated.getGender()).isEqualTo(Gender.MALE);
         assertThat(updated.getDanceRole()).isEqualTo(DanceRole.LEADER);
@@ -267,6 +274,16 @@ class UsersServiceImplTest {
                 .isInstanceOf(EntityNotFoundException.class);
     }
 
+    /** Mismo 404 que un perfil privado: no se revela el bloqueo. */
+    @Test
+    void findPublicProfileHidesAUserWithABlockInEitherDirection() {
+        when(usersRepository.findByIdWithDanceStyles(USER_ID)).thenReturn(Optional.of(user(UserRole.USER)));
+        when(userBlocksRepository.existsBetween(VIEWER_ID, USER_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> usersService.findPublicProfile(VIEWER_ID, USER_ID))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
     @Test
     void findPublicProfileShowsTheOwnerTheirPrivateProfile() {
         Users user = user(UserRole.USER);
@@ -274,6 +291,37 @@ class UsersServiceImplTest {
         when(usersRepository.findByIdWithDanceStyles(USER_ID)).thenReturn(Optional.of(user));
 
         assertThat(usersService.findPublicProfile(USER_ID, USER_ID)).isSameAs(user);
+    }
+
+    /** Dos personas piden el mismo a la vez: las dos pasan el exists y el indice unico frena a la segunda en el flush. */
+    @Test
+    void changeUsernameTurnsARaceOnTheUniqueIndexIntoTaken() {
+        Users user = user(UserRole.USER);
+        when(usersRepository.existsByUsernameAndIdNot("ana.baila", USER_ID)).thenReturn(false);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(usersRepository.saveAndFlush(user)).thenThrow(integrityViolation("users_username_key"));
+
+        assertThatThrownBy(() -> usersService.changeUsername(USER_ID, "ana.baila"))
+                .isInstanceOfSatisfying(UsernameUnavailableException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo(UsernameUnavailableException.USERNAME_TAKEN));
+    }
+
+    /** Otra violacion no es un nombre ocupado: sigue tal cual (500). */
+    @Test
+    void changeUsernameRethrowsOtherIntegrityViolations() {
+        Users user = user(UserRole.USER);
+        DataIntegrityViolationException other = integrityViolation("users_email_key");
+        when(usersRepository.existsByUsernameAndIdNot("ana.baila", USER_ID)).thenReturn(false);
+        when(usersRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(usersRepository.saveAndFlush(user)).thenThrow(other);
+
+        assertThatThrownBy(() -> usersService.changeUsername(USER_ID, "ana.baila")).isSameAs(other);
+    }
+
+    /** Como la traduce Spring: el SQLException de Postgres con el nombre del indice, como causa. */
+    private static DataIntegrityViolationException integrityViolation(String constraint) {
+        return new DataIntegrityViolationException("could not execute statement",
+                new SQLException("ERROR: duplicate key value violates unique constraint \"" + constraint + "\""));
     }
 
     private static Users user(UserRole role) {
