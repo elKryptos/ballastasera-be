@@ -78,12 +78,14 @@ public class FollowsServiceImpl implements FollowsService {
         notificationsService.notifyFollow(follower, followed, friendship);
     }
 
-    /** Se borra tambien el «ti segue» sin leer: seguir y dejar de seguir no llena la campanita. */
+    /**
+     * Su «ti segue» no se borra: la campanita lo esconde mientras no lo siga (NotificationsRepository), y asi el filtro
+     * de 7 dias lo encuentra si vuelve a seguirlo, sin otro aviso ni otro email.
+     */
     @Override
     @Transactional
     public void unfollow(UUID followerId, UUID followedId) {
         userFollowsRepository.deleteById(UserFollowId.of(followerId, followedId));
-        notificationsService.deleteUnreadNewFollower(followerId, followedId);
     }
 
     /** Sin save(): la entidad esta gestionada y el dirty checking hace el UPDATE en el commit. */

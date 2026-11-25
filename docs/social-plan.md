@@ -71,14 +71,16 @@ Piezas que se reutilizan:
 
 **Avisos**
 - Todo sale en una campanita en la web. Los avisos se borran a los 60 días.
-- Por email (Resend), solo «ora siete amici» y las invitaciones. «Ti segue» queda solo en la campanita.
+- Por email (Resend): «ti segue», «ora siete amici» y las invitaciones. «Ti segue» también por email desde el 25/11
+  (antes solo campanita), para que quien recibe el follow se entere.
 - Toggle «Ricevi email» en Il tuo account. Sin push: no hay app.
-- Cuando A sigue a B: B recibe «ti segue». Si B ya seguía a A, en cambio, B recibe «ora siete amici» (con email,
-  salvo que A sea privado: el botón llevaría a un perfil que da 404); A no recibe nada, porque fue quien cerró la
-  amistad.
-- Sin avisos repetidos: dejar de seguir borra el «ti segue» sin leer, y la misma pareja no recibe el mismo aviso dos
-  veces en 7 días. El «ora siete amici» no se borra: si se borrara, seguir y dejar de seguir en loop mandaría un email
-  nuevo cada vez (corregido en el check del 24/11).
+- Cuando A sigue a B: B recibe «ti segue». Si B ya seguía a A, en cambio, B recibe «ora siete amici». Los dos con
+  email, salvo que A sea privado (el botón llevaría a un perfil que da 404); A no recibe nada, porque fue quien cerró
+  la amistad.
+- Sin avisos repetidos: la misma pareja no recibe el mismo aviso dos veces en 7 días. Ningún aviso se borra al dejar de
+  seguir: si se borrara, seguir y dejar de seguir en loop mandaría un email nuevo cada vez (el «ora siete amici», en el
+  check del 24/11; el «ti segue», con su email, el 25/11). La campanita esconde el «ti segue» de quien ya no te sigue
+  (vuelve, el mismo, si te sigue de nuevo).
 - Silenciados: sus avisos se filtran al leer (al reactivar, vuelven). Bloquear borra los avisos entre los dos, en los
   dos sentidos. Los de baneados no se muestran; las invitaciones a serate canceladas o terminadas, tampoco.
 - Se marcan todos como leídos de una vez, al abrir la campanita.
@@ -210,8 +212,8 @@ los muestra sin enlace ni «Ricambia» («Profilo privato»), porque seguir a un
 Campanita del Home e «Invita a ballare». Decisiones en §3 (Avisos e Invitaciones).
 - [x] Tabla `notifications` (`social-prod-db.md`; dev ☐); `GET /me/notifications`, `/me/notifications/unread-count`, `PATCH /me/notifications/read`
 - [x] Tipos: nuevo seguidor, nuevo amigo, invitación. Limpieza a los 60 días con `@Scheduled` (`NotificationsCleanupJob`, 4:30 hora de Italia)
-- [x] Sin repetidos (dejar de seguir borra el «ti segue» sin leer, 7 días por pareja), silenciados filtrados al leer (y sin email), bloquear borra los avisos entre los dos
-- [x] Emails de nuevo amigo e invitación (`SocialEmailListener`, como `OrganizerEmailListener`) + columna `email_notifications` (default true) con `PATCH /me/email-notifications`, aparte de `PATCH /auth/me` para que un FE viejo no los apague
+- [x] Sin repetidos (7 días por pareja; dejar de seguir esconde el «ti segue», no lo borra), silenciados filtrados al leer (y sin email), bloquear borra los avisos entre los dos
+- [x] Emails de nuevo seguidor (25/11), nuevo amigo e invitación (`SocialEmailListener`, como `OrganizerEmailListener`) + columna `email_notifications` (default true) con `PATCH /me/email-notifications`, aparte de `PATCH /auth/me` para que un FE viejo no los apague
 - [x] `POST /rest/users/{id}/invites { eventId, phrase }`: solo amigos, ninguno privado, frase fija (enum); 10 en 24 horas, 1 por persona y serata (`ON CONFLICT DO NOTHING`), solo serate no terminadas a las que vas; `ALREADY_GOING` salvo serate ocultas; 429 `INVITE_LIMIT` con `Retry-After` si te pasas
 - [x] `GET /rest/events/{id}/invites/friends?q=`: el diálogo, con el estado de cada amigo e `invitesLeft`
 - [x] Tests de integración (`NotificationsIntegrationTest`, `InvitesIntegrationTest`). `EmailService` mockeado en `IntegrationTest`: ningún test manda emails reales
@@ -227,7 +229,8 @@ Campanita del Home e «Invita a ballare». Decisiones en §3 (Avisos e Invitacio
 - [ ] FE, serate ocultas: si quien invita eligió «Chi vede le tue serate: nessuno» (`attendanceVisibility = NOBODY`, perfil
   público), el diálogo avisa antes de mandar «Il tuo amico vedrà che ci vai», porque la invitación (aviso y email) dice
   a qué serata va. No es el caso del perfil privado: ese no puede invitar (`PROFILE_PRIVATE`)
-- [ ] FE toggle «Ricevi email»: «Ti scriviamo solo quando diventi amico di qualcuno o ricevi un invito.»
+- [ ] FE toggle «Ricevi email»: «Ti scriviamo quando qualcuno inizia a seguirti, quando diventi amico di qualcuno o
+  ricevi un invito.»
 
 ### Fase 7 — Traguardi y @username
 Canvas 4 (Traguardi y «Condividi»), 4b («Nome utente» en «Chi sei») y 4c. Decisiones en §3.

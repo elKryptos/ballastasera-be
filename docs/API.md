@@ -620,15 +620,15 @@ van (`goingCount`) los cuenta a todos igual. Las caritas del mapa y las cards so
 
 - `type`: `NEW_FOLLOWER` («ti segue»), `NEW_FRIEND` («ora siete amici») o `INVITE`. Los campos `event*` y
   `phrase` solo en `INVITE`.
-- Cuando A sigue a B, B recibe `NEW_FOLLOWER`; si B ya seguía a A, en cambio recibe `NEW_FRIEND` (y un email, si
-  tiene `emailNotifications`, A no es privado —el botón del email lleva al perfil de A— y B no silenció a A). A no
-  recibe nada.
+- Cuando A sigue a B, B recibe `NEW_FOLLOWER`; si B ya seguía a A, en cambio recibe `NEW_FRIEND`. Los dos con un
+  email, si B tiene `emailNotifications` y A no es privado (el botón del email lleva al perfil de A); el de
+  `NEW_FRIEND`, además, si B no silenció a A. A no recibe nada.
 - `actor.relation` es la de hoy (si ya lo sigo, no hay «Ricambia»). `actor.profilePublic = false`: alguien privado,
   sin enlace y con «Profilo privato».
 - No salen: los de quien silencié (al reactivarlo vuelven), los de baneados o borrados, ni las invitaciones a
-  serate canceladas o terminadas. Bloquear borra los avisos entre los dos; dejar de seguir borra el «ti segue» sin
-  leer (el «ora siete amici» queda, con la `relation` de hoy), y la misma pareja no recibe el mismo aviso dos veces
-  en 7 días: seguir y dejar de seguir en loop no repite avisos ni emails. Se borran a los 60 días.
+  serate canceladas o terminadas. Bloquear borra los avisos entre los dos. El «ti segue» de quien dejó de seguirte no
+  sale (vuelve, el mismo, si te sigue de nuevo); el «ora siete amici» queda, con la `relation` de hoy. La misma pareja
+  no recibe el mismo aviso dos veces en 7 días: seguir y dejar de seguir en loop no repite avisos ni emails. Se borran a los 60 días.
 - `phrase` (frase fija, el FE la muestra en italiano): `CI_VIENI` («Ci vieni?»), `ANDIAMO_INSIEME` («Andiamo
   insieme?»), `MI_ACCOMPAGNI` («Mi accompagni?»), `TI_VA_DI_BALLARE` («Ti va di ballare?»).
 - Invitar: solo a amigos (nos seguimos los dos), a una serata publicada y no terminada a la que digo «Ci vado».

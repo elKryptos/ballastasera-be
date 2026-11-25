@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import static org.hamcrest.Matchers.contains;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -27,7 +28,10 @@ class NotificationsIntegrationTest extends IntegrationTest {
     @Autowired
     private NotificationsCleanupJob notificationsCleanupJob;
 
-    /** Ana sigue a Luca: «ti segue» para Luca. Luca la sigue de vuelta: «ora siete amici» para Ana, con email. */
+    /**
+     * Ana sigue a Luca: «ti segue» para Luca, con email. Luca la sigue de vuelta: «ora siete amici» para Ana, con email
+     * (no un «ti segue»).
+     */
     @Test
     void followingNotifiesAndFollowingBackMakesFriends() throws Exception {
         Users ana = createUser("Ana");
@@ -41,6 +45,7 @@ class NotificationsIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.items[0].actor.userId").value(ana.getId().toString()))
                 .andExpect(jsonPath("$.items[0].actor.relation").value("FOLLOWED_BY"))
                 .andExpect(jsonPath("$.total").value(1));
+        verify(emailService).sendNewFollowerEmail(luca.getEmail(), ana.getId(), "Ana");
         verify(emailService, never()).sendNewFriendEmail(anyString(), any(), anyString());
 
         follow(luca, ana);
@@ -50,6 +55,7 @@ class NotificationsIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.items[0].actor.userId").value(luca.getId().toString()))
                 .andExpect(jsonPath("$.items[0].actor.relation").value("MUTUAL"));
         verify(emailService).sendNewFriendEmail(ana.getEmail(), luca.getId(), "Luca");
+        verify(emailService, never()).sendNewFollowerEmail(eq(ana.getEmail()), any(), anyString());
 
         // Luca cerro la amistad: no recibe nada mas, y su «ti segue» ahora dice MUTUAL (ya no «Ricambia»)
         mockMvc.perform(get("/rest/users/me/notifications").with(as(luca)))
@@ -73,6 +79,21 @@ class NotificationsIntegrationTest extends IntegrationTest {
         verify(emailService, never()).sendNewFriendEmail(anyString(), any(), anyString());
         mockMvc.perform(get("/rest/users/me/notifications").with(as(ana)))
                 .andExpect(jsonPath("$.items[0].type").value("NEW_FRIEND"));
+    }
+
+    @Test
+    void withEmailsOffTheBellStillShowsTheNewFollower() throws Exception {
+        Users ana = createUser("Ana");
+        Users luca = createUser("Luca");
+        mockMvc.perform(patch("/rest/users/me/email-notifications").with(as(ana))
+                        .contentType(MediaType.APPLICATION_JSON).content("{ \"enabled\": false }"))
+                .andExpect(status().isNoContent());
+
+        follow(luca, ana);
+
+        verify(emailService, never()).sendNewFollowerEmail(anyString(), any(), anyString());
+        mockMvc.perform(get("/rest/users/me/notifications").with(as(ana)))
+                .andExpect(jsonPath("$.items[0].type").value("NEW_FOLLOWER"));
     }
 
     /** Ana sigue a Luca y lo silencio: cuando Luca la sigue de vuelta, el aviso no le sale y el email tampoco. */
@@ -103,7 +124,10 @@ class NotificationsIntegrationTest extends IntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /** Seguir y dejar de seguir no llena la campanita: el aviso sin leer se va, y uno ya leido no se repite. */
+    /**
+     * Seguir y dejar de seguir no llena la campanita: el «ti segue» de quien ya no sigue no se ve, vuelve (el mismo, no
+     * otro) si lo sigue de nuevo, y uno ya leido no vuelve como nuevo.
+     */
     @Test
     void followingAgainDoesNotRepeatTheNotification() throws Exception {
         Users ana = createUser("Ana");
@@ -114,7 +138,13 @@ class NotificationsIntegrationTest extends IntegrationTest {
         mockMvc.perform(get("/rest/users/me/notifications").with(as(luca)))
                 .andExpect(jsonPath("$.items").isEmpty());
 
+        mockMvc.perform(get("/rest/users/me/notifications/unread-count").with(as(luca)))
+                .andExpect(jsonPath("$.unread").value(0));
+
         follow(ana, luca);
+        mockMvc.perform(get("/rest/users/me/notifications").with(as(luca)))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].read").value(false));
         markRead(luca);
         unfollow(ana, luca);
         follow(ana, luca);
@@ -142,6 +172,24 @@ class NotificationsIntegrationTest extends IntegrationTest {
         mockMvc.perform(get("/rest/users/me/notifications").with(as(luca)))
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].type").value("NEW_FRIEND"));
+    }
+
+    /** Ana sigue a Luca, lo deja y lo vuelve a seguir: un solo «ti segue» y un solo email. */
+    @Test
+    void followingInALoopSendsTheFollowerEmailOnce() throws Exception {
+        Users ana = createUser("Ana");
+        Users luca = createUser("Luca");
+
+        for (int i = 0; i < 3; i++) {
+            follow(ana, luca);
+            unfollow(ana, luca);
+        }
+        follow(ana, luca);
+
+        verify(emailService, times(1)).sendNewFollowerEmail(luca.getEmail(), ana.getId(), "Ana");
+        mockMvc.perform(get("/rest/users/me/notifications").with(as(luca)))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].type").value("NEW_FOLLOWER"));
     }
 
     @Test
@@ -211,7 +259,10 @@ class NotificationsIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.unread").value(0));
     }
 
-    /** Decision a (24/11): el «ti segue» de alguien privado sale, sin enlace y con «Profilo privato» en el FE. */
+    /**
+     * Decision a (24/11): el «ti segue» de alguien privado sale, sin enlace y con «Profilo privato» en el FE. Sin email:
+     * su boton llevaria a un perfil que da 404.
+     */
     @Test
     void aPrivateFollowerShowsUpAsPrivate() throws Exception {
         Users ana = createUser("Ana");
@@ -221,6 +272,7 @@ class NotificationsIntegrationTest extends IntegrationTest {
 
         follow(luca, ana);
 
+        verify(emailService, never()).sendNewFollowerEmail(anyString(), any(), anyString());
         mockMvc.perform(get("/rest/users/me/notifications").with(as(ana)))
                 .andExpect(jsonPath("$.items[0].type").value("NEW_FOLLOWER"))
                 .andExpect(jsonPath("$.items[0].actor.profilePublic").value(false));

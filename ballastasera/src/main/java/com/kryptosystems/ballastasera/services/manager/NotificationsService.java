@@ -23,18 +23,11 @@ public interface NotificationsService {
 
     /**
      * follower empezo a seguir a followed. friendship: followed ya seguia a follower, asi que ahora son amigos y el
-     * aviso es «ora siete amici» (con email si followed lo quiere, follower no es privado y followed no lo
-     * silencio); si no, «ti segue». Sin
-     * repetir el mismo aviso a
-     * la misma pareja en 7 dias. Tiene que llamarse dentro de la transaccion del follow.
+     * aviso es «ora siete amici»; si no, «ti segue». Los dos con email si followed lo quiere y follower no es privado
+     * («ora siete amici», ademas, si followed no lo silencio). Sin repetir el mismo aviso (ni su email) a la misma
+     * pareja en 7 dias. Tiene que llamarse dentro de la transaccion del follow.
      */
     void notifyFollow(Users follower, Users followed, boolean friendship);
-
-    /**
-     * actorId dejo de seguir a recipientId: borra su «ti segue» sin leer. El «ora siete amici» se queda: si se borrara,
-     * seguir y dejar de seguir en loop mandaria un email nuevo cada vez (el filtro de 7 dias ya no lo encontraria).
-     */
-    void deleteUnreadNewFollower(UUID actorId, UUID recipientId);
 
     /** Bloqueo: borra todos los avisos entre los dos, en los dos sentidos. */
     void deleteBetween(UUID userA, UUID userB);

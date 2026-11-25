@@ -3,6 +3,7 @@ package com.kryptosystems.ballastasera.services.implementations;
 import com.kryptosystems.ballastasera.enums.EventStatus;
 import com.kryptosystems.ballastasera.enums.NotificationType;
 import com.kryptosystems.ballastasera.events.FriendshipCreatedEvent;
+import com.kryptosystems.ballastasera.events.NewFollowerEvent;
 import com.kryptosystems.ballastasera.models.dtos.NotificationsActivity;
 import com.kryptosystems.ballastasera.models.entities.Notifications;
 import com.kryptosystems.ballastasera.models.entities.UserFollows;
@@ -50,8 +51,8 @@ public class NotificationsServiceImpl implements NotificationsService {
         boolean firstPage = cursorAt == null || cursorId == null;
         OffsetDateTime now = OffsetDateTime.now();
         Slice<Notifications> slice = notificationsRepository.findVisible(recipientId, now,
-                now.minus(DEFAULT_DURATION), NotificationType.INVITE, EventStatus.PUBLISHED,
-                firstPage ? MAX_CREATED_AT : cursorAt, firstPage ? MAX_ID : cursorId,
+                now.minus(DEFAULT_DURATION), NotificationType.INVITE, NotificationType.NEW_FOLLOWER,
+                EventStatus.PUBLISHED, firstPage ? MAX_CREATED_AT : cursorAt, firstPage ? MAX_ID : cursorId,
                 PageRequest.of(0, Math.clamp(limit, 1, MAX_LIMIT)));
 
         List<UUID> actorIds = slice.getContent().stream().map(notification -> notification.getActor().getId())
@@ -76,8 +77,11 @@ public class NotificationsServiceImpl implements NotificationsService {
     }
 
     /**
-     * Sin email si follower es privado (el boton lleva a su perfil, que daria 404) o si followed lo silencio: el aviso
-     * ya no le sale en la campanita, tampoco tiene que llegarle por email.
+     * Con email («ti segue» u «ora siete amici») si followed los quiere. Sin email si follower es privado (el boton
+     * lleva a su perfil, que daria 404) o, en una amistad, si followed lo silencio: el aviso ya no le sale en la
+     * campanita, tampoco tiene que llegarle por email. El filtro de 7 dias vale tambien para el email: dejar de seguir
+     * no borra el aviso (solo lo esconde, ver NotificationsRepository), asi que seguir y dejar de seguir en loop no
+     * manda un email por vuelta.
      */
     @Override
     @Transactional
@@ -93,17 +97,16 @@ public class NotificationsServiceImpl implements NotificationsService {
         notification.setType(type);
         notificationsRepository.save(notification);
 
-        if (friendship && followed.isEmailNotifications() && follower.isShowProfilePublic()
-                && !isMuted(followed.getId(), follower.getId())) {
+        if (!followed.isEmailNotifications() || !follower.isShowProfilePublic()) {
+            return;
+        }
+        if (!friendship) {
+            eventPublisher.publishEvent(new NewFollowerEvent(followed.getEmail(), follower.getId(),
+                    follower.getDisplayName()));
+        } else if (!isMuted(followed.getId(), follower.getId())) {
             eventPublisher.publishEvent(new FriendshipCreatedEvent(followed.getEmail(), follower.getId(),
                     follower.getDisplayName()));
         }
-    }
-
-    @Override
-    @Transactional
-    public void deleteUnreadNewFollower(UUID actorId, UUID recipientId) {
-        notificationsRepository.deleteUnread(actorId, recipientId, NotificationType.NEW_FOLLOWER);
     }
 
     @Override
@@ -114,7 +117,7 @@ public class NotificationsServiceImpl implements NotificationsService {
 
     private long countVisible(UUID recipientId, boolean unreadOnly, OffsetDateTime now) {
         return notificationsRepository.countVisible(recipientId, unreadOnly, now, now.minus(DEFAULT_DURATION),
-                NotificationType.INVITE, EventStatus.PUBLISHED);
+                NotificationType.INVITE, NotificationType.NEW_FOLLOWER, EventStatus.PUBLISHED);
     }
 
     /** Como FollowsService.isMuted, por el repository: FollowsServiceImpl ya depende de este service (sin ciclo). */

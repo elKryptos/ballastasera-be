@@ -152,6 +152,22 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     @Async
+    public void sendNewFollowerEmail(String toEmail, UUID followerId, String followerName) {
+        CreateEmailOptions params = CreateEmailOptions.builder()
+                .from(fromEmail)
+                .to(toEmail)
+                .subject(followerName + " ha iniziato a seguirti.")
+                .html(buildNewFollowerEmail(followerId, followerName))
+                .build();
+        try {
+            resend.emails().send(params);
+        } catch (ResendException e) {
+            log.warn("Impossibile inviare l'email di nuovo follower a {}", toEmail, e);
+        }
+    }
+
+    @Override
+    @Async
     public void sendNewFriendEmail(String toEmail, UUID friendId, String friendName) {
         CreateEmailOptions params = CreateEmailOptions.builder()
                 .from(fromEmail)
@@ -184,6 +200,19 @@ public class EmailServiceImpl implements EmailService {
     }
 
     /** Package-private para EmailServiceImplTest: el envio corre en @Async y un error aca solo quedaria en el log. */
+    String buildNewFollowerEmail(UUID followerId, String followerName) {
+        return layout(
+                HtmlUtils.htmlEscape(followerName) + " ora ti segue su ballastasera.",
+                "Hai un nuovo follower",
+                paragraph(strong(followerName) + " ha iniziato a seguirti.") +
+                        paragraph("Ricambia il follow e diventate amici: vedrete le serate a cui andate e potrete "
+                                + "invitarvi a ballare."),
+                "Vedi il profilo",
+                frontendUrl + "/persona/" + followerId,
+                socialFooterNote());
+    }
+
+    /** Package-private para EmailServiceImplTest, como buildNewFollowerEmail. */
     String buildNewFriendEmail(UUID friendId, String friendName) {
         return layout(
                 "Tu e " + HtmlUtils.htmlEscape(friendName) + " vi seguite a vicenda: ora siete amici.",

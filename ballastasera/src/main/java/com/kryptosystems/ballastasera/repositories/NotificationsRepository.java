@@ -17,7 +17,8 @@ import java.util.UUID;
 
 /**
  * Campanita. Lo que se ve se filtra al leer, no se borra: sin avisos de baneados ni de borrados, sin los de quien
- * recipient silencio (al reactivarlo vuelven) y sin invitaciones a serate que no estan publicadas o ya terminaron
+ * recipient silencio (al reactivarlo vuelven), sin el «ti segue» de quien ya no lo sigue (vuelve si lo sigue de nuevo:
+ * por eso no se borra, y el filtro de 7 dias de notifyFollow lo sigue encontrando) y sin invitaciones a serate que no estan publicadas o ya terminaron
  * (sin end_at, terminada = empezo antes de liveSince, now - 4 horas). Lista y contadores usan el mismo filtro.
  */
 public interface NotificationsRepository extends JpaRepository<Notifications, UUID> {
@@ -29,6 +30,8 @@ public interface NotificationsRepository extends JpaRepository<Notifications, UU
             AND a.isDeleted = false AND a.isBanned = false
             AND NOT EXISTS (SELECT 1 FROM UserFollows m WHERE m.id.followerId = :recipientId AND m.id.followedId = a.id
                             AND m.muted = true)
+            AND (n.type <> :newFollower
+                 OR EXISTS (SELECT 1 FROM UserFollows f WHERE f.id.followerId = a.id AND f.id.followedId = :recipientId))
             AND (n.type <> :invite
                  OR (e.status = :published AND (e.endAt > :now OR (e.endAt IS NULL AND e.startAt > :liveSince))))
             AND (n.createdAt < :cursorAt OR (n.createdAt = :cursorAt AND n.id < :cursorId))
@@ -38,6 +41,7 @@ public interface NotificationsRepository extends JpaRepository<Notifications, UU
                                      @Param("now") OffsetDateTime now,
                                      @Param("liveSince") OffsetDateTime liveSince,
                                      @Param("invite") NotificationType invite,
+                                     @Param("newFollower") NotificationType newFollower,
                                      @Param("published") EventStatus published,
                                      @Param("cursorAt") OffsetDateTime cursorAt,
                                      @Param("cursorId") UUID cursorId,
@@ -51,6 +55,8 @@ public interface NotificationsRepository extends JpaRepository<Notifications, UU
             AND a.isDeleted = false AND a.isBanned = false
             AND NOT EXISTS (SELECT 1 FROM UserFollows m WHERE m.id.followerId = :recipientId AND m.id.followedId = a.id
                             AND m.muted = true)
+            AND (n.type <> :newFollower
+                 OR EXISTS (SELECT 1 FROM UserFollows f WHERE f.id.followerId = a.id AND f.id.followedId = :recipientId))
             AND (n.type <> :invite
                  OR (e.status = :published AND (e.endAt > :now OR (e.endAt IS NULL AND e.startAt > :liveSince))))
             """)
@@ -59,6 +65,7 @@ public interface NotificationsRepository extends JpaRepository<Notifications, UU
                       @Param("now") OffsetDateTime now,
                       @Param("liveSince") OffsetDateTime liveSince,
                       @Param("invite") NotificationType invite,
+                      @Param("newFollower") NotificationType newFollower,
                       @Param("published") EventStatus published);
 
     /** Al abrir la campanita: todos leidos, tambien los que no se ven (silenciados), asi no vuelven como nuevos. */
@@ -69,15 +76,6 @@ public interface NotificationsRepository extends JpaRepository<Notifications, UU
     /** Sin repetidos: ¿actorId ya le genero a recipientId un aviso de este tipo desde since? */
     boolean existsByActorIdAndRecipientIdAndTypeAndCreatedAtAfter(UUID actorId, UUID recipientId,
                                                                   NotificationType type, OffsetDateTime since);
-
-    /** Los avisos de este tipo, sin leer, que actorId le genero a recipientId. */
-    @Modifying
-    @Query("""
-            DELETE FROM Notifications n
-            WHERE n.actor.id = :actorId AND n.recipient.id = :recipientId AND n.type = :type AND n.readAt IS NULL
-            """)
-    int deleteUnread(@Param("actorId") UUID actorId, @Param("recipientId") UUID recipientId,
-                     @Param("type") NotificationType type);
 
     /** Al bloquear: todos los avisos entre los dos, en los dos sentidos, invitaciones incluidas. */
     @Modifying

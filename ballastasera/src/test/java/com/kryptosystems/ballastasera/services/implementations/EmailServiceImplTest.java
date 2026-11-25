@@ -31,6 +31,18 @@ class EmailServiceImplTest {
     }
 
     @Test
+    void theFollowerEmailLinksToTheFollowersProfile() {
+        String html = service.buildNewFollowerEmail(FRIEND_ID, "Luca");
+
+        assertThat(html)
+                .contains("Hai un nuovo follower")
+                .contains("<strong style=\"color:#1a0e2e;\">Luca</strong> ha iniziato a seguirti")
+                .contains("Ricambia il follow")
+                .contains("href=\"" + FRONTEND_URL + "/persona/" + FRIEND_ID + "\"")
+                .contains("href=\"" + FRONTEND_URL + "/il-tuo-account\"");
+    }
+
+    @Test
     void theFriendEmailLinksToTheNewFriendsProfile() {
         String html = service.buildNewFriendEmail(FRIEND_ID, "Luca");
 
@@ -58,10 +70,12 @@ class EmailServiceImplTest {
     /** Nombres y titulos los escribe la gente: en el HTML van escapados, tambien en el preheader. */
     @Test
     void namesAndTitlesAreEscaped() {
+        String followerHtml = service.buildNewFollowerEmail(FRIEND_ID, "<u>Ana</u>");
         String friendHtml = service.buildNewFriendEmail(FRIEND_ID, "<b>Luca</b>");
         String inviteHtml = service.buildInviteEmail("<i>Ana</i>", EVENT_ID, "Salsa & <script>", OffsetDateTime.now(),
                 InvitePhrase.CI_VIENI);
 
+        assertThat(followerHtml).doesNotContain("<u>Ana</u>").contains("&lt;u&gt;Ana&lt;/u&gt;");
         assertThat(friendHtml).doesNotContain("<b>Luca</b>").contains("&lt;b&gt;Luca&lt;/b&gt;");
         assertThat(inviteHtml)
                 .doesNotContain("<i>Ana</i>")
